@@ -1,2 +1,5 @@
 .pytest_cache/
 __pycache__/
+
+# Lean dependencies and build artifacts
+lean/.lake/
