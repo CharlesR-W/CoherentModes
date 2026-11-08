@@ -1,6 +1,6 @@
-# Owner's intent and taste (handoff context not recorded anywhere else)
+# Owner's intent and taste
 
-Written 2026-11-07 from the founding session. This file records *why* the project exists and what the owner considers principled, because that is not derivable from the theory documents and is the main thing a new agent would otherwise get wrong. Where a sentence is close to the owner's words it is marked (owner).
+Written 2026-11-07 by the founding session's main agent (Claude Fable 5.1) from the owner's two long dictated messages in that session (T3 Code thread "i have been thinking lately", scratch dir `2026-11-07-i-have-been-thinking-lately-0bc4471f`, Claude session `acc5e881-ba9a-44f4-8eec-12deb21608f4`; the transcript is in the alignment-hive session record for that directory, not in this repo). It records *why* the project exists and what the owner considers principled: the motivations, trade-offs and interview answers, which are not derivable from the theory documents. Provenance of each statement: **(owner)** marks a close paraphrase of the owner's words; unmarked sentences are the agent's synthesis of what the owner said. Nothing here is a verbatim quotation.
 
 ## The founding idea
 
@@ -10,7 +10,7 @@ The owner started from two inspirations: HAVOK-style time-lagged (Hankel) analys
 
 - (owner) No positing of obviously incalculable quantities, and nothing that smuggles in the semantic meaning we want to *discover in the network's own ontology*, such as a "task distribution".
 - (owner) Hell-or-high-water, everything ends in an SVD, because the SVD is the only thing they trust to be interpretable. The SVD and its associated metric are, in a spiritual sense, a connection to perturbation theory: they give a notion of when two things are really close.
-- (owner) Do not train anything on top of a model if it can be helped. Closed-form fits (ridge regression) are tolerated as fits, and are labelled as fits.
+- (owner) Do not train anything on top of a model if it can be helped. Closed-form fits (ridge regression) are tolerated as fits, and are labelled as fits. Trained *baselines* for comparison (an SAE, an actual stitch) are fine as long as they are outside the construction and labelled as baselines.
 - (owner) The owner differs from the mainstream in this and knows it.
 - The one substantive geometric assumption the owner is willing to make, knowing it matters, is the choice of dot product (cosine on normalized residual-stream activations); they regard the residual stream as "pretty L2-y for a variety of reasons". A spherical variant with a log-norm coordinate is acceptable if needed.
 - No assumption of sparsity. If SAEs are right, the method should discover SAE-like concepts; if hierarchical SAEs are right, it should discover that hierarchy; but it must not assume either.
@@ -30,7 +30,7 @@ The owner started from two inspirations: HAVOK-style time-lagged (Hankel) analys
 ## The owner's answers to the design interview
 
 1. **Metric.** L2/cosine at intermediate layers is the preferred commitment. Fisher–Rao at the logit layer is fine. Fisher at intermediate layers is methodological, to be settled by experiment, not a theoretical obstacle.
-2. **Context (KV cache).** Marginalizing over contexts is unacceptable as a description ("these simply contain too much information") though it is a lower bound. Fitting a model that learns the hidden state is unacceptable. ISAN-like context embeddings are also only a lower bound. The version the owner would most like is a Hankel-like construction on the layer-L stream treated as its own process, whose SVD gives an embedding φ^L(past), and a good way to say how φ^L(past) acts on the current h^L. Switching to an RNN or Mamba with a true hidden state would dodge the question rather than face it.
+2. **Context (KV cache).** Marginalizing over contexts is unacceptable as a description ("these simply contain too much information") though it is a lower bound. Fitting a model that learns the hidden state is unacceptable. ISAN-like context embeddings are also only a lower bound. The version the owner would most like is a Hankel-like construction on the layer-L stream treated as its own process, whose SVD gives an embedding φ^L(past), and a good way to say how φ^L(past) acts on the current h^L. Switching the *problem* to an RNN or Mamba with a true hidden state, to make the context Markovian, would dodge the question rather than face it; studying Mamba alongside the transformer (Stage 4) is wanted, since architecture-agnosticism is the point.
 3. **Temperature.** Acceptable as a knob for coarse-graining and persistence; hesitant about treating functions of the temperature as primitives. Open to it if reasonable, useful and tractable. Candidate natural scales mentioned: noise, edge-of-stability or batch noise, mean nearest-neighbour distance, steradians per activation.
 4. **Coarse-graining.** There should be a spine of the theory where spectral truncation is never required, and truncation can be applied at any step while still proceeding. Re-embedding from the diffusion graph back into activation space need not be a primitive, but something canonical like "replace with the centroid" would be welcome, with the caveat that it does not handle clusters along a manifold.
 5. **Pullback to weights.** Unsure. Intuitions: use the natural bottleneck of a linear layer feeding a unit; coherent structures in tangent space feel right; weight magnitudes implicitly compare to zero-ablation, which is wrong; the activation–weight duality is suspect unless there is a very general version.
@@ -39,9 +39,8 @@ The owner started from two inspirations: HAVOK-style time-lagged (Hankel) analys
 
 ## How the owner likes to work with agents
 
-- Dictates; infer obvious mistranscriptions ("lingen" was Golowich–Liu–Shetty; "L4 paper" was the fourth-power loss).
-- Wants taste-level questions asked rather than guessed; is comfortable with the agent working alone for an hour or more.
-- Wants cross-family critique: Claude work critiqued by GPT (Codex) and vice versa; iterative rounds; fresh-eyes review at the end.
-- Wants subagents treated with kindness and respect, and that instruction passed on.
-- Compute: anything over about ten minutes goes to Modal (or vast); this VPS is for orchestration.
-- Prefers reusing reputable repos and pre-built tools over rewriting.
+Operational preferences (compute on Modal, kindness to subagents, reuse over rewriting, cross-family critique) are in the owner's global `~/.claude/CLAUDE.md`, which is authoritative; only project-specific observations are kept here.
+
+- Dictates; infer obvious mistranscriptions ("lingen" was Golowich–Liu–Shetty; "L4 paper" was the fourth-power loss, not an $L^4$ norm).
+- Wants taste-level questions asked rather than guessed, and said it is fine to err on the side of asking; also said the agent may work alone for an hour or more between check-ins.
+- For this project specifically asked for: iterative Codex (GPT) critique of the theory, a fresh-eyes review at the end, and an owner-facing report written by a separate agent with its own critique loop.

@@ -1,5 +1,7 @@
 # CoherentModes: where the project stands
 
+> **Status note (added after writing):** this report describes THEORY.md v1.3. Passages saying that split/merge needs fixing, that the checks lack assertions, that Stage 2 awaits its reference, or that two literature items are needed are superseded; see the "Update" section at the end. Everything else is current as of v1.5.
+
 *Report for the project owner, 2026-11-07. Sources: `THEORY.md` v1.3, `EXPERIMENTS.md` v1.3, `DECISIONS.md`, `reviews/`, `checks/cm_check.py`.*
 
 ## 1. Summary

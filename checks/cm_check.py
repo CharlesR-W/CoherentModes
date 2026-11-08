@@ -26,7 +26,7 @@ for b in [1e-2,1e-3]:
 # alignment -> linear CKA of normalized rows
 def cka(G1,G2): return np.sum((C@G1@C)*(C@G2@C))/np.sqrt(np.sum((C@G1@C)**2)*np.sum((C@G2@C)**2))
 b=1e-3; A1=C@sinkhorn(np.exp(b*Z1@Z1.T))@C; A2=C@sinkhorn(np.exp(b*Z2@Z2.T))@C
-print("centered alignment",np.sum(A1*A2)/np.sqrt(np.sum(A1**2)*np.sum(A2**2)),"linear CKA",cka(Z1@Z1.T,Z2@Z2.T))
+al=np.sum(A1*A2)/np.sqrt(np.sum(A1**2)*np.sum(A2**2)); ck=cka(Z1@Z1.T,Z2@Z2.T); print("centered alignment",al,"linear CKA",ck); assert abs(al-ck)<1e-3
 # 3. KCCA dual form: eig(R_p R_f) = squared regularized canonical correlations (linear features for check)
 Xp=rng.normal(size=(N,3)); Xf=Xp@rng.normal(size=(3,4))+0.3*rng.normal(size=(N,4))
 Xp-=Xp.mean(0); Xf-=Xf.mean(0); rho=0.1
@@ -40,10 +40,10 @@ print("primal canon corr^2",cc**2,"dual eig(RpRf)",ev)
 # 4. variates: eigenvectors of R_p R_f are the past canonical variates (up to scale)
 w,Vd=np.linalg.eig(Rp@Rf); o=np.argsort(-w.real); sd=Vd[:,o[0]].real
 Wp=isqrt(Cpp+rho*np.eye(3))@np.linalg.svd(V)[2][0]; sp=Xp@Wp
-print("variate cosine |<dual,primal>|",abs(sd@sp)/np.linalg.norm(sd)/np.linalg.norm(sp))
+vc=abs(sd@sp)/np.linalg.norm(sd)/np.linalg.norm(sp); print("variate cosine |<dual,primal>|",vc); assert vc>1-1e-6
 # 5. indicator block vs site-group gradient differ (THEORY 7.2)
 U=np.array([[1.],[-1.]]); De=U.copy(); Pi=np.ones((2,2))/2; DA=np.eye(2)
-print("group grad",(De.T@DA@U).item(),"indicator-block contribution",(De.T@Pi@U).item())
+gg,ib=(De.T@DA@U).item(),(De.T@Pi@U).item(); print("group grad",gg,"indicator-block contribution",ib); assert gg==2.0 and abs(ib)<1e-12
 # 6. reconstruction tail identity and assertions
 F=rng.normal(size=(N,4)); Psi=np.linalg.qr(rng.normal(size=(N,N)))[0]; A=F.T@Psi; r=10
 assert abs(np.linalg.norm(F-Psi[:,:r]@A[:,:r].T)**2-(A[:,r:]**2).sum())<1e-8
@@ -52,5 +52,5 @@ assert np.allclose(np.sort(cc**2)[::-1],ev,atol=1e-8)
 # 7. merge example: contrast slow at L, annihilated at L'
 e1,e2=np.eye(2); HL=np.array([e1,e1,e2,e2]); HLp=np.array([e1]*4); b=10.0
 PL=sinkhorn(np.exp(b*HL@HL.T)); PLp=sinkhorn(np.exp(b*HLp@HLp.T)); c=np.array([1,1,-1,-1])/2
-print("contrast norm after P^L",np.linalg.norm(PL@c),"(tanh(b/2)=%.5f)"%np.tanh(b/2),"after P^L'",np.linalg.norm(PLp@(PL@c)))
+n1,n2=np.linalg.norm(PL@c),np.linalg.norm(PLp@(PL@c)); print("contrast norm after P^L",n1,"(tanh(b/2)=%.5f)"%np.tanh(b/2),"after P^L'",n2); assert abs(n1-np.tanh(b/2))<1e-6 and n2<1e-12
 print("all checks passed")
