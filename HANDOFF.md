@@ -1,10 +1,10 @@
 # Handoff
 
-Written 2026-11-07 at the end of the founding session. Reading order for a new agent: this file, then `REPORT.md` (note its "Update" section at the end; a few passages in its body predate v1.4–v1.5 and are superseded there), then `CONTEXT.md`, then `CLAUDE.md`.
+Written 2026-11-07 at the end of the founding session. Reading order for a new agent: this file, then `REPORT.md` (note its status banner and "Update" section; a few passages in its body predate v1.4–v1.5 and are superseded there), then `CONTEXT.md`, then `DECISIONS.md`, then `CLAUDE.md`. First command to run, from the repo root: `uv run --with numpy python -I checks/cm_check.py` (expect `all checks passed`).
 
 ## State of the project in one paragraph
 
-A theory document (`THEORY.md`, v1.5) and an experiment plan (`EXPERIMENTS.md`, v1.5) exist. Versions up to v1.3 went through three review rounds by GPT models (two accuracy rounds and a fresh-eyes read); the v1.4 and v1.5 edits (split/merge fix, noise protocol, the two supplied papers) were smaller and were reviewed only by the agents that proposed them. Every formal claim is marked [thm], [cond] or [hyp]. Three constructions that changed under review are verified numerically by `checks/cm_check.py`, which runs in seconds and has assertions. An owner-facing summary is `REPORT.md`. Six design decisions remain open and are listed in `DECISIONS.md` with provisional defaults; they are the owner's to make and do not block Stage 0. No code beyond the check script has been written, no experiments have been run, and several stage protocols still need to be specified before they can be coded (see step 2 below). The programme is not yet implementation-ready end to end; Stage 0 is.
+A theory document (`THEORY.md`, v1.5) and an experiment plan (`EXPERIMENTS.md`, v1.5) exist. Versions up to v1.3 went through three review rounds by GPT models (two accuracy rounds and a fresh-eyes read); the v1.4 and v1.5 edits (split/merge fix, noise protocol, the two supplied papers) were smaller and were reviewed only by the agents that proposed them. Every formal claim is marked [thm], [cond] or [hyp]. Three constructions that changed under review (bistochastic normalization, the centered low-temperature limit, the dual-form canonical correlations) plus four smaller identities are verified by `checks/cm_check.py`, which runs in seconds and asserts everything it prints. An owner-facing summary is `REPORT.md`. Six design decisions remain open and are listed in `DECISIONS.md` with provisional defaults; they are the owner's to make and do not block Stage 0. No code beyond the check script has been written, no experiments have been run, and several stage protocols still need to be specified before they can be coded (see step 2 below). The programme is not yet implementation-ready end to end. Stage 0 is: its identity tests and synthetic calibrations need no further protocol, and the one Stage 0 item that touches an unwritten protocol (out-of-sample canonical variates and cross-fitting folds for the context module) is exactly where that protocol should be designed, on the Ornstein–Uhlenbeck and previous-token-copy cases, before it is used on any real model.
 
 ## File map
 
@@ -48,11 +48,11 @@ Sites (one per token position or input) are the atoms; every measurement used as
 - **Mode profiles can be spread by rectification alone.** A neuron that is ReLU of one spectral function has a broad profile. Expand the pre-rectification input and the response both.
 - **Grokking sites.** On sites = (example, final position) the embedding view is constant; use post-attention, post-MLP and logits there, and analyse token-embedding geometry separately on token sites.
 - **Two estimands.** Dense kernel (Nyström at low temperature) and k-NN graph (at high temperature) are different objects; the graph operator need not be PSD. Measure their agreement on dense subsets; never assume it.
-- **Claims discipline.** Every repair above came from a GPT reviewer catching an overclaim. Keep the [thm]/[cond]/[hyp] markers and send every substantive change to `THEORY.md` through a GPT critique before committing (see `CLAUDE.md`).
+- **Claims discipline.** Every repair above came from an opposite-family reviewer catching an overclaim. Keep the [thm]/[cond]/[hyp] markers and send every substantive change to `THEORY.md` or the experiment protocols through an opposite-family critique before finalizing (rules in `CLAUDE.md`).
 
 ## Review process used
 
-The standing rules are in `CLAUDE.md`; the history is in `reviews/README.md`. One lesson worth keeping here: the owner-facing report step (an Opus agent writing `REPORT.md` and running its own critique loop) found the split/merge error that two rounds of theory review had missed. Always do the report step.
+The standing rules are in `CLAUDE.md`; the history is in `reviews/README.md`. One lesson worth keeping here: the owner-facing report step (an Opus agent writing `REPORT.md` and running its own critique loop) found the split/merge error that two rounds of theory review had missed. Do the report step at each milestone: a version bump of `THEORY.md` or the completion of an experiment stage, not for every small edit.
 
 ## Open literature items
 

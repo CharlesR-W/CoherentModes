@@ -12,7 +12,7 @@ The theory (`THEORY.md`, about 9,000 words) is a spectral language for what a ne
 
 The theory does not define "ontology". Read operationally (my gloss, not THEORY's), its output is a set of blocks of modes at a declared scale, with loadings in each layer; a block counts as found structure if it is gapped, localized, readable, stable under resampling and coherent across layers.
 
-Three review rounds fixed real mathematical errors (Section 7). The experiment plan has a synthetic calibration stage and eight network stages, from toy models of superposition to Pythia. The one substantive error found while writing this report ("split" and "merge" swapped in one paragraph) has since been fixed in THEORY.md v1.4. The two literature references you supplied afterwards (Pughe-Sanford et al. 2025 on neurons as coherent-set detectors; Ferreira da Silva and Heimersheim 2026 on compressed computation under L4 loss) are incorporated in v1.5, and Stage 2 is now fully specified; see the update note at the end of this report.
+Three review rounds fixed real mathematical errors (Section 7). The experiment plan has a synthetic calibration stage and eight network stages, from toy models of superposition to Pythia. The one substantive error found while writing this report ("split" and "merge" swapped in one paragraph) has since been fixed in THEORY.md v1.4. The two literature references you supplied afterwards (Pughe-Sanford et al. 2025 on neurons as coherent-set detectors; Ferreira da Silva and Heimersheim 2026 on compressed computation under L4 loss) are incorporated in v1.5, and Stage 2 now has its source task and main training recipe specified (seeds, probe banks and thresholds still to fix); see the update note at the end of this report.
 
 ## 2. The picture
 
@@ -139,7 +139,7 @@ THEORY.md marks claims **[thm]** (exact identity, or a standard theorem whose hy
 | Clustering window (§2, §4.3) | measured regime |
 | Split/merge reading (§4.1); toy targets (§11); stitching predictor (§8); "pressure to split" (§7.2); layer-constant noise scale (§10) | hyp |
 
-`checks/cm_check.py` spot-checks five [thm] items on random examples (printed values, no assertions); all agree.
+`checks/cm_check.py` checks seven [thm] items on small examples with assertions (as of v1.4; the v1.3 version only printed values); it ends with `all checks passed`.
 
 ## 6. Limitations and provisional choices
 
