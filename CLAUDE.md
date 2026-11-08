@@ -26,6 +26,6 @@ This repo holds a theory (`THEORY.md`) and experiment plan (`EXPERIMENTS.md`) fo
 
 ## Repo conventions
 
-- Work so far is on `main`; there is no remote. Commit only when the owner asks, and follow the harness's current instructions on branching and attribution lines.
+- Work so far is on `main`. The repo is **public** (https://github.com/CharlesR-W/CoherentModes, remote `origin`): anything committed and pushed is published, so push only when the owner asks. Commit only when the owner asks, and follow the harness's current instructions on branching and attribution lines.
 - Reviews and paper notes go in `reviews/` and are appended to `reviews/README.md`. Checks go in `checks/`. Code, when it exists, goes in `cohmod/` with tests in `tests/`.
 - Decisions that are the owner's to make go in `DECISIONS.md` with options, consequences and a provisional default; do not resolve them silently. If you must proceed before an answer, use the provisional default and say so in the commit message or handback.

@@ -1,0 +1,42 @@
+# CoherentModes
+
+A proposal for describing what a trained neural network does to its activations, using spectral methods (kernels, random walks, SVDs) on the set of inputs the network sees, rather than on its weights or on a trained dictionary.
+
+**Status: theory and experiment plan only.** Nothing has been run, and there is no analysis library yet. The documents are written to be checkable: every formal claim is marked as a theorem, a conditional result, or a hypothesis to be tested, and the experiment plan says which known answers each stage should recover.
+
+## The idea
+
+Call each place where the network has an activation a **site**: one (document, position) pair for a language model, one image for a classifier, one (trial, time bin) for a brain recording. The same site exists at every layer, so a neuron's activations, a logit, or a backpropagated error is a vector indexed by sites, and all of them live in one space $\mathbb R^N$. At each layer, an exponentiated cosine similarity between sites is rescaled into a symmetric random walk on sites that mostly steps between sites the layer represents similarly. Applying the walk to a function on sites replaces each site's value with a weighted average over its neighbours at that layer.
+
+A function on sites is *slow* at a layer if this averaging barely changes it. Example: four sites, where layer $L$ has two tight groups $\{a,b\}$, $\{c,d\}$ and layer $L'$ puts all four together. The contrast $(+1,+1,-1,-1)$ is slow at $L$ and averaged towards zero at $L'$: a distinction $L$ draws and $L'$ merges. Now average at $L$, then at $L'$. Both steps act on functions on the same $N$ sites, so their product is an $N\times N$ matrix, and its SVD pairs each input function $v_i$ with its normalized image $u_i$ after both steps, ranked by how much survives (the singular value $\sigma_i \in [0,1]$); those with singular values near one (after removing the trivial constant function) are the **coherent modes**. When a mode is close to an indicator of a set of sites, it describes a grouping the network keeps together from $L$ to $L'$; modes need not be set-like, and reading groups off them is a separate, validated step. This is Froyland's finite-time coherent-set construction from dynamical systems, with depth in place of time.
+
+Modes map back to activation directions by a projection (a layer's activation matrix expands exactly over a complete mode basis), and a weight gradient decomposes exactly into one contribution per mode. An inverse-temperature knob $\beta$ sets the resolution. As $\beta \to 0$, each layer's operator, centered and rescaled by $N/\beta$, becomes the centered Gram matrix of that layer's normalized activations: its eigenvectors are PCA scores, and the method's similarity between two layers becomes linear CKA (centered kernel alignment). As $\beta \to \infty$ the walk stops moving (for distinct normalized activations) and nothing is identifiable. In between there may be a window where well-separated groups of sites show up as blocks of modes separated by spectral gaps, which can be rotated into something like a sparse dictionary. Whether that window exists for a given network is something to measure, not assume.
+
+In sequence models, a site's activation already contains whatever attention or recurrence brought in from earlier positions, so the core needs no model of context. Context returns only when asking what a layer did with the past. That is handled separately, by a regularized kernel canonical correlation between a window of a layer's activations at earlier positions and either its activations at later positions ("carried": what the stream holds about its own future) or the next layer's update at the current position ("read": what the past predicts about what the next layer computes now). The two can disagree: with independent random tokens, a layer that copies the previous token reads the past although the stream carries nothing about its own future. `REPORT.md` §4 explains this part.
+
+The design rules: nothing is trained on top of the model inside the construction (closed-form ridge fits are allowed and called fits); the only geometric assumption is the dot product on each layer; no sparsity is assumed; nothing is specific to transformers.
+
+## What to read
+
+| file | what it is | length |
+|---|---|---|
+| [`REPORT.md`](REPORT.md) | **Start here.** A summary of the whole project for a reader who has not seen it: the picture, a four-site worked example, what is proved and what is not, the experiment plan. Written for v1.3; the note at its top and its final section list what changed since. | ~30 min |
+| [`THEORY.md`](THEORY.md) | The construction itself, Sections 0–16. The core is Sections 1–5 and 7.1–7.2. Section 12 is the register of every assumption; Section 14 relates the method to existing tools (PCA, CKA, SAEs, diffusion maps, VAMP). | ~9,000 words, dense |
+| [`EXPERIMENTS.md`](EXPERIMENTS.md) | Nine stages, from a synthetic calibration with no network, through toy models of superposition, grokking and hidden-Markov belief states, to MNIST, CIFAR and Pythia. Each target is labelled as an identity, a planted answer, a published result, or our hypothesis. | ~17 KB |
+| [`PREREQUISITES.md`](PREREQUISITES.md) | The mathematics needed to read `THEORY.md`, grouped by how central it is, with where each topic is used and where to learn it. | short |
+| [`checks/cm_check.py`](checks/cm_check.py) | Numerical checks of the constructions that changed under review. Runs in seconds: `uv run --with numpy python -I checks/cm_check.py` (or `python checks/cm_check.py` with numpy installed); ends with `all checks passed`. | 1 file |
+| [`DECISIONS.md`](DECISIONS.md) | Six open design choices, with consequences and provisional defaults. | short |
+| [`reviews/`](reviews/) | History of the review rounds and notes on the two closest papers. | |
+| `HANDOFF.md`, `CONTEXT.md`, `CLAUDE.md` | Working files for AI agents continuing the project: state, the author's intent and constraints, standing rules. Readable by humans, but not needed to understand the idea. | |
+
+## How this was made
+
+The theory was developed by the author together with AI agents (Claude models). Versions up to v1.3 went through two rounds of adversarial mathematical review by a different model family (GPT models) and a fresh-eyes readability review; the later v1.4–v1.5 amendments had lighter review. The reviews caught real errors, for example that separately normalizing each layer's walk makes density differences look like incoherence, and that the large-$\beta$ limit is the identity rather than clustering; `reviews/README.md` and Appendix A of `THEORY.md` record what changed and why. The claim markers and the numerical checks are there to make the argument easy to audit, not to certify it.
+
+As far as we know none of the ingredients is new: diffusion maps, Sinkhorn scaling, finite-time coherent sets, canonical correlation and VAMP, and the reading of neurons as coherent-set detectors (Pughe-Sanford et al., NeurIPS 2025) are all established. What is proposed is putting them on one shared index set, so that layers, checkpoints, and models evaluated on the same inputs can be composed and compared without fitting a map between them, and reading units and gradients in the resulting bases.
+
+## Status and what would help
+
+- **Next step:** the shared library and Stage 0 (synthetic calibration), then Stage 1 (toy models of superposition).
+- **Open:** several stage protocols still need to be written down before they can be coded (`HANDOFF.md`, step 2), and six design decisions are unresolved (`DECISIONS.md`).
+- **Useful feedback:** a mathematical error, a claim whose marker is too strong, prior work that already does this, or a toy case where you can predict the method will fail.

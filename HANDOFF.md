@@ -10,6 +10,7 @@ A theory document (`THEORY.md`, v1.5) and an experiment plan (`EXPERIMENTS.md`, 
 
 | file | purpose | who reads it |
 |---|---|---|
+| `README.md`, `PREREQUISITES.md` | public entry point; a map of the mathematics needed to read THEORY, with sources (added 2026-11-07 when the repo went public) | outside readers |
 | `REPORT.md` | owner-facing summary of everything: idea, pipeline, claims and their status, limits, experiment plan, decisions | owner, any new agent |
 | `CONTEXT.md` | the owner's intent, definition of "principled", interview answers, working preferences | any new agent, before touching the theory |
 | `THEORY.md` | the language itself, Sections 0–16 plus Appendix A (revision notes) | agents extending the theory or writing code |
@@ -21,7 +22,7 @@ A theory document (`THEORY.md`, v1.5) and an experiment plan (`EXPERIMENTS.md`, 
 | `reviews/fresh-eyes-v1.2.md` | readability items; the ones marked [done] were applied, the rest await a pedagogical rewrite | a rewrite agent |
 | `reviews/papers.md` | constructions and limits of the two supplied papers, with a list of *proposed* edits; the edits were applied in trimmed form in commit `a64234a` (v1.5) and are summarized in THEORY Appendix A | agents working on Sections 6, 7 or Stage 2 |
 
-Git history on `main` records every version; there is no remote.
+Git history on `main` records every version. The repo is public at https://github.com/CharlesR-W/CoherentModes (remote `origin`).
 
 ## The core idea in five lines (details in REPORT.md)
 
