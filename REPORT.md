@@ -10,7 +10,7 @@ The theory (`THEORY.md`, about 9,000 words) is a spectral language for what a ne
 
 The theory does not define "ontology". Read operationally (my gloss, not THEORY's), its output is a set of blocks of modes at a declared scale, with loadings in each layer; a block counts as found structure if it is gapped, localized, readable, stable under resampling and coherent across layers.
 
-Three review rounds fixed real mathematical errors (Section 7). The experiment plan has a synthetic calibration stage and eight network stages, from toy models of superposition to Pythia. One substantive error remains in the theory: "split" and "merge" are swapped in one paragraph (end of this report). Two literature references are needed from you; one blocks Stage 2.
+Three review rounds fixed real mathematical errors (Section 7). The experiment plan has a synthetic calibration stage and eight network stages, from toy models of superposition to Pythia. The one substantive error found while writing this report ("split" and "merge" swapped in one paragraph) has since been fixed in THEORY.md v1.4. The two literature references you supplied afterwards (Pughe-Sanford et al. 2025 on neurons as coherent-set detectors; Ferreira da Silva and Heimersheim 2026 on compressed computation under L4 loss) are incorporated in v1.5, and Stage 2 is now fully specified; see the update note at the end of this report.
 
 ## 2. The picture
 
@@ -163,7 +163,7 @@ Targets are labelled **identity** (checks the code), **planted** (built-in groun
 |---|---|---|
 | 0 | synthetic, no network | Identities in code; where the clustering window is; sparse and Nyström vs dense; context tools on a copy task and an HMM |
 | 1 | toy models of superposition (TMoS) | Does a block span the single-feature indicators, with rotated loadings matching the columns of $W$? Comparison with a trained SAE; visible failure with dense features |
-| 2 | computation in superposition | Do neuron profiles and block loadings show "virtual neurons"? **Placeholder until you supply the source.** |
+| 2 | computation in superposition (Ferreira da Silva and Heimersheim 2026: 100 sparse signed features through 50 bias-free ReLU neurons, mean fourth-power loss) | Do blocks and loadings recover the known sparse binary feature codes and near-pseudoinverse decoder, where the L2-trained control does not? Validated against codeword supports, output gains and functional leakage, not loadings alone. |
 | 3 | modular addition, through grokking (delayed generalization) | A block spanned by the network's Fourier harmonics? Sum classes merging after the MLP? Block pressure rising before test loss falls? |
 | 4 | HMM belief states (Mess3, a 3-state, 3-symbol HMM, and one other), transformer and Mamba | $r_{\text{ctx}}$ near $k-1$? True belief readable from $s^L$? How much each layer reads |
 | 5 | MNIST, MLP and CNN, several seeds | Blocks vs classes and confusions; stitching predictor vs CKA, readability and ridge reconstruction, against trained stitches |
@@ -202,9 +202,9 @@ Key controls: Stage 3 uses final-position views only and tests the kernel's shif
 - *Output sensitivity* (proposed): how much moving along the block's directions changes the predicted distributions, in the output Fisher metric. (Gradient pressure is rejected: it vanishes at an exact fit, where stitching can still fail.)
 - *Unweighted readability:* simpler. Stage 5 compares both, plus CKA and ridge reconstruction, as baselines anyway.
 
-**Two references to identify (the ones you had in mind could not be found by search).**
-- The paper describing neurons as "coherent structure detectors" (HAVOK-related; HAVOK is the Hankel alternative view of Koopman). THEORY §7.1 claims to make this picture literal (units expanded in coherent modes) and should cite it.
-- The computation-in-superposition toy whose solution is "virtual neurons" (blocks Stage 2 only).
+**Two references, now identified and incorporated (v1.5).**
+- Pughe-Sanford, Ding, Moore, Sengupta, Epstein, Greengard and Chklovskii, "Neurons as Detectors of Coherent Sets in Sensory Dynamics" (NeurIPS 2025, arXiv:2510.26955). It already proposes neurons as thresholded Koopman singular functions estimated by lag-vector past–future CCA. Consequence for us: the carried context operator is an extension of their estimator, not a new idea; and a unit's mode profile can be spread because a *single* spectral function was rectified, so THEORY §7.1 now expands both the pre-rectification input and the response.
+- Ferreira da Silva and Heimersheim, "Compressed Computation under L4 Loss is likely Computation in Superposition" (2026, arXiv:2607.04800). It gives Stage 2 its exact task and a partially reverse-engineered mechanism: sparse binary codewords of 5–7 neurons per feature, a decoder close to a scaled pseudoinverse, attenuated gains. "Virtual neuron" is our term for the effective per-feature computation, not theirs. Cosine-normalized views cannot see the attenuation, so Stage 2 keeps raw response curves alongside the spectra.
 
 ## 10. Suggested next steps
 
@@ -212,10 +212,15 @@ Key controls: Stage 3 uses final-position views only and tests the kernel's shif
 2. Correct the split/merge direction in THEORY §4.1 (below).
 3. Write the missing protocol details before coding them: block selection when there is no gap; cross-fitting and out-of-sample state coordinates; matching blocks across checkpoints; how the Fourier frequencies a modular-addition network uses are identified; the stitching interface; the noise-temperature protocol; pass/fail thresholds per stage. Then have the plan reviewed once more.
 4. Build the shared library and Stage 0, turning `checks/cm_check.py` into asserted unit tests and adding reconstruction-tail and split/merge tests. Reuse `datafold`/`pydiffmap`, `deeptime` and `pynndescent`/`faiss` where they fit.
-5. Run Stage 1 with Stage 0, then Stages 3 and 4; Stage 2 when the reference arrives.
+5. Run Stage 1 with Stage 0, then Stages 3 and 4, then Stage 2 (its 100k-step training runs go to Modal).
 
 ## Possible errors in the source documents
 
 1. **Split and merge are swapped in THEORY §4.1.** THEORY calls "slow at $L$, image not slow at $L'$" a *split* (one cluster at $L$, two at $L'$). It is a merge. Exactly, as in Section 2.2: take normalized activations $(e_1, e_1, e_2, e_2)$ at $L$ and $(e_1,e_1,e_1,e_1)$ at $L'$, with $f = (1,1,-1,-1)/2$. Then $\lVert P^L f\rVert = \tanh(\beta/2)$, near 1, while $\lVert P^{L'} f\rVert = 0$. A split appears instead as a new slow contrast at $L'$. The claim is [hyp] and nothing downstream relies on it; THEORY's caveat (reading a split off signed functions needs a validated partition step) still applies.
 2. **Citation consistency.** THEORY §6.3 cites Golowich, Liu and Shetty as 2025. That is the preprint year; the paper appeared at ICLR 2026. Cite one version consistently.
 3. **The noise temperature is under-specified.** THEORY §10 does not say which optimizer, optimizer state, step size or batch sampling the independent minibatch steps use, nor the finite-sample pairwise convention. The jitter depends on all of them, so different protocols define different temperatures. For Pythia (Stage 8), check whether the optimizer state is available.
+
+
+## Update after this report was written
+
+THEORY.md is at v1.5 and EXPERIMENTS.md at v1.5. The split/merge direction, the citation year and the noise-temperature protocol listed under possible source errors above were fixed in v1.4. The two references were incorporated in v1.5; `reviews/papers.md` has their constructions, their limits for our purposes, and the edits made.
