@@ -24,7 +24,7 @@ The same site exists at every layer. So each scalar channel at each layer (a neu
 
 ### 2.2 A four-site example
 
-Take four sites $a, b, c, d$. At layer $L$, $\{a,b\}$ and $\{c,d\}$ are two tight groups far apart. At a later layer $L'$, all four sit close together.
+Take four sites $a, b, c, d$. At layer $L$, $\lbrace a,b\rbrace$ and $\lbrace c,d\rbrace$ are two tight groups far apart. At a later layer $L'$, all four sit close together.
 
 Build a random walk on sites that steps mostly to nearby sites. At layer $L$ it stays inside its group; at $L'$ it mixes all four. The contrast $f = (+1,+1,-1,-1)/2$ is barely changed by a step at $L$: it is **slow** there. A step at $L'$ averages it towards zero. So $f$ is a distinction $L$ draws and $L'$ erases: a **merge**.
 

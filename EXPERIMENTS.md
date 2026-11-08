@@ -71,7 +71,7 @@ Setup: one-layer transformer on $a + b \bmod p$, inputs $(a, b, =)$, dense check
 Targets: **established**: Fourier-frequency circuits and the frequencies used; **hypothesis**: §11 bullet 3; the pressure precursor is a hypothesis, not a known answer.
 
 Measurements:
-1. Post-attention operator on the $(a, b)$ grid: is there an isolated block, and what are its principal angles to the span of the product harmonics $\{\cos, \sin\}(\omega a) \otimes \{\cos, \sin\}(\omega b)$ at the frequencies the trained network uses (and at others, as a control)? Fourier structure is expected only if the kernel is near shift-invariant on the grid, which is itself measured.
+1. Post-attention operator on the $(a, b)$ grid: is there an isolated block, and what are its principal angles to the span of the product harmonics $\lbrace \cos, \sin\rbrace(\omega a) \otimes \lbrace \cos, \sin\rbrace(\omega b)$ at the frequencies the trained network uses (and at others, as a control)? Fourier structure is expected only if the kernel is near shift-invariant on the grid, which is itself measured.
 2. $Q^{\text{post-attn} \to \text{post-MLP}}$: coherence of the frequency blocks; the merge of sites with equal $a + b \bmod p$ (compare the post-MLP block to the span of the $p$ sum-class indicators).
 3. Training axis, $\beta$ fixed across checkpoints: gap formation; block pressure (§7.2) on the eventual frequency blocks vs step vs test loss. Report the adaptive-$\beta$ version alongside.
 4. Lagged regression of block coordinates across checkpoints (the DMD step of §4.4), stated as a fitted linear model.
