@@ -37,3 +37,10 @@ Kp,Kf=Xp@Xp.T,Xf@Xf.T
 Rp=Kp@np.linalg.inv(Kp+N*rho*np.eye(N)); Rf=Kf@np.linalg.inv(Kf+N*rho*np.eye(N))
 ev=np.sort(np.linalg.eigvals(Rp@Rf).real)[::-1][:3]
 print("primal canon corr^2",cc**2,"dual eig(RpRf)",ev)
+# 4. variates: eigenvectors of R_p R_f are the past canonical variates (up to scale)
+w,Vd=np.linalg.eig(Rp@Rf); o=np.argsort(-w.real); sd=Vd[:,o[0]].real
+Wp=isqrt(Cpp+rho*np.eye(3))@np.linalg.svd(V)[2][0]; sp=Xp@Wp
+print("variate cosine |<dual,primal>|",abs(sd@sp)/np.linalg.norm(sd)/np.linalg.norm(sp))
+# 5. indicator block vs site-group gradient differ (THEORY 7.2)
+U=np.array([[1.],[-1.]]); De=U.copy(); Pi=np.ones((2,2))/2; DA=np.eye(2)
+print("group grad",(De.T@DA@U).item(),"indicator-block contribution",(De.T@Pi@U).item())
