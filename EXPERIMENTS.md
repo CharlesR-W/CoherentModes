@@ -1,6 +1,6 @@
 # Experiments: calibrating the coherent-mode language on cases with known answers
 
-Status: v1.2, 2026-11-07. Companion to `THEORY.md`; section numbers refer to it.
+Status: v1.3, 2026-11-07. A fresh-eyes readability review with per-stage items for a later rewrite is in `reviews/fresh-eyes-v1.2.md`. Companion to `THEORY.md`; section numbers refer to it.
 
 ## Principles
 
@@ -51,7 +51,7 @@ Measurements:
 
 ## Stage 2: Computation in superposition
 
-Setup, pending confirmation of the exact construction from the user (the literature search could not pin down the paper): $x \in \mathbb R^n$ sparse, target $y = \mathrm{ReLU}(x)$ or an $L^p$ variant, network $W_2\,\mathrm{ReLU}(W_1 x)$ with $m < n$, trained to convergence with dense checkpoints.
+**Placeholder stage.** The source construction (a computation-in-superposition toy whose solution is "virtual neurons") has not yet been identified in the literature, so there is no established target yet. Provisional setup: $x \in \mathbb R^n$ sparse, target $y = \mathrm{ReLU}(x)$ or an $L^p$ variant, network $W_2\,\mathrm{ReLU}(W_1 x)$ with $m < n$, trained to convergence with dense checkpoints.
 
 Targets: **planted**: the target map and the active-feature partition; **established**: the paper's virtual-neuron construction once identified; **hypothesis**: §11 bullet 2.
 
@@ -122,4 +122,4 @@ Measurements:
 
 ## Ordering
 
-Stage 0 and 1 together (library plus calibration, about a week). Stage 3 and 4 next, since they exercise the training and sequence axes. Stage 2 when the construction is confirmed. Stages 5–8 as the library matures. Each stage ends with a notebook and a short verdict against its labelled targets.
+Stage 0 and 1 together (library plus calibration, about a week). Stage 3 and 4 next, since they exercise the training and sequence axes. Stage 2 when its source construction is identified. Stages 5–8 as the library matures. Each stage ends with a notebook and a short verdict against its labelled targets.
