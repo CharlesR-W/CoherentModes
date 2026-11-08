@@ -1,315 +1,328 @@
 # Coherent modes: a site-space spectral language for what a network does to its activations
 
-Status: v0 draft, 2026-11-07. Not yet reviewed.
+Status: v1, 2026-11-07. Revised after two independent reviews (research-design review by GPT-6.1 Sol, mathematical audit by GPT-6 Astra). The three repairs that changed the construction (bistochastic normalization, centered comparison, dual-form canonical correlations) were checked numerically in `checks/cm_check.py`.
+
+Every claim below carries one of three markers:
+
+- **[thm]** an exact identity or a standard theorem whose hypotheses are met by construction;
+- **[cond]** true under explicitly stated conditions that the network need not satisfy; the conditions are named where the marker appears;
+- **[hyp]** an empirical hypothesis about trained networks, to be tested in `EXPERIMENTS.md`, never relied on by a later section.
+
+Assumptions and choices are additionally tagged **[A]** substantive, **[P]** pro-tem, **[M]** methodological, collected in Section 12.
 
 ## 0. What this document is for
 
 We want a description of a trained network that
 
-1. is built only from quantities we can compute from the network, its training data, and its training objective: no posited "task distribution", no trained probe or dictionary, no semantic labels in the construction;
-2. is scale-sensitive: it has explicit coarse-graining knobs whose effect on resolution and on statistical accuracy is visible and monotone;
-3. ends in SVDs, so that every object comes with a spectrum, a nested family of subspaces, and perturbation bounds (Davis–Kahan) that give us an honest notion of "two descriptions are close";
-4. lives on an object that is shared across layers, across training checkpoints, and across models trained on the same data, so that comparison needs no fitting;
-5. says something about the weights: given a decomposition of what happens to the activations, we want the decomposition to pull back to a decomposition of the parameter update, so that training dynamics can be read in the same language;
-6. does not assume sparsity, linearity of features, or any particular architecture (transformer, SSM, RNN, CNN, or a recorded brain).
+1. is built only from the network, its training data, and its training objective: no posited "task distribution", no trained probe or dictionary, no semantic labels in the construction;
+2. is scale-sensitive, with explicit coarse-graining knobs whose roles are visible;
+3. ends in SVDs, so every object has a spectrum, nested subspaces, and perturbation bounds (Davis–Kahan, Wedin) that give an honest notion of "close";
+4. lives on an object shared across layers, checkpoints, and models trained on the same data, so comparison needs no fitting;
+5. pulls back to the weights, so that training can be read in the same language;
+6. assumes neither sparsity nor linear features nor a particular architecture.
 
-The construction below meets these by making one move that the rest follows from: **everything is a function on the set of sites.** A site is one place where the network has an activation: one (input, position) pair for a sequence model, one input for a classifier, one (trial, time bin) for a recording. Every measurable thing about a site, at any layer, defines a kernel on sites, hence an operator on functions on sites, hence an SVD. Operators built from different layers, different models, or different kinds of measurement act on the same space, so they compose and compare without any alignment step.
+The construction makes one move: **everything is a function on the set of sites.** A site is one place where the network has an activation. Every measurable property of a site at any layer defines a kernel on sites, hence an operator on functions on sites, hence an SVD. Operators built from different layers, models, or kinds of measurement act on the same space and so compose and compare directly.
 
-Assumptions are tagged throughout:
-
-- **[A]** substantive: a real modelling commitment that we believe matters and are making on purpose;
-- **[P]** pro-tem: a choice made because the natural quantity is intractable or does not exist, to be revisited;
-- **[M]** methodological: an implementation choice we expect not to matter at the level of the theory.
-
-Section 12 collects them.
+What this move buys is bookkeeping, not causation. Identifying a site across layers lets us compare geometries on a common index set; it does not by itself say which inputs produced an output. Attribution is a separate step (Sections 6.4, 7) with its own assumptions. Representational similarity analysis in neuroscience makes the same shared-index move; what is added here is the family of cross-view operators on that index set, their composition across layers, the exact expansion of units and gradients in the resulting bases, and the context construction.
 
 ## 1. The spine: sites and the Hilbert space over them
 
 ### 1.1 Sites
 
-Let $X$ be a finite set of sites, $|X| = N$, with the empirical measure $\mu$ (uniform unless stated). For a causal sequence model run on a corpus, $x = (\text{document}, t)$. For a classifier, $x$ is one input. The site is the atom of the theory: it is the thing that "has" activations at every layer and that the network "treats" in some way.
+$X$ is a finite set of sites, $|X| = N$. For a causal sequence model on a corpus, $x = (\text{document}, t)$. For a classifier, $x$ is one input. For a recording, $x$ is one (trial, time bin). The site is the atom: it is the thing that has an activation at every layer.
 
-**[A1] The same site at two layers is the same site.** This sounds vacuous and is the central move. It means we never need a map from activations at layer $L$ to activations at layer $L'$ as a function of the layer-$L$ activation alone. The transport from $L$ to $L'$ is the identity on $X$. Whatever information arrives at site $x$ at layer $L'$ from other positions (attention, convolution, a recurrent state) is already accounted for, because $x$ at layer $L'$ is, by definition, the site with that context. Section 6 explains how this both dissolves and then honestly re-poses the KV-cache problem.
+**[A1] The same site at two layers is the same site.** We never need a map from the layer-$L$ activation to the layer-$L'$ activation as a function of the former alone. Whatever other positions contributed to $x$ at $L'$ is already in $h^{L'}(x)$ by definition. Section 6 explains how this both removes and then honestly re-poses the KV-cache problem. [A1] requires a site correspondence; it is immediate for one model, and across models it requires a shared tokenization or a declared matching (e.g. whole inputs as sites), which must be stated.
 
-### 1.2 Functions on sites
+### 1.2 Functions on sites and the measure convention
 
-$\mathcal H = L^2(X, \mu) \cong \mathbb R^N$ with inner product $\langle f, g\rangle = \sum_x \mu(x) f(x) g(x)$. Everything we compute is an element or operator of $\mathcal H$:
+$\mathcal H = \mathbb R^N$ with the counting-measure inner product $\langle f, g\rangle = \sum_x f(x) g(x)$. Every quantity is a vector or operator in $\mathcal H$: the activation matrix $H^L \in \mathbb R^{N \times d_L}$ (columns are functions on sites), a neuron's activation, a head's output, a logit, a backpropagated error, a kernel $K \in \mathbb R^{N \times N}$.
 
-- the activation matrix at layer $L$, $H^L \in \mathbb R^{N \times d_L}$, is a $d_L$-tuple of functions on sites (its columns);
-- a neuron's activation, an attention head's output, an SSM state coordinate, a logit, the backpropagated error at a unit: all are functions on sites (vector-valued where appropriate);
-- a kernel $K[x, y]$ is an operator on $\mathcal H$.
+**[M1] Counting measure throughout.** All orthonormality is Euclidean, $\Psi^\top \Psi = I$. The uniform probability measure differs by a constant and changes nothing; a non-uniform site weighting $\mu$ is handled by the substitution $f \mapsto M^{1/2} f$ and is not used in this document. (The v0 draft mixed the two conventions; every identity below is in the Euclidean one.)
 
 ### 1.3 The SVD duality, which the whole theory generalizes
 
-The plain SVD $H^L = U \Sigma V^\top$ already has the two faces we want: the left singular vectors $u_i \in \mathcal H$ are functions on sites; the right singular vectors $v_i \in \mathbb R^{d_L}$ are directions in activation space; the singular values connect them. The left factor can be computed from the Gram matrix $H^L (H^L)^\top$, a kernel on sites, alone.
+The plain SVD $H^L = U \Sigma V^\top$ has the two faces we want: left singular vectors $u_i \in \mathcal H$ are functions on sites, right singular vectors $v_i \in \mathbb R^{d_L}$ are directions in activation space, and the left factor is computable from the Gram matrix $H^L (H^L)^\top$ alone.
 
-The theory replaces the linear Gram matrix by a nonlinear kernel on sites (Section 2), keeps the left factor as the primary object (functions on sites, Section 3), and recovers the right factor as a *loading* (Section 5). For any orthonormal basis $\Psi = [\psi_1, \dots, \psi_N]$ of $\mathcal H$,
+The theory replaces the Gram matrix by a nonlinear kernel on sites (Section 2), keeps the left factor as the primary object (Section 3), and recovers the right factor as a loading (Section 5). For any Euclidean-orthonormal basis $\Psi$ of $\mathcal H$ and any $F \in \mathbb R^{N \times p}$,
 
-$$H^L = \Psi \Psi^\top H^L = \sum_i \psi_i\, a_i^\top, \qquad a_i := (H^L)^\top \psi_i \in \mathbb R^{d_L}.$$
+$$F = \Psi \Psi^\top F = \sum_i \psi_i\, a_i^\top, \qquad a_i := F^\top \psi_i, \qquad \Big\| F - \sum_{i \le r} \psi_i a_i^\top \Big\|_F^2 = \sum_{i > r} \|a_i\|^2 . \quad \text{[thm]}$$
 
-This is an identity, not an approximation. Truncating to $r$ modes has reconstruction error exactly $\sum_{i > r} \|a_i\|^2$. So the spine never truncates, truncation is allowed at any step, and its cost is always a computable tail sum. This is the precise sense in which the construction "hell or high water ends in an SVD" and in which spectral truncation guarantees come for free.
+The expansion is exact in any orthonormal basis, and the truncation error is the tail sum of the coefficients. What the basis choice changes is *which* functions are in the head and which in the tail. The best rank-$r$ reconstruction of $F$ in Frobenius norm is its own SVD; a nonlinear-kernel basis is not optimal for that and is not meant to be. It is chosen so that its head is interpretable, and the tail sum is the price, always computable.
 
 ## 2. Views: every measurement of a site is a dot product on a sphere
 
-A *view* is a map from sites to vectors, $\phi: X \to \mathbb R^p$, together with the normalization $\hat\phi = \phi / \|\phi\|$, and the kernel
+A *view* is a map $\phi : X \to \mathbb R^p$, normalized to $\hat\phi = \phi / \|\phi\|$, with the kernel
 
-$$K_\beta[x, y] = \exp\big(\beta\, \langle \hat\phi(x), \hat\phi(y) \rangle\big).$$
+$$K_\beta[x, y] = \exp\big(\beta\, \langle \hat\phi(x), \hat\phi(y)\rangle\big), \qquad \beta \ge 0 .$$
 
-On the unit sphere $\exp(\beta \cos\theta) = e^{\beta} \exp(-\beta \|\hat\phi(x) - \hat\phi(y)\|^2 / 2)$, so this is the Gaussian kernel restricted to the sphere (the von Mises–Fisher kernel), and all diffusion-maps theory applies. Two limits:
+On the unit sphere $\exp(\beta\, u^\top v) = e^{\beta} \exp(-\beta \|u - v\|^2 / 2)$ **[thm]**, so this is the chordal Gaussian kernel on the sphere; it is positive semidefinite for all $\beta \ge 0$ **[thm]**. Its two limits at fixed finite data:
 
-- $\beta \to 0$: $K_\beta \approx 1 + \beta \langle \hat\phi(x), \hat\phi(y)\rangle$. After centering, the operator is the linear Gram matrix: eigenfunctions are PCA scores, and comparison between two views is linear CKA. **The linear-features picture is the $\beta \to 0$ limit of this theory.**
-- $\beta \to \infty$: the kernel becomes a nearest-neighbour graph: eigenfunctions localize on clusters. **The clustering / dictionary picture is the $\beta \to \infty$ limit.**
+- $\beta \to 0$: $K_\beta = \mathbf 1 \mathbf 1^\top + \beta\, \hat\Phi \hat\Phi^\top + O(\beta^2)$. After centering by $C = I - \tfrac1N \mathbf 1\mathbf 1^\top$ and rescaling by $1/\beta$, the kernel is the centered Gram matrix of the *row-normalized* activations **[thm]**; Section 8 gives the matching statement for the normalized operator. **Linear structure (PCA of normalized activations, linear CKA) is the $\beta \to 0$ limit.**
+- $\beta \to \infty$: $e^{-\beta} K_\beta \to I$ for distinct normalized vectors **[thm]**. The operator becomes the identity, all eigenvalues tend to one, and nothing is identifiable. **Clustering is not a limit of this theory; it is a finite-$\beta$ regime** in which weakly connected clusters give a block of near-top eigenvalues whose span is near the span of the cluster indicators (Section 4.3). The regime exists when cluster separation exceeds $1/\sqrt\beta$ and within-cluster spacing does not; Stage 0 of the experiments charts it.
 
-**[A2] The only geometric commitment is the dot product.** We choose the inner product on each view and nothing else. The residual stream is taken with its Euclidean dot product after normalization (cosine). This is the one place where we knowingly import a substantive assumption and we believe it is right for residual streams (LayerNorm, the empirical near-isotropy results, the success of linear probes and SAEs under cosine). Where the norm matters (attention sinks, confidence scaling), $\log\|\phi\|$ can be appended as one more coordinate before normalization **[P1]**.
+**[A2] The only geometric commitment is the dot product on each view.** The residual stream is taken with cosine similarity. This is a modelling claim and we make it deliberately: LayerNorm, the near-isotropy results, and the success of cosine-based probes and dictionaries support it, and no theorem makes it right. Where the norm matters (attention sinks, confidence scaling), $\log\|\phi\|$ can be appended as a coordinate before normalization, which introduces a scale choice **[P1]**. Sites with $\phi(x) = 0$ (all-features-off inputs, dead ReLU blocks, zero Jacobians) need a declared policy: excluded and their mass reported **[P2]**.
 
-The views we use:
-
-| view | $\phi(x)$ | what the kernel says two sites share |
+| view | $\phi(x)$ | the kernel is large when two sites... |
 |---|---|---|
-| geometric, layer $L$ | residual stream $h^L(x)$ | "look alike to the next layer" |
-| output | $\sqrt{p(\cdot \mid x)}$, the square root of the next-token (or class) distribution | Fisher–Rao proximity of what the network predicts |
-| context, layer $L$ | the past window of the stream, $(h^L(x_{-1}), \dots, h^L(x_{-w}))$, lag-weighted | "arrive with a similar recent past" (Section 6) |
-| action, layer $L$ | the local Jacobian $J^L(x) = \partial h^{L+1}(x) / \partial h^L(x)$, sketched | "the layer applies a similar local linear map" (Section 7) |
-| any unit | a neuron, head, state coordinate | used not as a kernel but as a function to expand (Section 7) |
+| geometric, layer $L$ | residual $h^L(x)$ | have similar activations at $L$ |
+| output | $\sqrt{p(\cdot \mid x)}$ | predict similar distributions |
+| context, layer $L$ | lag-weighted past window of the stream (Section 6.3) | arrive with similar recent pasts |
+| action, layer $L$ | sketched local Jacobian $J^L(x)$ (Section 7.3) | receive similar local linear maps |
+| any unit | neuron, head, state coordinate | used as a function to expand, not as a kernel (Section 7.1) |
 
-The output view deserves a remark. The Fisher–Rao metric on the probability simplex is, up to a factor 2, the round metric on the sphere under $p \mapsto \sqrt p$, and the Bhattacharyya affinity $\sum_k \sqrt{p_k q_k}$ is the dot product there. So "use Fisher–Rao at the logit layer" is exactly "use the same kernel on $\sqrt p$." Nothing new enters. This is the only place Fisher information is used by default **[M1]**; pulling a Fisher metric back to intermediate layers is possible (Section 9) but we treat it as an experimental variant, not a part of the spine.
+**Output view.** Under $p \mapsto \sqrt p$ the Fisher–Rao metric tensor is four times the round sphere metric and Fisher–Rao distance is twice the angle **[thm]**; the Bhattacharyya affinity $\sum_k \sqrt{p_k q_k}$ is the dot product on that sphere **[thm]**. So "Fisher–Rao at the output" costs nothing new: the same kernel on $\sqrt p$. This is a Fisher-geometry kernel, not the Fisher–Rao heat kernel, and it is the only place Fisher information enters by default **[M2]**. Pulling Fisher back to intermediate layers is a variant (Section 9).
 
-## 3. Operators and their spectra
+**Window and product kernels.** For non-negative lag weights $\beta_j$ with $B = \sum_j \beta_j$, $\exp(\sum_j \beta_j \langle \hat h(x_{-j}), \hat h(y_{-j})\rangle) = \exp(B\, z(x)^\top z(y))$ with $z$ the unit vector of $\sqrt{\beta_j / B}$-weighted concatenated lags **[thm]**. A product of sphere kernels is a sphere kernel, so [A2] covers windows, with the lag weights as a pro-tem choice **[P3]**.
 
-From a kernel $K$ on $X$ form the degree $d(x) = \sum_y K[x, y]$ and the symmetric normalized operator
+## 3. Operators: bistochastic normalization and spectra
 
-$$S = D^{-1/2} K D^{-1/2}, \qquad S \psi_i = \lambda_i \psi_i, \quad 1 = \lambda_0 \ge \lambda_1 \ge \dots \ge 0.$$
+### 3.1 Normalization relative to the shared measure
 
-$S$ is conjugate to the random-walk operator $P = D^{-1} K$. In the large-$N$, small-$1/\beta$ limit it converges to a diffusion semigroup on the view manifold; which one depends on the Coifman–Lafon density exponent $\alpha$ **[M2]**. We use $\alpha = 0$ (density-weighted) by default: when the network puts many sites in a region, that region matters more, and since the dataset is shared across everything we compare, density differences reflect the model and not the sampling.
+Each view's kernel is normalized to a **symmetric doubly stochastic** operator by Sinkhorn scaling,
 
-Three coarse-graining knobs act on the spectrum, and none is applied in the spine:
+$$P = D_v K D_v, \qquad P \mathbf 1 = \mathbf 1, \quad P = P^\top, \quad D_v = \mathrm{diag}(v),$$
 
-- **temperature $\beta$** sets which sites are "the same" (Section 10 for how to set it);
-- **diffusion time $t$**: $S^t$ has eigenvalues $\lambda_i^t$; large $t$ damps fine modes smoothly. Diffusion distance at time $t$, $\|S^t(\delta_x - \delta_y)\|$, is the metric induced by the coarse-graining;
-- **truncation $r$**: keep the top $r$ eigenfunctions; error is the tail sum of Section 1.3.
+with $v$ the unique positive vector making the row sums one (exists for strictly positive $K$) **[thm]**. $P$ is a congruence of a PSD matrix, so $0 \le \lambda_i \le 1$ with $\lambda_0 = 1$ on the constant function $\mathbf 1 / \sqrt N$ **[thm]**. This is the bistochastic kernel normalization of Marshall and Coifman (2019); in the manifold limit it behaves like the density-corrected ($\alpha = 1$) Coifman–Lafon normalization.
 
-Diffusion time and truncation disagree when there is no spectral gap; that is the correct behaviour (there is then no canonical number of clusters, and the smooth knob should be preferred). For comparison over training we hold $t$ or $\beta$ fixed and let $r$ be reported, never the reverse.
+Why this and not the usual $D^{-1/2} K D^{-1/2}$ **[M3]**: every view's operator must be a Markov operator for the *same* measure on sites, the counting measure. With the usual normalization each layer's operator has its own stationary vector $\sqrt{d_L}$, the identity transport of [A1] then does not identify the two stationary coordinate systems, and the product of two layers' operators has top singular value strictly below one whenever their degree vectors are not proportional. Density differences between layers would then masquerade as loss of coherence. (Verified in `checks/cm_check.py`: top singular value $0.997$ under the old normalization against exactly $1$ under the bistochastic one, on the same kernels.) The shared stationary measure is the price of composability, and it is cheap: Sinkhorn on a dense or sparse kernel is a few dozen matrix–vector products.
 
-**Degeneracy.** The SVD gives canonical nested *subspaces* and their spectra. Within a near-degenerate block the basis is not canonical. We report subspaces and gaps; where a basis is wanted for display (a "feature list") we rotate within the block by a declared rule (varimax, or the localizing rotation in Section 4.3) **[P2]**. Davis–Kahan makes this precise: a subspace is stable under perturbations small relative to its gap, and nothing within a gapless block should be trusted individually. This is the perturbation-theoretic sense of "really close" that motivates the insistence on SVDs.
+The density question of v0 is thereby answered: sites are weighted uniformly, so a region the model populates densely has many sites and matters accordingly, while the operator itself is density-corrected. Frequency enters through $X$, not through the normalization.
 
-**Hierarchy.** Dyadic powers $S, S^2, S^4, \dots$ define, via the Coifman–Maggioni diffusion-wavelet construction, an orthogonal multiscale basis of $\mathcal H$ by QR factorizations alone: coarse scaling functions that are indicator-like on large clusters, finer wavelets inside them. This is the construction that plays the role of a hierarchical dictionary without any training or sparsity assumption. It is heavier than a single eigendecomposition and we treat it as an extension of the spine rather than its default.
+### 3.2 Spectrum, coarse-graining knobs, degeneracy
+
+$P \psi_i = \lambda_i \psi_i$. The constant mode is trivial and is removed by centering, $\tilde P = C P C = P - \tfrac1N \mathbf 1\mathbf 1^\top$. Three knobs act on the spectrum and none is applied in the spine:
+
+- **temperature $\beta$**: resolution of the view (Section 10);
+- **diffusion time $t$**: $P^t$ has eigenvalues $\lambda_i^t$, a smooth damping of fine modes **[thm]**; the embedding distance $\|P^t(\delta_x - \delta_y)\|$ is the diffusion distance for this symmetric Markov operator;
+- **truncation $r$**: keep the top-$r$ eigenspace; error is the tail sum of Section 1.3.
+
+Time and truncation disagree when there is no gap, which is correct: there is then no canonical number of modes and the smooth knob should be preferred.
+
+**Degeneracy.** Isolated eigenspaces (the span of modes between two gaps) are canonical and stable: by Davis–Kahan the subspace moves by at most $\|E\| / \text{gap}$ under a perturbation $E$ **[thm]**. A top-$r$ cut inside a near-degenerate block is not canonical, and individual vectors inside a block are not identifiable. We therefore report **blocks** (delimited by gaps) and their spectra, and when a basis inside a block is wanted for display we rotate by a declared rule **[P4]**; everything in Section 7 that depends on individual modes is stated at block granularity. This is the perturbation-theoretic sense of "really close" behind the insistence on SVDs.
+
+**Hierarchy.** Dyadic powers $P, P^2, P^4, \dots$ with a declared compression threshold define the Coifman–Maggioni diffusion-wavelet multiscale basis by rank-revealing QR; the threshold is what produces a dimension-reducing hierarchy, since exact powers of a full-rank matrix share one range. Whether the coarse scaling functions are indicator-like depends on the geometry **[hyp]**. We treat this as an extension of the spine.
 
 ## 4. Coherence across layers: the dynamic operator on sites
 
 ### 4.1 Construction
 
-Let $S^L, S^{L'}$ be the geometric operators at two layers. Because transport between layers is the identity on $X$ ([A1]), the Froyland coherent-set operator is simply the product
+Let $P^L, P^{L'}$ be the bistochastic operators of two layers. Because transport between layers is the identity on $X$ and both operators are Markov for the same measure, the product
 
-$$Q^{L \to L'} = S^{L'} S^{L}, \qquad Q = \sum_i \sigma_i\, u_i\, v_i^\top,$$
+$$Q^{L \to L'} = P^{L'} P^{L}, \qquad Q = \sum_i \sigma_i\, u_i\, v_i^\top, \qquad 1 = \sigma_0 \ge \sigma_1 \ge \dots \ge 0,$$
 
-with $v_i \in \mathcal H$ a function on sites "seen at layer $L$" and $u_i$ the matching function "seen at layer $L'$". Interpretation of a singular pair:
+is doubly stochastic with trivial pair $(u_0, v_0) = (\mathbf 1, \mathbf 1)/\sqrt N$, which we remove by centering **[thm]**. This is Froyland's finite-time coherent-set operator (diffuse, transport, diffuse) with identity transport and the two diffusions being the two layers' geometries; with the shared measure the identification is exact rather than an analogy.
 
-- $\sigma_i \approx 1$: the set of sites where $v_i$ is large is tight at $L$ and still tight at $L'$: **a coherent set, something the network keeps together across those layers**;
-- $v_i$ concentrated on one region at $L$ while the corresponding $u_i$ splits it: **the network distinguishes, between $L$ and $L'$, two things it had not distinguished**;
-- the converse is a **merge**.
+What a singular pair means **[thm]**: for a unit vector $v$, $1 - \|P^{L'} P^L v\|^2 = (1 - \|P^L v\|^2) + (\|P^L v\|^2 - \|P^{L'} P^L v\|^2)$, so $\sigma_i \approx 1$ says $v_i$ loses little under diffusion at $L$ *and* its diffused image loses little under diffusion at $L'$: $v_i$ is slow for both geometries. For a set $A$, $\langle Q \mathbf 1_A, \mathbf 1_B\rangle / |A|$ is the fraction of $A$'s mass that, after diffusing at $L$ and then at $L'$, lies in $B$; the SVD is the relaxation of maximizing this over pairs $(A, B)$. Interpretation in words:
 
-The small-time version is the dynamic Laplacian $\tfrac12 (S^L + S^{L'})$, and over a set of layers $\{L_k\}$ the two choices are the product $\prod_k S^{L_k}$ (sequential coherence) and the mean $\tfrac1m \sum_k S^{L_k}$ (simultaneous coherence). The product is the one that composes and is our default **[M3]**.
+- **coherent**: $\sigma_i$ near one, $v_i$ and $u_i$ both concentrated on the same sites: a set the network keeps together between $L$ and $L'$;
+- **split / merge** **[hyp]**: a mode slow at $L$ whose image is not slow at $L'$ (or the reverse) indicates a distinction the network draws (or erases) between the layers. Reading a specific split off a pair of signed, possibly oscillatory singular functions requires a level-set or partition step, which is interpretive and must be validated on the extracted sets. When $L = L'$, $\sigma_i = \lambda_i^2$ and small $\sigma$ just means fine-scale, so "small $\sigma$" alone is never evidence of a new distinction.
 
-### 4.2 Why this answers the "sparse concepts are treated independently" worry
+For several layers $\{L_k\}$ the sequential object is $\prod_k P^{L_k}$ and the simultaneous one is $\tfrac1m \sum_k P^{L_k}$; both have generator $\tfrac1m \sum_k \mathcal L_k$ at first order in the bandwidth **[thm]**, and differ at finite bandwidth. The product composes and is the default **[M4]**.
 
-If activations were sparse sums of concept directions, a strict partition into coherent sets would be wrong: a site with two active concepts belongs to both. But the SVD of $Q$ does not partition. Its singular functions superpose, and a site's coordinates $(v_i(x))_i$ record *how much* it participates in each coherent mode. Partitions are level sets of singular functions and are an interpretive afterthought. The basis is primitive; the cut is derived.
+### 4.2 Why this is compatible with independently treated features
+
+If activations were sparse sums of concept directions, a *partition* into coherent sets would be wrong: a site with two active concepts belongs to both. But the SVD does not partition. Singular functions superpose, and a site's coordinates $(v_i(x))_i$ record how much it participates in each coherent mode. Partitions are level sets and an interpretive afterthought; the basis is primitive.
 
 ### 4.3 Localization is measured, not assumed
 
-Whether a mode is "a feature" (localized on a cluster of sites) or "a direction of variation" (spread over the cloud) is read off its inverse participation ratio, $\mathrm{IPR}(\psi) = \sum_x \psi(x)^4 / (\sum_x \psi(x)^2)^2$. High IPR at the working $\beta$ means the dictionary picture is accurate for that mode; low IPR means it is not, and the method says so instead of forcing a sparse code. When a dictionary is wanted for display, the localizing rotation of a near-degenerate top-$r$ block is a declared [P2] choice.
+Whether a block of modes is a set of features (its span is near the span of indicators of well-separated clusters) or a set of directions of variation is a property of the data at the working $\beta$. Two diagnostics: the **indicator-subspace recovery**, the principal angles between a block's span and the span of candidate indicators when candidates exist (toy models), and the **support size** of a block, $\mathrm{IPR}$ of the block's projector diagonal, when they do not. A single mode's IPR is basis-dependent inside a block and a point-localized mode has maximal IPR while meaning nothing, so neither is used alone. When the regime is present, a localizing rotation of the block (varimax or similar) produces a dictionary; the rotation is an algorithm whose recovery is tested, not a display convention [P4].
 
 ### 4.4 Three time axes, one machinery
 
-Nothing above used that $L$ indexes depth. The same product-of-operators construction applies with the "time" index being
-
-- **depth** (layers), as above: what the network keeps together as it computes;
-- **sequence position**, via the context view: what the stream keeps together as context accumulates (Section 6);
-- **training step**, via checkpoints: what the network keeps together as it learns, and the dynamic-mode / HAVOK decomposition of training.
-
-The HAVOK and "neurons as coherent-structure detectors" picture is the case where the coherent modes are computed on a time-lagged view and a neuron's activation is expanded in them (Section 7.1).
+The product construction never used that $L$ indexes depth. The same machinery applies with the index being depth (what the network keeps together as it computes), sequence position via the context view (Section 6), or training step via checkpoints (what the network keeps together as it learns). The HAVOK / dynamic-mode picture requires one more thing than the product of contemporaneous operators: a lagged pairing and a fitted linear relation between lagged coordinates. For the training axis this is a least-squares regression of mode coordinates at checkpoint $s+1$ on those at $s$ (closed form, an SVD), stated as such in `EXPERIMENTS.md` Stage 3. For the sequence axis the lagged pairing is the Hankel construction of Section 6.
 
 ## 5. Loadings: getting back to activation space
 
-Given any mode $\psi \in \mathcal H$ and any vector-valued function on sites $F \in \mathbb R^{N \times p}$ (activations at some layer, a unit's output, a gradient component), the loading is
+For a mode $\psi \in \mathcal H$ and any $F \in \mathbb R^{N \times p}$, the loading is $a_F(\psi) = F^\top \psi \in \mathbb R^p$, the coefficient of $\psi$ in the expansion of $F$ **[thm]**. It is a cross-moment, a covariance only when $F$ or $\psi$ is centered. Properties:
 
-$$a_F(\psi) = F^\top \psi \in \mathbb R^p .$$
+- for the normalized indicator $\psi_A = \mathbf 1_A / \sqrt{|A|}$, $a_F(\psi_A) = \sqrt{|A|}\, \bar F_A$, and the reconstructed contribution $\psi_A a_F(\psi_A)^\top$ is exactly the centroid on $A$ **[thm]**: the "replace by the centroid" re-embedding, derived rather than posited;
+- for the linear Gram matrix's eigenvectors $u_i$, $a_{H}(u_i) = \sigma_i v_i$ **[thm]**: PCA scores and directions. (This is for the Gram eigenvectors; the eigenvectors of the normalized $\beta \to 0$ operator agree with them only after centering, Section 2.)
+- **linear readability**: the ridge $R^2$ of regressing $\psi$ on $H^L$ measures whether the mode is a linear function of the layer; it is distinct from the loading (regression uses the inverse covariance) and is reported alongside it. A mode on a curved cluster can have a vanishing loading and perfect readability from several directions, or neither;
+- the same mode has a loading at every layer, and the pair $(a_{H^L}(v_i), a_{H^{L'}}(u_i))$ records where a coherent set sits at each layer. The *effective action* of the layer on the mode is a fitted object (the ridge map from $H^L$ to $H^{L'}$ restricted to the block) and is reported as such, not as "the rank-one piece".
 
-It is the covariance of $F$ with $\psi$, the direction in $F$'s space along which the mode varies. Properties:
+Writing $H^L[x] = \sum_i \psi_i(x) a_i$ **[thm]** says: the activation at $x$ is a combination of directions $a_i$ with coefficients $\psi_i(x)$. This has the *form* of a dictionary decomposition. In the finite-$\beta$ clustering regime with a localizing rotation, the codes are near-indicators and the dictionary is SAE-like; in the $\beta \to 0$ limit the codes are PCA scores. Which regime holds is measured (Section 4.3). Out-of-sample sites are handled by the Nyström extension of the eigenfunctions of $P$, which includes the normalization factors and division by $\lambda_i$ and is unstable for small $\lambda_i$; only modes above a declared eigenvalue floor are extended **[M5]**.
 
-- for a cluster indicator $\psi$, $a_{H^L}(\psi)$ is the cluster centroid at layer $L$: the "replace with the centroid" re-embedding, obtained canonically rather than posited;
-- for the linear kernel, $a_{H^L}(\psi_i) = \sigma_i v_i$: PCA directions;
-- for a mode supported on a curved cluster, several modes carry it and their loadings span its tangent directions; the loss in representing $\psi$ by a single direction is measured by the $R^2$ of regressing $\psi$ on $H^L$ (linear readability of the mode) and is reported, not hidden;
-- the same mode has a loading at every layer: $a_{H^L}(v_i)$ is where the coherent set sits at $L$, $a_{H^{L'}}(u_i)$ where it sits at $L'$. The pair is the rank-one piece of the layer's effective action on that mode.
-
-Writing $H^L[x] = \sum_i \psi_i(x)\, a_i$ (Section 1.3) says: the activation at site $x$ is a combination of the directions $a_i$ with coefficients $\psi_i(x)$. This is the form of a dictionary decomposition, with dictionary $\{a_i\}$ and codes $\psi_i(x)$. In the high-$\beta$, high-IPR regime the codes are near-indicators and the dictionary is an SAE-like set of concept directions. In the low-$\beta$ regime the codes are PCA scores. The regime is chosen by $\beta$ and reported by IPR, never assumed. Out-of-sample sites are handled by the Nyström extension of $\psi_i$ (kernel regression of $\psi_i$ on the view), which is the same formula as a kernel feature **[M4]**.
-
-## 6. Context: the KV-cache problem, dissolved and then re-posed honestly
+## 6. Context: the KV-cache problem, removed and then re-posed honestly
 
 ### 6.1 At the level of the spine there is no problem
 
-Because $x$ at layer $L'$ is the site with its context, $S^{L'}$ already reflects whatever attention or recurrence delivered to $x$. The dynamic operator $Q^{L \to L'}$ needs no model of the layer map. Coherent sets, splits, and merges are well-defined and architecture-free. So is everything in Sections 5, 7.1, 7.2 and 8. This is why the construction works equally for a transformer, an SSM, a CNN, and a recording.
+Because $x$ at $L'$ is the site with its context, $P^{L'}$ already reflects whatever attention or recurrence delivered to $x$. The dynamic operator, the loadings, the unit expansions, and the gradient decomposition (Sections 4, 5, 7.1, 7.2) are all defined without any model of the layer map. This is why the construction is the same for a transformer, an SSM, a CNN, and a recording.
 
-### 6.2 Where it returns: attributing the change at a site to its causes
+### 6.2 Where it returns
 
-To say *what the layer did* to produce $h^{L+1}(x)$ from what it had, we need the layer's inputs at $x$. For an MLP the input is $h^L(x)$ alone and the map is a function. For attention or an SSM the input is $h^L(x)$ together with the past of the stream. Marginalizing the past (treating the layer as a stochastic map on $h^L(x)$) is a lower bound on what the layer does and we do not adopt it. Fitting a model of the hidden state is training something on top of the network and we do not adopt that either.
+To say *what the layer did* to produce $h^{L+1}(x)$ we need the layer's inputs at $x$. For an MLP that is $h^L(x)$; for attention or an SSM it is $h^L(x)$ together with the past of the stream. Marginalizing the past is a lower bound we do not adopt as a description. Fitting a hidden-state model is training something on top of the network and we do not adopt that either. What we adopt is the subspace-identification object: **a predictive state of the stream, obtained as a regularized canonical-correlation SVD.**
 
-What we adopt is the construction the low-rank-logits / Hankel literature and subspace identification both use: **the predictive state of the stream, as an SVD.**
+### 6.3 Two context operators
 
-### 6.3 The context view and the layer-$L$ Hankel operator
+Fix a layer $L$ and a site $x = (\text{doc}, t)$. The **past features** are the context view $z_{\text{past}}(x)$ of Section 2 (lag-weighted window of $\hat h^L$ at positions $< t$). Two choices of **target**:
 
-For a site $x = (\text{doc}, t)$ define past and future windows of the layer-$L$ stream,
+- **carried**: the future window of the same stream, $\hat h^L$ at positions $> t$. This asks what the layer-$L$ stream carries forward about its own future. It is intrinsic to the stream and is the recording-compatible object.
+- **read**: the next layer's update at the site, $\Delta h^{L+1}(x) = h^{L+1}(x) - h^{L}(x)$, or $h^{L+1}(x)$ itself. This asks what the past contributes to what the layer computes *now*.
 
-$$\pi_w(x) = \big(\hat h^L(x_{-1}), \dots, \hat h^L(x_{-w})\big), \qquad \varphi_{w'}(x) = \big(\hat h^L(x_{+1}), \dots, \hat h^L(x_{+w'})\big),$$
+These are different objects and neither implies the other **[thm]** (example: i.i.d. tokens, layer $L$ the embedding, layer $L+1$ copies the previous token: the past predicts nothing about the stream's future, so the carried state is empty, while the read state is one lag). v0 conflated them; v1 keeps both, with **read** as the operator for attribution and the explained-variance ladder, and **carried** as the architecture-free characterization of the stream **[P5]**.
 
-with kernels $K_{\text{past}}[x, y] = \exp\big(\sum_{j=1}^w \beta_j \langle \hat h^L(x_{-j}), \hat h^L(y_{-j})\rangle\big)$ and the same for the future, with lag weights $\beta_j$ (geometric decay, [P3]). A product of sphere kernels is a sphere kernel on the weighted concatenation, so [A2] is the only assumption in play.
+For either choice, with centered Gram matrices $\tilde K_p = C K_{\text{past}} C$ and $\tilde K_q = C K_{\text{target}} C$ (sphere kernels of Section 2 on past and target views) and ridge $\rho > 0$ **[P6]**, define the kernel-ridge smoothers
 
-The *Hankel operator* of the layer-$L$ stream is the conditional-expectation operator from past-features to future-features. Its regularized sample form is the kernel-CCA / Hilbert-space-embedded predictive-state-representation estimate
+$$R_p = \tilde K_p (\tilde K_p + N\rho I)^{-1}, \qquad R_q = \tilde K_q (\tilde K_q + N\rho I)^{-1}.$$
 
-$$\mathcal T^L = (K_{\text{fut}} + \rho I)^{-1/2} K_{\text{fut}}\, K_{\text{past}}\, (K_{\text{past}} + \rho I)^{-1/2}, \qquad \mathcal T^L = \sum_i \tau_i\, \eta_i\, \xi_i^\top ,$$
+The regularized canonical correlations between past and target are the singular values of $R_q^{1/2} R_p^{1/2}$, equivalently $\kappa_i^2 = \mathrm{eig}(R_p R_q)$, and the **past canonical variates** $s_i \in \mathcal H$ are the eigenvectors of $R_p R_q$ **[thm]**. (This is the Gram-matrix form of $(C_{qq} + \rho)^{-1/2} C_{qp} (C_{pp} + \rho)^{-1/2}$ with centered feature covariances; verified against the primal form in `checks/cm_check.py`.) Properties: $0 \le \kappa_i \le 1$, sample-normalized, invariant to kernel scale **[thm]**. The ridge and the window are chosen by held-out canonical correlation (the VAMP score of Wu and Noé), on document-level splits. The v0 formula $(K_q + \rho)^{-1/2} K_q K_p (K_p + \rho)^{-1/2}$ was not whitened and its singular values grew with $N$ and kernel scale; it is withdrawn.
 
-with $\rho$ a ridge **[P4]**. The right singular functions $\xi_i \in \mathcal H$ are the **predictive-state coordinates** $s^L_i(x)$: functions on sites that summarize what the past of the stream at $x$ says about its future. Their number with $\tau_i$ above the noise floor is the **effective state dimension** $r_{\text{ctx}}(L)$ of the layer-$L$ stream.
+The **predictive-state coordinates** of layer $L$ are $s^L(x) = (s_1(x), \dots, s_r(x))$, and the **effective context rank** $r_{\text{ctx}}(L)$ is the number of $\kappa_i$ above a declared threshold on held-out data. This rank is **scale-dependent and empirical**. The following are what can and cannot be said about it:
 
-This is Ho–Kalman / subspace identification with a kernel, and it is the same construction that gives the belief-state simplex for an HMM (the Hankel matrix of the process has rank equal to the number of hidden states) and the "low-rank logits" bound for an autoregressive LM (the Hankel of $p(\text{future} \mid \text{past})$ has rank at most the width of the unembedding). We apply it to **every layer's stream treated as its own process**, which is exactly the "Hankel$^L(\text{past}, \text{fut})$ computed from $h^L$ alone" the user asked for. For an SSM, $r_{\text{ctx}}(L)$ is bounded by the state dimension; for a transformer it is measured; both are compared on equal terms.
+- For an HMM with $k$ hidden states, the Hankel matrix of *observation* past/future probabilities has rank at most $k$ (equal under minimality and sufficiently long windows), and after centering the belief simplex has affine dimension $k - 1$ **[cond]** (spectral HMM learning: Hsu–Kakade–Zhang). This is a statement about the token process and we use it as a separate benchmark computed from tokens.
+- For the *activation* stream of a network trained on that HMM, no such bound follows: future activations may retain past tokens, past and future windows need not be conditionally independent given the HMM state, and a nonlinear kernel on a $k$-dimensional continuous state has infinite population rank. That $r_{\text{ctx}}(L)$ at the belief-representing layer is close to $k - 1$, and that $s^L$ is linearly readable from the true belief state, are **[hyp]**, tested in Stage 4.
+- For an SSM, the linear-system Hankel rank is bounded by the state dimension **[cond]** (LTI, linear observation); the nonlinear kernel rank of the activation stream is not, and is measured.
+- Golowich, Liu and Shetty (2025) prove that an *extended logit matrix* (histories × (future, next token), mean-centered logits) has rank at most $d$ for all positions **if and only if** the model is a time-varying input-switched affine network of hidden dimension $d$ **[thm, theirs]**. This is a statement about logits, not about probabilities (softmax raises rank) and not about intermediate layers. It is the exact sense in which "our Hankel at every layer" generalizes their construction: the same past × future matrix, with the layer-$L$ stream in place of the logits and a kernel in place of linear features. Their theorem is the linear, final-layer special case; everything else is measured.
 
-### 6.4 How the context acts on the current site: the type signature
+### 6.4 How context acts on the current site, and the explained-variance ladder
 
-The layer's action at $x$ is approximated as a function of the pair (current activation, predictive state):
+The layer's action at $x$ is modelled as a function of (current activation, predictive state): $\Delta h^{L+1}(x) \approx g(h^L(x), s^L(x))$. In site space this is the product kernel $K^L \cdot K_s$ with $K_s$ a sphere kernel on $s^L(x)$ weighted by the $\kappa_i$; the weighting is a modelling choice, not implied by the SVD **[P7]**. Its operator's eigenfunctions are joint current-and-context modes; their loadings on $H^{L+1}$ are the directions the layer writes for each.
 
-$$\Delta h^{L+1}(x) \approx g\big(h^L(x),\, s^L(x)\big).$$
+The amount of context the layer reads is a **held-out predictive-risk curve**, not a conditional variance and not a measurement of architectural use:
 
-In site space this is one more kernel, the product $K_{\text{cur} \otimes \text{ctx}}[x, y] = K^L[x, y] \cdot K_s[x, y]$ where $K_s$ is the sphere kernel on $(s_1, \dots, s_r)(x)$ with the natural scale given by the $\tau_i$ (the Hankel singular values are already a metric on the state space, so there is no extra temperature to choose). Its operator's eigenfunctions are **joint current-and-context modes**; its loadings on $H^{L+1}$ are the directions the layer writes for each joint mode.
+$$\mathcal R_0 \ \ge\ \mathcal R(h^L) \ \ge\ \mathcal R(h^L, s^L_{1..r}) , \qquad \mathcal R(Z) = \text{held-out } \mathbb E\, \|\Delta h^{L+1} - \hat g_Z\|^2,$$
 
-The amount of context the layer actually reads is then a measured curve, the **explained-variance ladder**:
-
-$$V_0 = \mathrm{Var}\,\Delta h^{L+1} \;\ge\; V_{\text{cur}} = \mathrm{Var}\big(\Delta h^{L+1} \mid h^L(x)\big) \;\ge\; V_{\text{cur}, r} = \mathrm{Var}\big(\Delta h^{L+1} \mid h^L(x), s^L_{1..r}(x)\big) \;\xrightarrow[r \to \infty]{}\; 0,$$
-
-each term a kernel ridge regression residual (an SVD). $V_{\text{cur}}$ is the "marginalize context" lower bound, now a number rather than an assumption. The $r$ at which the ladder saturates is how much state the layer reads; the gap between $V_{\text{cur}}$ and $V_0$ is how much of the layer is "an MLP in disguise".
-
-Two Hankels are available and their relation is itself informative **[P5]**: the one above (what the stream *carries*, intrinsic to layer $L$) and the cross-layer one with future replaced by $h^{L+1}(x)$ (what the layer *reads*). The first is the architecture-free, recording-compatible object; the second is the one to use for attribution to the layer's computation. We compute both and report the principal angles between their state subspaces.
+with $\hat g_Z$ a kernel ridge regression, cross-fitted on document-level splits so that the state coordinates, the ridge, and the evaluation never share sites (an unregularized in-sample kernel regression interpolates everything and would show zero residual regardless of what the layer reads). The Bayes risks are nested and monotone **[thm]**; the fitted curve is monotone only approximately and only out of sample, and it has no guaranteed zero limit (finite windows, finite features). The gap $\mathcal R_0 - \mathcal R(h^L)$ is the part of the layer that is "an MLP in disguise"; the further drop with $r$ is the context the layer reads, at this window and scale. The i.i.d. previous-token-copy construction is an early calibration case (Stage 0) where the carried curve must stay flat and the read curve must drop at $r = 1$.
 
 ## 7. Pulling back to the computation
 
-### 7.1 Every unit is a function on sites: neurons as coherent-structure detectors
+### 7.1 Every unit is a function on sites
 
-A neuron's activation $n \in \mathcal H$, a head's output $o \in \mathbb R^{N \times d}$, an SSM state coordinate: each is a (vector-valued) function on sites and has an exact expansion $n = \sum_i \langle n, \psi_i\rangle \psi_i$ in any coherent basis. The **mode profile** of a unit is the vector $(\langle n, \psi_i\rangle)_i$. A unit concentrated on one mode detects one coherent structure; one spread across several is polysemantic *with respect to this basis*; one spread over the small-$\sigma$ tail is responding to what the basis calls noise. All of this is stated relative to the basis and the scale $\beta$, which is the correct amount of relativity. "Virtual neurons" (a computation carried by a combination of real neurons none of which carries it alone) appear as a mode whose loading on the neuron layer is spread across several neurons; this is the object Section 11's compute-in-superposition test looks for.
+A neuron $n \in \mathcal H$, a head output $O \in \mathbb R^{N \times d}$, an SSM state coordinate: each has the exact expansion $n = \sum_i \langle n, \psi_i\rangle \psi_i$ **[thm]**. The **mode profile** of a unit is $(\langle n, \psi_i\rangle)_i$, reported at block granularity. A unit concentrated on one block detects one coherent structure; one spread over several is polysemantic *relative to this basis at this scale*; one concentrated on the small-$\sigma$ tail responds to what the basis treats as fine structure, which may be noise or may be essential, and the gradient side (7.2) is what distinguishes them. This is the "neurons as coherent-structure detectors" picture made literal. A "virtual neuron" (a computation carried by several real neurons, none of which carries it alone) appears as a block whose loading on the neuron layer is spread across several neurons; that the spread corresponds to the paper's construction is **[hyp]** (Stage 2). Distributed loading is evidence of distributed linear association, not by itself of a joint computation.
 
-### 7.2 The exact mode decomposition of a gradient step
+### 7.2 The exact mode decomposition of a gradient
 
-Let $W$ be any weight matrix in the network with per-site input $u(x) \in \mathbb R^p$ and per-site backpropagated error $\delta(x) \in \mathbb R^q$ at its output. The gradient of the training loss over the sites is
+Let $W$ be a weight matrix applied as $z = W u$. For each **use** of $W$ there is an input $u$ and a backpropagated error $\delta = \partial \mathcal L / \partial z$. When every site uses $W$ once (every projection in a transformer or SSM block, counting key/value projections at the key site), $U \in \mathbb R^{N \times p}$, $\Delta \in \mathbb R^{N \times q}$ are functions on sites and
 
-$$G = \nabla_W \mathcal L = \sum_x \mu(x)\, \delta(x)\, u(x)^\top = \Delta^\top M U,$$
+$$G = \nabla_W \mathcal L = \Delta^\top U = \Delta^\top \Psi \Psi^\top U = \sum_i g_i\, b_i^\top, \qquad g_i = \Delta^\top \psi_i, \quad b_i = U^\top \psi_i . \quad \text{[thm]}$$
 
-with $\Delta \in \mathbb R^{N \times q}$, $U \in \mathbb R^{N \times p}$ functions on sites and $M = \mathrm{diag}(\mu)$. Inserting $\Psi \Psi^\top = I$:
+The gradient is exactly a sum over modes of rank-one updates: mode $i$ pushes $W$ to map its input loading $b_i$ toward its error loading $g_i$. When a site uses $W$ several times (convolution offsets, recurrent steps), the per-site contribution $G(x) = \sum_{\text{uses}} \delta u^\top$ is a matrix-valued function on sites, the expansion $G = \sum_i \sum_x \psi_i(x) G(x)$ is still exact, and the pieces are no longer rank-one **[thm]**. A composite such as $W_Q^\top W_K$ is not a parameter; each factor is decomposed separately with its own uses. Direct parameter terms in the loss (weight decay) are added separately. Only the training loss and the training sites enter **[A3]**; for a pretrained model without its corpus a held-out sample from the same distribution is substituted and flagged.
 
-$$G = \sum_i \underbrace{(\Delta^\top M^{1/2} \psi_i)}_{g_i \in \mathbb R^q}\, \underbrace{(U^\top M^{1/2} \psi_i)^\top}_{b_i^\top,\; b_i \in \mathbb R^p} = \sum_i g_i\, b_i^\top .$$
+What can be read off, and its limits:
 
-The gradient is **exactly** a sum over coherent modes of rank-one updates: mode $i$ pushes $W$ to map its input loading $b_i$ toward its error loading $g_i$. This holds for every weight matrix in every architecture (for a pairwise weight such as $W_Q^\top W_K$ the input is a function on $X \times X$ and the basis is $\psi_i \otimes \psi_j$). No approximation, no extra assumption: only the training loss and the training sites the network itself sees. From it:
+- **block pressure** $\|G_B\|_F$ with $G_B = \Delta^\top \Pi_B U$ the contribution of an isolated block $B$: invariant to rotation within the block **[thm]**. Individual $\|g_i\|\|b_i\|$ are not invariant and are not reported.
+- **signed interaction** between blocks, $I_{BB'} = \langle G_B, G_{B'}\rangle_F$: the first-order effect of the step driven by $B$ on the loss contribution attributed to $B'$. For indicator blocks (disjoint site groups) this is exactly gradient alignment between group losses **[thm]**; for general blocks it is the natural generalization. Positive is cooperative, negative is interference. v0's $\langle b_i, b_j\rangle \|g_i\|$ omitted the error-side alignment and the sign.
+- **truncation**: $G - G_r = \sum_{i > r} g_i b_i^\top$ exactly, but the pieces are not Frobenius-orthogonal, so the residual is computed, not summed; the bound $\|G - G_r\|_F \le (\sum_{i>r} \|g_i\|^2)^{1/2} (\sum_{i>r} \|b_i\|^2)^{1/2}$ holds **[thm]**.
+- **gradient, not update.** This decomposes the gradient. Momentum, Adam's preconditioning, clipping and weight decay change the update and are not rank-one over modes. The optimizer-agnostic statement is on the activation side: any update $\Delta W$ changes the layer's output on the sites by $\delta Z = U\, \Delta W^\top$, a function on sites, whose expansion $\delta Z = \Psi \Psi^\top \delta Z$ is exact for any optimizer **[thm]**. This is the precise form of "the pullback to the weights only constrains the update to the activation cloud": the activation-side decomposition of the realized update is always exact; the weight-side rank-one decomposition is exact for the gradient.
+- **refinement and maintenance** **[hyp]**: a coherent block at $L$ whose halves (as seen at $L'$) have opposing error loadings is under pressure to split; a small-$\sigma$ block with persistent pressure across checkpoints is being maintained rather than being noise. Both are hypotheses the decomposition lets us test, not consequences of it. The method reports $\sigma$, pressure, and interaction and does not decide ex ante.
 
-- **pressure on mode $i$**: $\|g_i\| \|b_i\|$, the size of the rank-one piece;
-- **interference of mode $i$ on mode $j$**: the update $g_i b_i^\top$ acts on $j$'s inputs by $g_i \langle b_i, b_j\rangle$, so $I_{ij} = \langle b_i, b_j\rangle\, \|g_i\|$; mode $i$'s learning moves mode $j$'s representation when their input loadings overlap;
-- **refinement**: a coherent set at $L$ whose two halves (as seen at $L'$) have opposite error loadings is under pressure to split; the basis of $Q^{L \to L'}$ exhibits this as a mode with $\sigma < 1$ and large pressure;
-- **noise versus error-correction**: a small-$\sigma$ mode with small pressure is noise at this scale; a small-$\sigma$ mode with consistent nonzero pressure across checkpoints is being actively maintained. The method reports both numbers and does not decide ex ante which it is.
+### 7.3 The action view: similarity of local derivatives
 
-Truncating the basis projects $G$ onto the top modes; the part of the update left out is exactly the tail of the decomposition. This is the sense in which "the pullback to the weights only constrains the update to the activation cloud": the activation-space description (modes and their loadings) is primary, and the weights appear only through how their update decomposes over that description.
+The same-site Jacobian $J^L(x) = \partial h^{L+1}(x) / \partial h^L(x)$ (cross-site blocks exist for attention and are what the context view summarizes) defines the action view $\phi(x) = \mathrm{vec}\, J^L(x)$, normalized, with the sphere kernel $\exp(\beta \langle \hat J(x), \hat J(y)\rangle_F)$ so that Section 3 applies unchanged (the raw cosine Gram has negative entries and is not a diffusion kernel) **[M6]**. It says two sites are treated alike when the layer applies positively proportional local linear maps to them. For a ReLU MLP, $J = W_2\, \mathrm{diag}(m(x))\, W_1$ with $m(x)$ the active mask **[thm]**, so the action view is a signed, weighted comparison of masks: the activation-plateau / stable-region structure of Janiak et al. and the per-input affine map of the ISAN picture, each as a kernel on sites. Equal normalized Jacobians do not imply one affine map (magnitude and offset $h^{L+1}(x) - J(x) h^L(x)$ can differ); when affine-cell recovery is the target, magnitude and offset are appended as coordinates with declared scales [P1]. $J$ is never formed: with $m_J$ isotropic probes $v_r$ shared across sites, $\tfrac1{m_J}\sum_r \langle J(x) v_r, J(y) v_r\rangle$ is unbiased for $\langle J(x), J(y)\rangle_F$ with standard error $O(m_J^{-1/2})$ **[thm]**, from $m_J$ Jacobian-vector products per site. Vector diffusion maps (Singer–Wu) would use $J$ as a connection rather than only its Gram matrix; noted, not used.
 
-### 7.3 The action view: coherence in tangent space
-
-The forward-pass analogue of 7.2 is the local Jacobian $J^L(x) = \partial h^{L+1}(x) / \partial h^L(x)$ (the same-site block; cross-site blocks exist for attention and are what the context view summarizes). The action kernel $K_J[x, y] = \langle J(x), J(y)\rangle_F / (\|J(x)\|_F \|J(y)\|_F)$ says two sites are treated alike when the layer applies the same local linear map to them. For a ReLU MLP, $J = W_2 \,\mathrm{diag}(m(x))\, W_1$ with $m(x)$ the active mask, so $K_J$ is a weighted mask-overlap kernel: the activation-plateau / affine-cell structure, and the per-site affine map of the ISAN picture, each as a kernel on sites. Coherent sets of $K_J$ are sets on which the layer is one affine map. The Jacobian is never formed: $m_J$ random probes $v_r$ give $\langle J(x), J(y)\rangle_F \approx \tfrac1{m_J}\sum_r \langle J(x) v_r, J(y) v_r\rangle$ from $m_J$ Jacobian-vector products per site **[M5]**. Vector diffusion maps (Singer–Wu) are the extension that uses $J$ as a connection between layers rather than only its Gram matrix; we note it and do not use it in the spine.
-
-Weight magnitudes are deliberately absent. Comparing a weight to zero is comparison to zero-ablation; the Jacobian and the gradient compare the network to itself.
+Weight magnitudes are deliberately absent: comparing a weight to zero is comparison to zero-ablation, and the Jacobian and gradient compare the network to itself.
 
 ## 8. Comparing models and predicting stitching
 
-Two models $A$, $B$ run on the same sites give operators $S^A_L, S^B_{L'}$ on the same $\mathcal H$. Comparison is therefore operator comparison with no Procrustes step:
+Two models $A, B$ on the same sites give operators on the same $\mathcal H$, so comparison needs no Procrustes step:
 
-- **subspace distance**: principal angles between the top-$r$ eigenspaces, stable by Davis–Kahan relative to the gap;
-- **alignment**: $\langle S^A_L, S^B_{L'}\rangle_F / (\|S^A_L\|_F \|S^B_{L'}\|_F)$, which at $\beta \to 0$ is linear CKA. CKA's known fragilities (sensitivity to dominant directions, to outliers) are the $\beta \to 0$ pathologies; at finite $\beta$ they are tempered, and the spectrum tells us by how much;
-- **stitching prediction**: a linear stitch from $A$'s layer $L$ into $B$'s layer $L'$ succeeds to the extent that $B$'s modes that carry pressure (7.2) are linearly readable from $H^A_L$. Per-mode readability is the ridge $R^2$ of $\psi^B_i$ on $H^A_L$; the predicted stitching loss is the pressure-weighted unreadability. No stitch is trained to make the prediction; the ridge regression is a closed-form SVD.
+- **subspace distance**: principal angles between isolated blocks of $\tilde P^A_L$ and $\tilde P^B_{L'}$ (Davis–Kahan stable relative to the gaps) **[thm]**;
+- **centered alignment**: $\langle \tilde P^A, \tilde P^B\rangle_F / (\|\tilde P^A\|_F \|\tilde P^B\|_F)$ on the *centered* operators. As $\beta \to 0$, $C P_\beta C = \tfrac{\beta}{N} C \hat\Phi \hat\Phi^\top C + O(\beta^2)$ **[thm]** (the Sinkhorn scaling of a near-constant matrix is constant to first order; numerically verified, relative error $\approx \beta/4$), so the centered alignment tends to **linear CKA of the row-normalized activations** (verified to four digits in `checks/cm_check.py`). The uncentered statistic tends to one for every pair at both $\beta \to 0$ and $\beta \to \infty$ and is not used. Finite $\beta$ changes which pathologies the statistic has (it removes magnitude sensitivity and adds bandwidth and density sensitivity); it does not remove them, and we report the $\beta$-scan rather than claim robustness.
+- **stitching prediction [hyp]**: a linear stitch from $A$'s layer $L$ into $B$'s layer $L'$ succeeds to the extent that the blocks of $B$ that the downstream network is sensitive to are linearly readable from $H^A_L$. Per-block readability is the ridge $R^2$ of $B$'s block coordinates on $H^A_L$ (a closed-form fit, which is a fit). Sensitivity is **not** gradient pressure, which vanishes at an exact fit while stitching can still fail; it is the output sensitivity $\|J_{L' \to \text{out}}\, a_{H^B_{L'}}(\psi)\|_{F_{\text{out}}}$ in the output Fisher norm (Section 9), the first-order effect on the predicted distribution of perturbing the block's direction. The predictor is sensitivity-weighted unreadability. It is compared in Stage 5 against unweighted readability, direct activation ridge reconstruction, CKA, and actual trained stitches of both task-loss and direct-matching kinds, which the stitching literature shows can disagree.
 
-Across training, the same holds with $A$ and $B$ two checkpoints, and across layers of one model with $A = B$. This is the single comparison primitive the theory needs.
+Across training ($A, B$ two checkpoints) and across layers ($A = B$) the same primitives apply.
 
 ## 9. Metrics other than cosine (variant, not spine)
 
-The Fisher information of the output pulls back through the downstream network to a metric $g_L(x) = J_{L \to \text{out}}(x)^\top F_{\text{out}} J_{L \to \text{out}}(x)$ on the layer-$L$ stream at each site, and "two activations are the same if the output cannot tell them apart" is the kernel built from it. It is the mega-principled version and it is per-site, $d_L \times d_L$, expensive, and anisotropic; the intermediate version uses the site-averaged metric. Both are computable in sketched form. We treat the choice (cosine; averaged Fisher pullback; per-site Fisher pullback) as methodological [M6], decided by experiment, since the output view already carries the Fisher–Rao information at the end of the network and the dynamic operator $Q^{L \to \text{out}}$ already couples layer-$L$ geometry to it.
+The output Fisher information $F_{\text{logits}} = \mathrm{diag}(p) - p p^\top$ pulls back through the downstream network to the PSD form $g_L(x) = J_{L \to \text{out}}(x)^\top F_{\text{out}} J_{L \to \text{out}}(x)$ on the layer-$L$ stream at each site **[thm]**. "Two activations are the same if the output cannot tell them apart to first order" is the kernel built from it. Per-site it is $d_L \times d_L$, anisotropic, and does not by itself define a PSD kernel on sites (exponentiated geodesic distance for a general metric need not be PSD); the site-averaged form defines a Mahalanobis sphere kernel that is PSD. The choice (cosine; averaged Fisher pullback; per-site, via a sketched metric) is **[M7]**, decided by experiment, since the output view already carries Fisher–Rao at the end and $Q^{L \to \text{out}}$ already couples layer-$L$ geometry to it.
 
 ## 10. Temperature
 
-$\beta$ is the one knob the theory cannot take from the data without a further choice. Options, in decreasing order of how principled we judge them **[P6]**:
+$\beta$ is the one knob the theory cannot take from the data without a further choice **[P8]**. Candidates, in decreasing order of how principled we judge them:
 
-1. **Noise-induced scale.** Two activations closer than the jitter the network itself experiences cannot be reliably distinguished by it. Jitter is measurable: the displacement of $h^L(x)$ between adjacent late checkpoints (SGD noise), or across dropout / batch-composition resamples. $\beta_{\text{noise}} = 1 / \overline{\|\delta \hat h\|^2}$. Edge-of-stability and batch-noise results suggest this scale is set by the optimizer and is roughly layer-wise constant late in training; this is exactly the kind of literature anchor that should be checked rather than assumed.
-2. **Self-tuning scale**: $\beta$ from the median $k$-nearest-neighbour distance (Zelnik-Manor–Perona), the standard diffusion-maps default; data-driven but not network-driven.
-3. **Scan and persistence**: compute spectra along $\beta$ and report which modes persist (a persistence diagram over scale). This is the coarse-graining story and is useful for display; we do not treat functions of $\beta$ as primitives.
+1. **Noise-induced scale.** Two activations closer than the perturbation the network itself undergoes are, at first order, not distinguished by it. Defined as the displacement of $\hat h^L(x)$ under *stochastic variation at fixed parameters*: repeated single minibatch steps from the same checkpoint, or dropout / batch-composition resamples; $\beta_{\text{noise}} = 1 / \overline{\|\delta \hat h\|^2}$. Adjacent-checkpoint displacement is **not** this (it mixes drift with noise and depends on the checkpoint interval) and is used only as a heuristic with the interval declared. Whether the noise scale is layer-wise constant late in training, as edge-of-stability and batch-noise results might suggest, is **[hyp]**. The noise is anisotropic and we use its mean square; an anisotropic version is the Fisher-type variant of Section 9.
+2. **Nearest-neighbour scale**: $\beta$ from the median $k$-NN distance, a global version of the self-tuning heuristic; data-driven, not network-driven.
+3. **Scan**: spectra along $\beta$ with a mode-matching convention across the scan. This is the coarse-graining story and is reported as supporting material; a persistence diagram would need a declared filtration and we do not claim one.
 
-Default: report at $\beta_{\text{noise}}$ when checkpoints exist (every training-dynamics experiment; Pythia), $\beta_{\text{nn}}$ otherwise, with a scan as supporting material. The $\beta \to 0$ (CKA/PCA) limit is always also reported since it is the comparison point with the linear-features literature.
+Default: $\beta_{\text{noise}}$ when stochastic resamples exist (every training run we control; pretrained models with checkpoints), else $\beta_{\text{nn}}$, plus the scan. For comparisons across training, $\beta$ is **held fixed** across checkpoints (otherwise a changing measurement scale confounds a changing representation) and the adaptive-$\beta$ result is reported alongside. The $\beta \to 0$ limit is always reported as the point of contact with linear CKA and PCA.
 
-## 11. What this predicts in cases where the answer is known
+## 11. Hypotheses on cases where something is known
 
-Details are in `EXPERIMENTS.md`; the predictions that would falsify the framing are:
+All **[hyp]**; details and controls in `EXPERIMENTS.md`, where each target is labelled identity / planted / established / hypothesis.
 
-- **Toy models of superposition** (sparse features, narrow hidden layer): at $\beta \gtrsim \beta_{\text{nn}}$ the top-$n$ modes localize (high IPR) on single-feature-active sites and their hidden-layer loadings align with the columns of $W$; the dynamic operator hidden $\to$ output sharpens them (the ReLU makes the output geometry more clustered than the hidden one). As feature sparsity decreases, IPR falls and the method reports delocalization rather than a wrong dictionary.
-- **Computation in superposition** (sparse $x \mapsto \mathrm{ReLU}(x)$ through a narrow layer): modes correspond to input features; the mode profile of each real neuron spans several modes and each mode's loading on the neuron layer spans several neurons (virtual neurons); the interference matrix $I_{ij}$ of Section 7.2 matches the feature-interference pattern.
-- **Modular addition / grokking**: the embedding-layer geometry at the Fourier scale yields eigenfunctions that are the circle harmonics; $Q^{\text{embed} \to \text{post-MLP}}$ groups them by frequency; across checkpoints a spectral gap opens at the frequencies the network uses, and the mode-wise pressure of Section 7.2 on those frequencies rises before the test loss drops.
-- **HMM belief states** (Mess3 and relatives): $r_{\text{ctx}}(L)$ at the layer where the belief simplex is represented equals the number of hidden states, and the predictive-state coordinates $s^L$ align with the true belief states computable from the HMM; this holds for a transformer and an SSM alike, which is the architecture-agnosticism test.
-- **MNIST / dSprites / CIFAR**: coherent sets across layers coincide with classes at coarse scale and with within-class structure at fine scale; on dSprites the product structure of the factors appears as a product structure of eigenfunctions; predicted stitching fidelity between seeds correlates with actual stitching.
+- **Toy models of superposition**: in a $\beta$ window, an isolated block of about $n$ modes whose span recovers the span of single-feature-active indicators (principal angles), and whose localizing rotation has hidden-layer loadings matching the columns of $W$ one-to-one; the hidden $\to$ output operator keeps those blocks coherent. As sparsity decreases, the block loses its gap and the indicator-subspace recovery degrades, and the report says so.
+- **Computation in superposition**: blocks correspond to input features; neuron mode profiles span several blocks and block loadings span several neurons; the signed interaction matrix correlates with the measured cross-feature error.
+- **Modular addition / grokking**: on sites = (example, final position), the post-attention geometry has an isolated block spanned by the product harmonics at the network's frequencies; the post-attention $\to$ post-MLP operator keeps the frequency blocks coherent and merges sites with equal $a + b \bmod p$; across checkpoints the block pressure on the eventual frequencies rises before the test loss falls.
+- **HMM belief states**: at the belief-representing layer, $r_{\text{ctx}}(L)$ is close to $k - 1$ and $s^L$ is linearly readable from the true belief state, for a transformer and an SSM alike; the token-level Hankel benchmark has rank $k$.
+- **MNIST / dSprites / CIFAR**: coherent blocks across layers align with classes at coarse $t$ and with confusion structure at fine $t$; on dSprites with a factor-prediction objective the top blocks are products of per-factor functions; predicted stitching fidelity between seeds correlates with trained stitches.
 
-A failure on a large model is informative only if the language localizes it: a layer with no gap, a basis that does not localize, an explained-variance ladder that never saturates. Those are the diagnostic statements the method is built to make.
+A failure on a large model is informative only if the language localizes it: a layer with no gap, a block that does not localize, a ladder that never drops. Those are the diagnostic statements the method is built to make.
 
 ## 12. Assumptions register
 
 Substantive:
-- **[A1]** The same site at two layers is the same site (identity transport on $X$).
-- **[A2]** Dot product on each view after normalization (cosine on the residual stream; Bhattacharyya on outputs; weighted concatenation on windows).
-- **[A3]** The only "task" information used is the network's own training objective evaluated on the network's own training sites (Section 7.2).
+- **[A1]** Same site at two layers is the same site; a site correspondence must be declared across models.
+- **[A2]** Dot product on each view after normalization.
+- **[A3]** Only the network's own training objective on the network's own sites enters the gradient side.
 
 Pro-tem:
-- **[P1]** Dropping the norm (optionally restored as $\log\|h\|$).
-- **[P2]** Basis within near-degenerate blocks by a declared rotation; subspaces are the canonical object.
+- **[P1]** Norm dropped (restorable as $\log\|h\|$, a scale choice); magnitude/offset for the action view likewise.
+- **[P2]** Zero-vector policy: excluded, mass reported.
 - **[P3]** Lag weights in the context view.
-- **[P4]** Ridge $\rho$ in the Hankel estimate.
-- **[P5]** Two Hankels (carried vs read); both computed.
-- **[P6]** Temperature from training noise, else from nearest-neighbour scale.
+- **[P4]** Rotation inside near-degenerate blocks; blocks are the canonical object.
+- **[P5]** Carried and read context operators both computed; read used for attribution.
+- **[P6]** Ridge $\rho$ and window $w$ by held-out canonical correlation.
+- **[P7]** $\kappa$-weighting of state coordinates in the joint kernel.
+- **[P8]** Temperature from stochastic variation at fixed parameters, else nearest-neighbour scale; fixed across checkpoints for training comparisons.
 
 Methodological:
-- **[M1]** Fisher only at the output by default.
-- **[M2]** Density exponent $\alpha = 0$.
-- **[M3]** Product rather than mean over layers.
-- **[M4]** Nyström extension for out-of-sample sites.
-- **[M5]** Sketched Jacobians.
-- **[M6]** Cosine vs Fisher-pullback metrics at intermediate layers.
+- **[M1]** Counting measure and Euclidean orthonormality.
+- **[M2]** Fisher only at the output by default.
+- **[M3]** Bistochastic normalization. This is not cosmetic: it is what makes layer operators composable, and it fixes the manifold-limit density exponent.
+- **[M4]** Product over layers; the mean is the alternative at finite bandwidth.
+- **[M5]** Nyström extension above an eigenvalue floor.
+- **[M6]** Exponentiated Jacobian cosine as the action kernel.
+- **[M7]** Cosine vs averaged vs per-site Fisher pullback.
+
+Conditions that stronger claims need and the network need not satisfy: a finite-$\beta$ clustering window with separation; minimality and window sufficiency for Hankel rank statements; conditional independence of past and target given a finite state; sampling regularity and weak dependence of sites for spectral convergence; a first-order relation between sensitivity and stitching loss. Each appears with its [cond] or [hyp] marker where used.
 
 Known limitations:
-- Eigenfunctions delocalize when many features are simultaneously active; the IPR reports this but the dictionary reading is then unavailable.
-- Long-range context enters only through the stream itself at past positions (windows of length $w$); this is right for what the stream carries and incomplete for what attention can read far back.
-- Everything is first-order in the weights (Jacobians, gradients); ablation-style counterfactuals are outside the spine by design.
+- Clustering is a regime, not a limit; when many features are simultaneously active the blocks lose their gaps and the dictionary reading is unavailable.
+- Long-range context enters only through the stream at past positions within the window.
+- The Jacobian and gradient parts are first-order; ablation-style counterfactuals are outside the spine by design.
+- Identity transport is bookkeeping; attribution of an output to input sites is the separate step of Sections 6.4 and 7.
 
-## 13. Computational budget and the knob-to-accuracy map
+## 13. Computation: estimands, costs, and what each knob does
 
-| object | dense cost | scalable form | error controlled by |
-|---|---|---|---|
-| kernel $K$ on $N$ sites | $O(N^2 d)$ | $k$-NN sparse graph, $O(N k d)$ via approximate NN | $k \gg \log N$ preserves the top spectrum |
-| eigenpairs of $S$ | $O(N^3)$ | Lanczos, $O(r N k)$ per sweep | tail sum of loadings (exact) |
-| $Q^{L \to L'}$ | product densifies | matvecs only, never formed | same |
-| Hankel $\mathcal T^L$ | $O(N^3)$ | Nyström with $m$ landmarks, $O(N m^2)$ | kernel spectral tail beyond $m$, ridge $\rho$ |
-| action kernel | $O(N^2 d^2)$ | $m_J$ JVPs per site then $k$-NN | $O(1/\sqrt{m_J})$ on inner products |
-| gradient decomposition | one backward pass over sites | exact; truncate to $r$ modes | tail of the rank-one sum |
+There are **two estimands** and they must not be confused **[M8]**:
 
-Statistical accuracy: graph-Laplacian eigenpairs converge with bias $O(1/\beta)$ and variance $O(N^{-1/2} \beta^{d_{\text{int}}/4 + 1/2})$ in the intrinsic dimension $d_{\text{int}}$ of the view; Nyström error decays with the kernel's spectral tail beyond $m$. Dense is fine to $N \approx 3 \times 10^4$ on a laptop; sparse graphs reach $N \approx 10^6$ tokens. Every knob ($N, \beta, k, m, r, t, w, \rho, m_J$) has a monotone, visible effect on either resolution or error, and the synthetic experiments in `EXPERIMENTS.md` chart them before any real model is touched.
+- the **dense-kernel operator**, the object of Sections 2–4, approximated at low $\beta$ (nearly low-rank kernel) by Nyström with $m$ landmarks; error depends on landmark coverage as well as the kernel's spectral tail, so landmarks are chosen by leverage or $k$-means and oversampled;
+- the **$k$-NN graph operator**, a different kernel (sparse, symmetrized, not guaranteed PSD, so its eigenvalues can be negative and fractional powers need the graph-Laplacian convention), appropriate at high $\beta$ where the dense kernel is nearly sparse. Whether it approximates the dense operator at a given $\beta$ is measured on dense subsets, not assumed; "$k \gg \log N$" is a connectivity condition, not a spectral guarantee.
+
+Costs (configurations to be measured, not guarantees): a dense $N = 3 \times 10^4$ kernel is $3.6$ GB in float32, so dense work tops out near $N \approx 10^4$ on a laptop and $3 \times 10^4$ on a workstation; sparse graphs with $k \approx 50$ reach $N \approx 10^6$ with Lanczos cost per sweep $O(N k)$ and total cost depending on gaps and tolerance; products of operators are applied as matvecs and never formed; the action view costs $m_J$ JVPs per site; the gradient decomposition costs one backward pass plus storage of per-site $(u, \delta)$ for the chosen matrices.
+
+Convergence: for a fixed smooth function, the kernel Laplacian applied to it has bias $O(\epsilon)$ and standard deviation $O\big((N \epsilon^{d_{\text{int}}/2 + 1})^{-1/2}\big)$ with $\epsilon \asymp 1/\beta$, under interior, smoothness, and independent-sampling assumptions **[cond]**; eigenvector convergence additionally needs gaps, and token sites are dependent. We use this only to set expectations and rely on **resampling stability** (bootstrap over documents) for actual error bars.
+
+Knob roles (replacing v0's "every knob is monotone"):
+
+| knob | role | guaranteed monotone? |
+|---|---|---|
+| $N$ sites | statistical accuracy | in expectation only |
+| $\beta$ | resolution; too large → identity limit | no (bias–variance) |
+| $t$ diffusion time | smooth coarse-graining, $\lambda^t$ | yes [thm] |
+| $r$ modes kept | truncation; tail sum of loadings | yes for reconstruction [thm]; no for estimation or gradient residual |
+| $k$ neighbours | graph estimand fidelity | no |
+| $m$ landmarks | Nyström fidelity | no under arbitrary selection |
+| $w$, $\rho$ window, ridge | context operator bias–variance | no; chosen by held-out score |
+| $m_J$ probes | action-view variance | yes [thm] |
 
 ## 14. Relation to existing tools
 
-- **PCA / CKA / CCA across layers**: the $\beta \to 0$ limit of the geometric view and of Section 8.
-- **SAEs and hierarchical dictionaries**: the high-$\beta$, high-IPR regime of Section 5, with the hierarchy given by diffusion wavelets (Section 3); no sparsity penalty, no training.
-- **Froyland's coherent sets and dynamic Laplacian**: Section 4 with identity transport.
-- **Kernel EDMD / kernel transfer operators (Klus et al.), HAVOK**: Section 4.4 and 6, with the operator estimated on sites and the time axis being depth, position, or training.
-- **Subspace identification, predictive-state representations, low-rank-logits Hankel**: Section 6.3 at every layer.
-- **ISAN and activation plateaus**: Section 7.3, per-site affine maps as a kernel.
-- **Vector diffusion maps, Hodge Laplacians**: extensions that use the Jacobians as connections; not in the spine.
-- **Model stitching**: Section 8, predicted rather than fit.
+- **RSA**: the shared-index comparison move; here extended by cross-view operators, their composition, and the exact unit and gradient expansions.
+- **PCA / linear CKA**: the $\beta \to 0$ limit of the centered geometric operator (Section 8).
+- **SAEs and hierarchical dictionaries**: the finite-$\beta$ clustering regime with a localizing rotation (Section 5), hierarchy via diffusion wavelets; no training, and the regime's presence is measured.
+- **Froyland's finite-time coherent sets**: Section 4 with identity transport and a shared measure, made exact by bistochastic normalization.
+- **Kernel transfer operators / kernel EDMD, VAMP, HAVOK**: Sections 4.4 and 6 with the time axis being depth, position, or training; the lagged regression that HAVOK and DMD need is stated separately.
+- **Subspace identification, PSRs, spectral HMM learning, the extended logit matrix of Golowich et al.**: Section 6.3; their rank theorems are the linear or token-level special cases.
+- **ISAN and stable regions**: Section 7.3.
+- **Vector diffusion maps, Hodge Laplacians**: extensions using Jacobians as connections; not in the spine.
+- **Model stitching and its failure analyses**: Section 8, as a hypothesis with controls.
 
 ## 15. Open decisions for the user
 
-1. The identity-transport move [A1] is the load-bearing design decision; everything else follows. Does the "site is the atom" framing match the intent, including for recordings?
-2. The two Hankels of Section 6.4 (carried vs read): keep both as first-class, or make "carried" the spine and "read" an attribution tool?
-3. Noise-induced temperature (Section 10, option 1) requires checkpoints or resampling; is that an acceptable requirement for the headline number?
-4. The gradient decomposition (7.2) uses the actual training loss and sites. For a pretrained model without its training corpus we would substitute a held-out corpus from the same distribution; is that acceptable [A3]?
-5. Density exponent [M2]: density-weighted (frequent things matter more) vs manifold-intrinsic.
+1. **[A1]** is the load-bearing design decision. Does "the site is the atom, identity transport, attribution is a separate step" match the intent, including for recordings?
+2. **Bistochastic normalization [M3]** makes sites uniformly weighted. This matches "frequency enters through the dataset". Agree, or is a non-uniform site weighting wanted (e.g. down-weighting repeated tokens)?
+3. **Read vs carried context [P5]**: keep both as first-class, or make "carried" the spine and "read" an attribution tool?
+4. **Noise temperature [P8]** needs stochastic resamples at fixed parameters, i.e. a few extra forward passes or minibatch steps per checkpoint. Acceptable as a requirement for the headline number?
+5. **[A3]** for pretrained models without their corpus: substitute a held-out sample from the same distribution?
+6. **Stitching sensitivity weight (Section 8)**: output-Fisher sensitivity rather than gradient pressure. Agree?

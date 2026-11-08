@@ -1,0 +1,39 @@
+# Numerical checks for THEORY.md v1: bistochastic product has trivial singular value 1 (symmetric normalization does not);
+# centered low-beta operator ~ (beta/N) C G C and centered alignment -> linear CKA; dual KCCA eig(R_p R_q) = canonical correlations^2.
+# Run: uv run --with numpy python -I checks/cm_check.py
+import numpy as np
+rng=np.random.default_rng(0)
+N,d=60,5
+def unit(A): return A/np.linalg.norm(A,axis=1,keepdims=True)
+Z1=unit(rng.normal(size=(N,d))); Z2=unit(rng.normal(size=(N,d))+0.5*Z1)
+def sinkhorn(K,it=5000):
+    v=np.ones(len(K))
+    for _ in range(it):
+        v=np.sqrt(v/(K@v))
+    P=K*v[:,None]*v[None,:]; return P
+C=np.eye(N)-np.ones((N,N))/N
+# 1. bistochastic: shared trivial eigenvector, product top singular value 1
+P1=sinkhorn(np.exp(2.0*Z1@Z1.T)); P2=sinkhorn(np.exp(2.0*Z2@Z2.T))
+print("row sums",P1.sum(1).min(),P1.sum(1).max())
+Q=P2@P1; s=np.linalg.svd(Q,compute_uv=False); print("top sv of Q",s[:3])
+# compare with symmetric normalization product
+def symn(K): D=K.sum(1); return K/np.sqrt(D[:,None]*D[None,:])
+S1,S2=symn(np.exp(2.0*Z1@Z1.T)),symn(np.exp(2.0*Z2@Z2.T)); print("top sv sym-norm product",np.linalg.svd(S2@S1,compute_uv=False)[:3])
+# 2. beta->0: C P_beta C vs (beta/N) C G C
+for b in [1e-2,1e-3]:
+    Pb=sinkhorn(np.exp(b*Z1@Z1.T)); A=C@Pb@C; B=(b/N)*C@(Z1@Z1.T)@C
+    print("beta",b,"rel err",np.linalg.norm(A-B)/np.linalg.norm(B))
+# alignment -> linear CKA of normalized rows
+def cka(G1,G2): return np.sum((C@G1@C)*(C@G2@C))/np.sqrt(np.sum((C@G1@C)**2)*np.sum((C@G2@C)**2))
+b=1e-3; A1=C@sinkhorn(np.exp(b*Z1@Z1.T))@C; A2=C@sinkhorn(np.exp(b*Z2@Z2.T))@C
+print("centered alignment",np.sum(A1*A2)/np.sqrt(np.sum(A1**2)*np.sum(A2**2)),"linear CKA",cka(Z1@Z1.T,Z2@Z2.T))
+# 3. KCCA dual form: eig(R_p R_f) = squared regularized canonical correlations (linear features for check)
+Xp=rng.normal(size=(N,3)); Xf=Xp@rng.normal(size=(3,4))+0.3*rng.normal(size=(N,4))
+Xp-=Xp.mean(0); Xf-=Xf.mean(0); rho=0.1
+Cpp=Xp.T@Xp/N; Cff=Xf.T@Xf/N; Cfp=Xf.T@Xp/N
+def isqrt(M): w,V=np.linalg.eigh(M); return V@np.diag(w**-0.5)@V.T
+V=isqrt(Cff+rho*np.eye(4))@Cfp@isqrt(Cpp+rho*np.eye(3)); cc=np.linalg.svd(V,compute_uv=False)
+Kp,Kf=Xp@Xp.T,Xf@Xf.T
+Rp=Kp@np.linalg.inv(Kp+N*rho*np.eye(N)); Rf=Kf@np.linalg.inv(Kf+N*rho*np.eye(N))
+ev=np.sort(np.linalg.eigvals(Rp@Rf).real)[::-1][:3]
+print("primal canon corr^2",cc**2,"dual eig(RpRf)",ev)

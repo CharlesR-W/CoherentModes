@@ -1,136 +1,125 @@
 # Experiments: calibrating the coherent-mode language on cases with known answers
 
-Status: v0 draft, 2026-11-07. Companion to `THEORY.md`; section numbers below refer to it.
+Status: v1, 2026-11-07. Companion to `THEORY.md`; section numbers refer to it.
 
-## Principles for the programme
+## Principles
 
-- Every experiment states the **ground truth** it checks against and the **theory sections** it exercises, so that a failure localizes to a section.
-- Knobs are charted before they are used: the synthetic stage produces the knob-to-accuracy curves of §13 that all later stages quote.
-- Nothing is trained on top of the model under study. Where a comparison baseline needs training (an SAE, an actual stitch), the baseline is trained and the method is not.
-- Compute: everything up to CIFAR runs on CPU or a single small GPU in minutes; Pythia-scale runs on Modal. Checkpoints are saved densely in every training run we control, because the training-dynamics decomposition (§7.2) and the noise temperature (§10) both need them.
+- Every measured target is labelled **identity** (an algebraic fact we check the code against), **planted** (ground truth we built in), **established** (a published empirical phenomenon), or **hypothesis** (ours). A failure on an identity is a bug; on a planted target it falsifies a [cond] or [hyp] claim; on a hypothesis it is a result.
+- Knobs are charted before they are used: Stage 0 produces the knob-to-error curves of §13 that later stages quote.
+- Nothing is trained on top of the model under study. Baselines that need training (an SAE, an actual stitch) are trained and labelled as baselines; closed-form ridge fits in the method are labelled as fits.
+- Every training run we control saves dense checkpoints and, at a few of them, stochastic resamples at fixed parameters (repeated minibatch steps or dropout passes) for the noise temperature of §10.
+- Held-out evaluation is by **document-level** (or example-level) splits everywhere a fit is involved; past and future windows never straddle a split.
+- Compute: everything through CIFAR runs on CPU or one small GPU in minutes to an hour; Pythia-scale on Modal.
 
 ## Shared machinery (one small library)
 
-Build once, reuse everywhere:
+1. **Sites table**: one row per site with document/position (or example id), per-layer activations as float16 memmaps, window indices, split id. Zero-vector policy [P2] applied here with the excluded mass logged.
+2. **Views** (§2): geometric, output ($\sqrt p$), context (lag-weighted window), action (sketched Jacobian via `torch.func.jvp`, optional magnitude/offset coordinates), unit activations.
+3. **Kernels and normalization** (§2–3): dense sphere kernel to $N \approx 10^4$; Nyström landmarks (leverage or $k$-means, oversampled) at low $\beta$; symmetrized $k$-NN graph at high $\beta$; Sinkhorn to bistochastic; centering. The two estimands of §13 are separate code paths and Stage 0 compares them on dense subsets.
+4. **Spectra**: Lanczos for top blocks; block boundaries from gaps; products as `LinearOperator`s (§4.1).
+5. **Loadings, readability, localization** (§5, §4.3): $a_F(\psi)$, ridge $R^2$, indicator-subspace principal angles, block support size, localizing rotation as a named algorithm.
+6. **Context module** (§6.3–6.4): centered past/target Grams, smoothers $R_p, R_q$, eigenvectors of $R_p R_q$, held-out canonical correlations (VAMP score) for choosing $\rho, w$; carried and read targets; cross-fitted predictive-risk ladder.
+7. **Gradient module** (§7.2): hooks capturing per-use $(u, \delta)$ for chosen matrices; block pressure, signed interaction, explicit truncation residual; activation-side expansion of the realized optimizer update.
+8. **Comparison** (§8): principal angles, centered alignment, $\beta \to 0$ CKA check, sensitivity-weighted readability.
+9. **Reports**: per stage an HTML notebook (`experiment-notebooks` skill) with the labelled targets and verdicts.
 
-1. **Sites table.** A dataframe of sites with document/position (or sample id) and, per layer, the activation matrix $H^L$ stored as float16 memmaps. For sequence models, also the per-site past/future window indices.
-2. **Views** (§2): geometric, output ($\sqrt p$), context (windowed), action (sketched Jacobians via `torch.func.jvp`), and arbitrary unit activations.
-3. **Kernels** (§2–3): dense sphere kernel for $N \le 3 \times 10^4$; $k$-NN sparse graph via `pynndescent`/`faiss` beyond; Nyström landmarks for the Hankel operators. Symmetric normalization, $\alpha$ as a parameter.
-4. **Spectra**: Lanczos (`scipy.sparse.linalg.eigsh`) for top-$r$ eigenpairs; products of operators as `LinearOperator`s, never materialized (§4.1).
-5. **Loadings and readability** (§5): $a_F(\psi)$, ridge $R^2$, IPR, Nyström extension.
-6. **Hankel module** (§6.3): past/future kernels, regularized CCA, state coordinates, effective rank, explained-variance ladder (§6.4).
-7. **Gradient decomposition** (§7.2): per-site $(u(x), \delta(x))$ capture by hooks for every weight matrix; mode-wise $g_i, b_i$, pressure, interference matrix.
-8. **Comparison** (§8): principal angles, alignment, stitching prediction.
-9. **Reports**: per experiment, an HTML notebook (spectra, IPR, loadings, ladders, pressure over training) via the existing `experiment-notebooks` skill.
-
-Estimated size: 1.5–2.5k lines of Python. Reuse: `pydiffmap` or `datafold` for the diffusion-maps core if their normalization options suffice; `pykoopman`/`d3s` for kernel transfer-operator estimation as a cross-check.
+Reuse where possible: `datafold`/`pydiffmap` for diffusion-maps internals if their normalization can be replaced by Sinkhorn; `deeptime` for VAMP/kernel-CCA cross-checks; `pynndescent`/`faiss` for neighbours.
 
 ## Stage 0: synthetic calibration (no network)
 
-Ground truth: planted geometry. Theory: §2, §3, §5, §13.
+Targets and labels:
 
-- Gaussian mixtures on the sphere with controlled separation; union of $n$ one-dimensional subspaces with sparse $k$-of-$n$ mixing (the TMoS activation geometry without a network); a product manifold (torus) for the dSprites case.
-- Chart: eigenvalue and eigenvector error vs $N$, $\beta$, $k$ (graph sparsity), $m$ (landmarks); IPR vs mixing sparsity; loading alignment with planted directions vs $\beta$; where the $\beta \to 0$ limit becomes PCA.
-- Deliverable: the knob-to-accuracy tables that every later stage cites.
+- **identity**: reconstruction tail sum (§1.3); bistochastic product has trivial singular value exactly 1 and the symmetric-normalized product does not (§3.1); centered alignment → linear CKA of normalized rows as $\beta \to 0$ (§8); eigenvectors of $R_p R_q$ equal primal canonical variates on linear features (§6.3). The script `checks/cm_check.py` already passes these on random data; Stage 0 turns them into unit tests.
+- **planted**: Gaussian mixtures on the sphere with controlled separation: the $\beta$ window in which an isolated block spans the indicator subspace (principal angles) and where it closes at both ends (identity limit at high $\beta$, PCA at low). Union of one-dimensional subspaces with $k$-of-$n$ sparse mixing (TMoS geometry without a network): indicator-subspace recovery vs sparsity; localizing-rotation recovery vs block-only recovery. Product manifold (torus): factorized eigenfunctions under a product kernel, and their loss under correlated sampling.
+- **planted, context**: i.i.d. symbols with an embedding "layer" and a next-"layer" that copies the previous symbol: the carried ladder must stay flat and the read ladder must drop at $r = 1$ (§6.3). An HMM token stream: the token-level Hankel benchmark has rank $k$ and the centered KCCA state has $k - 1$ coordinates above threshold at sufficient window.
+- **estimand comparison**: $k$-NN graph vs dense operator on subsets across $\beta$; Nyström vs dense across $m$ and landmark rules; bootstrap-over-documents error bars vs $N$.
+
+Deliverable: the knob tables and the regime boundaries every later stage quotes.
 
 ## Stage 1: Toy models of superposition (Elhage et al. 2022)
 
-Setup: $x \in \mathbb R^n$ sparse (feature probability $1 - S$), importance-weighted reconstruction $\mathrm{ReLU}(W^\top W x + b)$, hidden $h = Wx \in \mathbb R^m$, $m < n$. Sweep $S$, $n/m$.
+Setup: $x \in \mathbb R^n$ with each feature active independently with probability $1 - S$, importance-weighted reconstruction $\mathrm{ReLU}(W^\top W x + b)$, hidden $h = W x \in \mathbb R^m$. Sweep $S$, $n/m$. All-zero inputs are excluded under [P2] and their mass $S^n$ reported.
 
-Ground truth: the columns of $W$ (feature directions) and the known phase diagram (monosemantic / antipodal / polytope regimes).
-
-Theory exercised: §2 (sphere kernel), §3 (spectrum, gaps), §4 (hidden $\to$ output dynamic operator), §5 (loadings, IPR), §10 (temperature from training noise: adjacent-checkpoint jitter).
+Targets: **planted**: columns of $W$ and the single-feature-active site sets; **established**: the monosemantic / antipodal / polytope phase diagram; **hypothesis**: §11 bullet 1.
 
 Measurements:
-1. At $\beta_{\text{noise}}$ and across a $\beta$ scan: top-$n$ eigenfunctions, their IPR, and mean max-cosine of hidden-layer loadings vs columns of $W$.
-2. Spectral gap at $r = n$ vs regime; polytope regimes should show the geometry's symmetry group in the degenerate blocks (§3, [P2]).
-3. $Q^{\text{hidden} \to \text{output}}$: singular values near 1 for feature modes; sharpening of IPR relative to the hidden layer alone.
-4. Baseline: an SAE with the same dictionary size trained on the same hidden activations. Compare dictionary recovery and report where the two disagree.
-5. Failure mode on purpose: dense features ($S$ small). IPR should fall and max-cosine recovery should fail, and the report should say so.
+1. At $\beta_{\text{noise}}$ (stochastic resamples at the final checkpoint) and across the scan: block structure of the hidden-layer operator; principal angles between the top block and the span of the $n$ single-feature indicators; one-to-one (Hungarian) matching of the localizing rotation's loadings to the columns of $W$, reported with the block-only recovery so the rotation's contribution is visible.
+2. Polytope regimes: the symmetry group should appear as exact degeneracy; report blocks, not modes.
+3. $Q^{\text{hidden} \to \text{output}}$: coherence $\sigma$ of the feature block; whether the output geometry is more or less clustered than the hidden one is measured, not assumed.
+4. Baseline: an SAE of matching dictionary size trained on the same hidden activations; compare recovery and report disagreements.
+5. Deliberate failure: dense features. The block should lose its gap and the principal angles should grow, and the report should say so.
 
 ## Stage 2: Computation in superposition
 
-Setup (operationalized from the description; to be confirmed against the Hänni et al. construction): $x \in \mathbb R^n$ sparse, target $y = \mathrm{ReLU}(x)$ (or an $L^p$ variant), network $W_2\,\mathrm{ReLU}(W_1 x)$ with $m < n$ hidden neurons, trained to convergence.
+Setup, pending confirmation of the exact construction from the user (the literature search could not pin down the paper): $x \in \mathbb R^n$ sparse, target $y = \mathrm{ReLU}(x)$ or an $L^p$ variant, network $W_2\,\mathrm{ReLU}(W_1 x)$ with $m < n$, trained to convergence with dense checkpoints.
 
-Ground truth: the paper's virtual-neuron construction; the exact target map.
-
-Theory exercised: §7.1 (mode profiles of neurons, virtual neurons), §7.2 (gradient decomposition, interference), §7.3 (action kernel: affine cells of the hidden layer).
+Targets: **planted**: the target map and the active-feature partition; **established**: the paper's virtual-neuron construction once identified; **hypothesis**: §11 bullet 2.
 
 Measurements:
-1. Modes of the input-geometry operator vs input features (recovery as in Stage 1).
-2. Mode profile of every hidden neuron and loading of every mode on the hidden layer: the two matrices whose product structure is "virtual neurons". Compare to the paper's construction.
-3. Interference matrix $I_{ij}$ over training vs the measured cross-feature error of the trained network.
-4. Action-kernel coherent sets vs the "which features are active" partition.
+1. Input-geometry blocks vs input features, as in Stage 1.
+2. Mode profiles of hidden neurons and block loadings on the hidden layer: the two matrices whose structure is "virtual neurons"; compare to the construction.
+3. Signed interaction matrix $I_{BB'}$ (§7.2) over training vs the measured cross-feature error of the trained network (correlation, with the caveat that interaction is first-order and the error is not).
+4. Action-view (§7.3) blocks vs the active-feature partition, with and without magnitude/offset coordinates, to show what normalized-derivative similarity does and does not recover.
 
 ## Stage 3: Modular addition and grokking (Nanda et al. 2023)
 
-Setup: one-layer transformer on $a + b \bmod p$, dense checkpoints through the grokking transition.
+Setup: one-layer transformer on $a + b \bmod p$, inputs $(a, b, =)$, dense checkpoints through the transition, stochastic resamples at several checkpoints.
 
-Ground truth: Fourier-basis circuits; the frequencies used; the transition time.
+**Site table (declared up front):** sites are (example, final position), $N = p^2$. The embedding view at these sites is constant and is *not* used. Views: post-attention residual at the final position (first point where $a$ and $b$ combine), post-MLP residual, logits. Token-embedding geometry is a separate analysis on the $p$ token sites and is not composed with the example sites.
 
-Theory exercised: §3 (degenerate blocks: harmonics come in $\cos/\sin$ pairs), §4 (embed $\to$ post-MLP dynamic operator; frequency clusters), §4.4 (training-time axis), §7.2 (pressure as a precursor of the transition), §10 (noise temperature across checkpoints).
+Targets: **established**: Fourier-frequency circuits and the frequencies used; **hypothesis**: §11 bullet 3; the pressure precursor is a hypothesis, not a known answer.
 
 Measurements:
-1. Eigenfunctions of the token-embedding geometry vs circle harmonics; eigenfunctions of post-MLP geometry on the $(a, b)$ site grid vs the product harmonics.
-2. $Q^{\text{embed} \to \text{post-MLP}}$ singular functions grouped by frequency; compare the set of high-$\sigma$ frequencies to the frequencies Nanda's analysis recovers.
-3. Across checkpoints: gap formation, and the pressure (§7.2) on each frequency mode vs step. Claim to test: pressure on the eventual frequencies leads the test-loss drop.
-4. Training-axis Hankel: the dynamic-mode decomposition of the checkpoint sequence of $S^L$ (§4.4), as the HAVOK-style view of training.
+1. Post-attention operator on the $(a, b)$ grid: is there an isolated block, and what are its principal angles to the span of the product harmonics $\{\cos, \sin\}(\omega a) \otimes \{\cos, \sin\}(\omega b)$ at the frequencies the trained network uses (and at others, as a control)? Fourier structure is expected only if the kernel is near shift-invariant on the grid, which is itself measured.
+2. $Q^{\text{post-attn} \to \text{post-MLP}}$: coherence of the frequency blocks; the merge of sites with equal $a + b \bmod p$ (compare the post-MLP block to the span of the $p$ sum-class indicators).
+3. Training axis, $\beta$ fixed across checkpoints: gap formation; block pressure (§7.2) on the eventual frequency blocks vs step vs test loss. Report the adaptive-$\beta$ version alongside.
+4. Lagged regression of block coordinates across checkpoints (the DMD step of §4.4), stated as a fitted linear model.
 
 ## Stage 4: Belief-state geometry (Shai et al. 2024) with transformer and SSM
 
-Setup: Mess3 (and a second HMM with a different state count); a small transformer and a small Mamba trained on each; the true belief states from the known HMM.
+Setup: Mess3 (3 hidden states, 3 symbols) and a second HMM with a different state count; a small transformer and a small Mamba trained on each; the true belief states from the known HMM; the token-level Hankel benchmark from Stage 0.
 
-Ground truth: the true belief simplex and its fractal structure; the true Hankel rank (number of hidden states).
-
-Theory exercised: §6 entire (context view, Hankel, explained-variance ladder, carried vs read), §8 (transformer vs SSM comparison on the same sites, stitching prediction between them).
+Targets: **planted**: the belief simplex and the HMM; **established**: linear representation of beliefs in the transformer residual stream; **hypothesis**: §11 bullet 4, the SSM result, and the ladder shapes.
 
 Measurements:
-1. $r_{\text{ctx}}(L)$ per layer for both architectures vs the HMM state count.
-2. Alignment of the predictive-state coordinates $s^L$ with the true belief states (linear readability, §5) per layer; compare to Shai et al.'s linear-probe result, which here needs no probe.
-3. Explained-variance ladder per layer: how much of each layer is "an MLP in disguise" vs context-reading.
-4. Principal angles between the carried and read Hankel state subspaces ([P5]).
-5. Cross-architecture: alignment of $S^{\text{Tr}}_L$ and $S^{\text{Mamba}}_{L'}$; predicted stitching fidelity vs an actually-trained linear stitch.
+1. $r_{\text{ctx}}(L)$ per layer (carried and read, held-out threshold) for both architectures, against $k - 1$ and against the token-level benchmark.
+2. Linear readability of the true belief state from $s^L$ and of $s^L$ from the true belief state, per layer; compare to Shai et al.'s probe result, which here needs no probe.
+3. Read ladder per layer: how much of each layer is "an MLP in disguise".
+4. Principal angles between carried and read state subspaces [P5].
+5. Cross-architecture on the same sites: centered alignment and principal angles between $\tilde P^{\text{Tr}}_L$ and $\tilde P^{\text{Mamba}}_{L'}$; predicted vs trained stitching, both kinds.
 
 ## Stage 5: MNIST (MLP and small CNN), several seeds
 
-Ground truth: classes; a weak hierarchy among classes (e.g. 4/9, 3/5/8); seed-to-seed stitching that is known to work.
-
-Theory exercised: §3 (diffusion time vs truncation, hierarchy), §4 (coherent sets through all layers), §7.2 over training, §8 across seeds, §10.
+Targets: **established**: classes separate with depth; seed-to-seed stitching works; **hypothesis**: coarse-to-fine refinement matches confusion structure; the stitching predictor.
 
 Measurements:
-1. Coherent sets across all layers at $\beta_{\text{noise}}$: do they coincide with classes at coarse $t$ and refine within classes at fine $t$; does the refinement match the known confusion structure.
-2. Stitching prediction between seeds vs actual stitch accuracy, layer by layer.
-3. Training dynamics: pressure and interference matrices per layer over training; where class modes separate.
-4. Diffusion-wavelet hierarchy (§3) at the penultimate layer; compare to the class hierarchy.
+1. Blocks across all layers at fixed $\beta$: principal angles to class indicators at coarse $t$; within-class structure at fine $t$ vs the confusion matrix.
+2. Stitching predictor (§8, sensitivity-weighted) vs unweighted readability vs activation ridge reconstruction vs CKA, all against trained stitches of both task-loss and direct-matching kinds, layer by layer. Include an exact-fit control (a seed trained to zero training loss) where gradient pressure vanishes.
+3. Training dynamics: block pressure and signed interaction per layer; activation-side expansion of the realized Adam update vs the gradient decomposition, to show the difference.
+4. Diffusion-wavelet hierarchy at the penultimate layer; compare to the class confusion hierarchy. For the CNN, declare whether weights are decomposed per use or per site [§7.2].
 
 ## Stage 6: dSprites
 
-Ground truth: generative factors with a product structure.
+Setup: a small CNN trained to predict all generative factors (multi-head), and a β-VAE as a second model. Factor product structure is a property of the data; whether the representation inherits it is a hypothesis.
 
-Theory exercised: §3 (product manifolds yield product eigenfunctions), §5 (factors as loadings), §4 (which layers keep factors coherent).
+Measurements: factor-wise readability of blocks; whether the top blocks factorize (principal angles to products of per-factor eigenfunctions); where in depth factors merge.
 
-Measurements: factor-wise readability of eigenfunctions; whether the top modes factorize; where in depth factors merge.
+## Stage 7: CIFAR ResNet, then an ImageNet model
 
-## Stage 7: CIFAR ResNet, then an ImageNet model (Inception or ResNet-50)
+Targets: labels, for validation only. Purpose: scaling of §13 (sparse graphs, Nyström) and whether the language localizes a failure.
 
-Ground truth: labels only, used for validation and never in the construction.
+Measurements: blocks vs labels; gaps per layer; estimand comparison at scale. If structure is poor, the report states which diagnostic says so.
 
-Theory exercised: scaling of §13 (sparse graphs, Nyström); whether the language localizes a failure.
+## Stage 8: Pythia (checkpoints and stochastic resamples) on a Pile sample
 
-Measurements: coherent sets vs labels; the explained-variance ladder is trivial (no context) so the depth axis carries everything; a report of gaps per layer. If the structure is poor, state which diagnostic says so.
-
-## Stage 8: Pythia (checkpoints available) on a Pile sample
-
-Setup: Pythia-70m/160m, $N \approx 10^5$–$10^6$ sites, sparse graphs, Nyström Hankel, Modal.
-
-Theory exercised: everything, including §10 option 1 with real checkpoints and §8 against published Pythia SAEs.
+Setup: Pythia-70m/160m, $N \approx 10^5$–$10^6$ sites, $k$-NN graphs, Nyström context module, Modal; $\beta_{\text{noise}}$ from a few minibatch steps at each used checkpoint.
 
 Measurements:
-1. $r_{\text{ctx}}(L)$ and the explained-variance ladder per layer; comparison across model sizes.
-2. Coherent modes at $\beta_{\text{noise}}$ vs features of a published SAE at the same layer: for each SAE feature, its readability from the top-$r$ modes, and for each mode, its IPR.
-3. Across checkpoints: mode pressure and interference at a few layers through training.
-4. Across Pythia sizes on the same sites: subspace distances and predicted stitching.
+1. $r_{\text{ctx}}(L)$ (read and carried) and the read ladder per layer; across model sizes.
+2. Blocks at fixed $\beta$ vs a published SAE at the same layer: readability of each SAE feature from the top blocks, and block support sizes.
+3. Across checkpoints: block pressure and interaction at a few layers.
+4. Across sizes on the same sites: principal angles and predicted stitching.
 
-## Ordering and effort
+## Ordering
 
-Stage 0 and 1 first, together (a week of work including the library). Stage 3 and 4 next, since they test the two time axes other than depth. Stage 2 when the toy construction is confirmed. Stages 5–8 as the library matures. Each stage ends with a notebook and a short written verdict against its ground truth.
+Stage 0 and 1 together (library plus calibration, about a week). Stage 3 and 4 next, since they exercise the training and sequence axes. Stage 2 when the construction is confirmed. Stages 5–8 as the library matures. Each stage ends with a notebook and a short verdict against its labelled targets.
