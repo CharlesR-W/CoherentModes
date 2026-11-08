@@ -1,6 +1,6 @@
 # Experiments: calibrating the coherent-mode language on cases with known answers
 
-Status: v1, 2026-11-07. Companion to `THEORY.md`; section numbers refer to it.
+Status: v1.2, 2026-11-07. Companion to `THEORY.md`; section numbers refer to it.
 
 ## Principles
 
@@ -31,7 +31,7 @@ Targets and labels:
 
 - **identity**: reconstruction tail sum (§1.3); bistochastic product has trivial singular value exactly 1 and the symmetric-normalized product does not (§3.1); centered alignment → linear CKA of normalized rows as $\beta \to 0$ (§8); eigenvectors of $R_p R_q$ equal primal canonical variates on linear features (§6.3). The script `checks/cm_check.py` already passes these on random data; Stage 0 turns them into unit tests.
 - **planted**: Gaussian mixtures on the sphere with controlled separation: the $\beta$ window in which an isolated block spans the indicator subspace (principal angles) and where it closes at both ends (identity limit at high $\beta$, PCA at low). Union of one-dimensional subspaces with $k$-of-$n$ sparse mixing (TMoS geometry without a network): indicator-subspace recovery vs sparsity; localizing-rotation recovery vs block-only recovery. Product manifold (torus): factorized eigenfunctions under a product kernel, and their loss under correlated sampling.
-- **planted, context**: i.i.d. symbols with an embedding "layer" and a next-"layer" that copies the previous symbol: the carried ladder must stay flat and the read ladder must drop at $r = 1$ (§6.3). An HMM token stream: the token-level Hankel benchmark has rank $k$ and the centered KCCA state has $k - 1$ coordinates above threshold at sufficient window.
+- **planted, context**: i.i.d. symbols with an embedding "layer" and a next-"layer" that copies the previous symbol: the carried ladder must stay flat and the read ladder must drop within the first $V - 1$ coordinates for a $V$-ary symbol (§6.3–6.4). An HMM token stream: the token-level Hankel benchmark has rank $k$ and the centered KCCA state has $k - 1$ coordinates above threshold at sufficient window.
 - **estimand comparison**: $k$-NN graph vs dense operator on subsets across $\beta$; Nyström vs dense across $m$ and landmark rules; bootstrap-over-documents error bars vs $N$.
 
 Deliverable: the knob tables and the regime boundaries every later stage quotes.
