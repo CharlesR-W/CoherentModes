@@ -44,3 +44,13 @@ print("variate cosine |<dual,primal>|",abs(sd@sp)/np.linalg.norm(sd)/np.linalg.n
 # 5. indicator block vs site-group gradient differ (THEORY 7.2)
 U=np.array([[1.],[-1.]]); De=U.copy(); Pi=np.ones((2,2))/2; DA=np.eye(2)
 print("group grad",(De.T@DA@U).item(),"indicator-block contribution",(De.T@Pi@U).item())
+# 6. reconstruction tail identity and assertions
+F=rng.normal(size=(N,4)); Psi=np.linalg.qr(rng.normal(size=(N,N)))[0]; A=F.T@Psi; r=10
+assert abs(np.linalg.norm(F-Psi[:,:r]@A[:,:r].T)**2-(A[:,r:]**2).sum())<1e-8
+assert abs(s[0]-1)<1e-9 and P1.sum(1).std()<1e-9
+assert np.allclose(np.sort(cc**2)[::-1],ev,atol=1e-8)
+# 7. merge example: contrast slow at L, annihilated at L'
+e1,e2=np.eye(2); HL=np.array([e1,e1,e2,e2]); HLp=np.array([e1]*4); b=10.0
+PL=sinkhorn(np.exp(b*HL@HL.T)); PLp=sinkhorn(np.exp(b*HLp@HLp.T)); c=np.array([1,1,-1,-1])/2
+print("contrast norm after P^L",np.linalg.norm(PL@c),"(tanh(b/2)=%.5f)"%np.tanh(b/2),"after P^L'",np.linalg.norm(PLp@(PL@c)))
+print("all checks passed")
