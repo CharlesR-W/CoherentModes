@@ -8,6 +8,16 @@ comparisons; none of them enters a walk, a block operator or a SEBA rotation.</p
 sets, i.e. SEBA applied to $\psi_0..\psi_3$ of the block operator $\bar M$; hard sets by largest SEBA value, with
 <a href="#method/glossary-unassigned">unassigned</a> images in no set. "Final" is step {{fact:final_step}}.</p>
 
+<nav class="callout" id="measurements-toc"><p class="callout-title">Contents</p><ol>
+<li><a href="#measurements/when">Agreement with the final checkpoint's sets, and with the classes</a></li>
+<li><a href="#measurements/carry">Agreement between sites at one checkpoint</a></li>
+<li><a href="#measurements/classmix">Class make-up of coherent sets</a></li>
+<li><a href="#measurements/va">The $r = 2$ sets against the vehicle/animal partition</a></li>
+<li><a href="#measurements/imgstats">Image statistics against eigenfunctions and SEBA vectors</a></li>
+<li><a href="#measurements/gradients">Per-image loss gradients within and between sets</a></li>
+<li><a href="#measurements/decodability">Linear and nearest-neighbour decodability of class</a></li>
+</ol></nav>
+
 <aside class="callout">
 <p class="callout-title">Matched Jaccard</p>
 <p>For two hard labelings $A$ ($r_A$ sets) and $B$ ($r_B$ sets), with unassigned images in no set: $J_{ij} = |A_i \cap
@@ -20,6 +30,14 @@ could reach. <b>Normalised excess</b> $= (\text{score} - \mu_0) / (\text{ceiling
 </aside>
 
 <h2 id="when">Agreement with the final checkpoint's sets, and with the classes</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Each chart compares the <b>$r = 4$ sets of one single-snapshot block</b> (one site, one checkpoint) with the same site's sets at the final checkpoint, or with the classes. The screenshot shows one such block, <b>site b9 at step {{fact:final_step}}</b>; its sets are painted on every panel, so the rows above show where these images sat earlier.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=7&a=9&b=9&m=0&c=seba&r=4"><img style="width: 100%; height: auto" src="assets/fig/view_b9-final-r4.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
 
 <figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_when.0_4.vs_final">
   <figcaption><b>Plotted:</b> rows: sites; columns: checkpoints. Colour: matched Jaccard between the SEBA sets of the
@@ -58,6 +76,14 @@ could reach. <b>Normalised excess</b> $= (\text{score} - \mu_0) / (\text{ceiling
 
 <h2 id="carry">Agreement between sites at one checkpoint</h2>
 
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The <b>$r = 4$ sets of the single-snapshot blocks of two sites</b> at the same checkpoint, compared. The screenshot shows <b>site b2 alone at step {{fact:final_step}}</b>, its sets painted on every site; reading along the bottom row shows how far they survive in the other sites.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b2-b3"><img style="width: 100%; height: auto" src="assets/fig/view_b2-b3.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
 <figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_carry.0_4.matrix">
   <figcaption><b>Plotted:</b> rows and columns: sites; slider: checkpoint (default: final). Colour: matched Jaccard
   between the SEBA sets of the single-snapshot blocks of the two sites at that checkpoint; symmetric; diagonal = 1.
@@ -85,6 +111,14 @@ could reach. <b>Normalised excess</b> $= (\text{score} - \mu_0) / (\text{ceiling
 </details>
 
 <h2 id="classmix">Class make-up of coherent sets</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Each table is the class make-up of the <b>$r = 4$ sets of one single-snapshot block</b>; the explorer shows the same make-up as bars beside each set's images. The screenshot shows <b>site b9 at step {{fact:final_step}}</b>.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=7&a=9&b=9&m=0&c=seba&r=4"><img style="width: 100%; height: auto" src="assets/fig/view_b9-final-r4.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
 
 <p>Each table counts $n_{jc}$, the images of CIFAR class $c$ in SEBA set $j$ (rows in the explorer's set order), with a
 last row for the unassigned images. Each class has 200 probe images, so the colour range is 0 to 200. Definition:
@@ -153,6 +187,14 @@ stored layer and time block is in <code>q_classmix.by_mode.0</code>. Three multi
 
 <h2 id="va">The $r = 2$ sets against the vehicle/animal partition</h2>
 
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The <b>two sets ($r = 2$) of each single-snapshot block</b>, scored against vehicles versus animals. The screenshot shows <b>site b9 at step 64</b>, where the split already matches vehicles against animals best.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=1&a=9&b=9&m=0&c=seba&r=2"><img style="width: 100%; height: auto" src="assets/fig/view_b9-step64.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
 <p>$V$ = {airplane, automobile, ship, truck} (800 images) and $A$ = the other six classes (1,200 images) form a fixed
 2-set reference labeling. Each single-snapshot block's two $r = 2$ SEBA sets are scored against $(V, A)$ by matched
 Jaccard (for $2 \times 2$, the better of the two pairings), with null, size ceiling and normalised excess as in the
@@ -211,6 +253,14 @@ quantities for the other kernel rules (<code>q_va.by_mode.1</code> to <code>4</c
 
 <h2 id="imgstats">Image statistics against eigenfunctions and SEBA vectors</h2>
 
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Here the eigenfunctions themselves, not the sets: <b>$\psi_1..\psi_8$ (and the SEBA vectors) of each block</b>, correlated with pixel statistics. The screenshot shows <b>$\psi_1$ of the single-snapshot block at the stem, step {{fact:final_step}}</b> (blue negative, red positive), with the images at its two ends in the side panel.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=7&a=0&b=0&m=0&c=eig&k=1"><img style="width: 100%; height: auto" src="assets/fig/view_stem-psi1.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
 <p>Twelve statistics of each probe image's pixels (channel means, luminance $Y$, RMS contrast, saturation,
 border-minus-centre differences, high-frequency share; definitions in <a href="#method/stat-imgstats">Method</a>) are
 correlated over the {{fact:n_images}} images with $\psi_1..\psi_8$ and with the SEBA vectors for $r = 2, 3, 4$ of each
@@ -258,6 +308,14 @@ block and entry, {{fact:q.img.thr_global}}.</p>
 </figure>
 
 <h2 id="gradients">Per-image loss gradients within and between sets</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Groupings of the probe images (coherent sets, or class unions) compared with per-image loss gradients. The main chart uses the <b>sets of the time block at site b9 over all checkpoints</b>, shown in the screenshot with $r = 4$.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b9-all-training"><img style="width: 100%; height: auto" src="assets/fig/view_b9-all-training.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
 
 <p>For each probe image and checkpoint, $g_i$ is the gradient of its loss with respect to every parameter. For a
 labeling, the within-set mean is the mean of $\cos(g_i, g_j)$ over ordered pairs $i \ne j$ in the same set, the

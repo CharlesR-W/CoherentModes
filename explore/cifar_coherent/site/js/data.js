@@ -55,23 +55,6 @@ export async function points() {
   return out;
 }
 
-export async function chan(t, s) {
-  const m = await meta();
-  const C = m.channels[s], N = m.n;
-  const b = await bytes(`d/chan/${t}_${s}.bin`);
-  const lo = new Float32Array(b, 0, C), hi = new Float32Array(b, 4 * C, C), q = new Uint8Array(b, 8 * C, N * C);
-  // dequantise, then centre each column -> Float32Array (C, N) column-major for fast correlations
-  const X = new Float32Array(C * N);
-  for (let c = 0; c < C; c++) {
-    const a = lo[c], sc = (hi[c] - lo[c]) / 255;
-    let mean = 0;
-    for (let i = 0; i < N; i++) { const v = a + sc * q[i * C + c]; X[c * N + i] = v; mean += v; }
-    mean /= N;
-    for (let i = 0; i < N; i++) X[c * N + i] -= mean;
-  }
-  return { C, X };
-}
-
 const blkCache = new Map();
 const BLK_MAX = 400;
 export function block(fam, idx, mode, pair) {

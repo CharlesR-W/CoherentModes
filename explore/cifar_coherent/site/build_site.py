@@ -14,11 +14,7 @@ Data written to viewer/site/d/ (all little-endian; see DATA_LAYOUT below and js/
   umap_<seed>.bin      u16 (T, S, N, 2): per-cell layout scaled to [0, 65535] (0.5-99.5 percentile box)
   points.bin           per-image diagnostics, f32 (T, N) per field (fields listed in meta.points_fields)
   labels.bin           i8 (N) CIFAR labels; sprite.png: the 2,000 probe images, 50 per row
-  chan/<t>_<s>.bin     per cell: lo f32 (C), hi f32 (C), u8 (N, C) spatially averaged channels
   blk/<fam>/<idx>/<mode>/<pair>.bin.gz   one block, gzip-compressed; layout in meta.block_layout (see block_layout())
-The R^2 grid in each block chunk (in-sample OLS of the centred function on the cell's centred channels, SPEC
-section 2 "Loadings") is computed here rather than in the browser so that one interaction does not need to fetch
-the channels of all 96 cells; the definition is the same.
 """
 from __future__ import annotations
 
@@ -41,7 +37,7 @@ HERE = Path(__file__).resolve().parent          # site/
 ROOT = HERE.parent                              # explore/cifar_coherent/
 OUT = ROOT / "viewer" / "site"
 N_VECS = 8
-BLOCK_FORMAT = "blk-v6"        # bump when the block chunk layout or its derivation changes
+BLOCK_FORMAT = "blk-v7"        # bump when the block chunk layout or its derivation changes
 REP_PSI, REP_TOP, REP_BND = 12, 24, 12      # representative images stored per function
 DEFAULT_TITLE = ("Towards Characterizing a Neural Network's Native Ontology: Coherent Sets of Data Through Layers "
                  "and Over Training")
@@ -149,13 +145,12 @@ class Builder:
 
     # -- layout of one block chunk (byte offsets); X = number of cells along the retention axis
     def block_layout(self, X: int):
-        n, R, F = self.n, self.R, self.n_fun
+        n, R = self.n, self.R
         SR, SR2 = sum(self.seba_r), sum(r * r for r in self.seba_r)
         parts = [("scale", "f32", N_VECS), ("vals", "f32", N_VECS + 1), ("pn", "f32", N_VECS), ("rot", "f32", SR2),
                  ("ret_psi", "f32", N_VECS * X), ("ret_seba", "f32", SR * X), ("bcorr", "f32", SR),
                  ("reps", "u16", N_VECS * 3 * REP_PSI + sum(self.seba_r) * (REP_TOP + REP_BND)),
-                 ("vecs", "i8", N_VECS * n), ("labels", "u4", R * ((n + 1) // 2)), ("perm", "i8", R * 8),
-                 ("r2", "u8", F * self.T * self.S)]
+                 ("vecs", "i8", N_VECS * n), ("labels", "u4", R * ((n + 1) // 2)), ("perm", "i8", R * 8)]
         size = {"f32": 4, "u16": 2, "i16": 2, "i8": 1, "u8": 1, "u4": 1}
         out, off = {}, 0
         for name, dt_, cnt in parts:
@@ -178,7 +173,7 @@ class Builder:
         self.copy_static()
         self.probe()
         self.layouts()
-        self.points_and_channels()
+        self.points()
         if not self.skip_blocks:
             self.blocks()
         self.small_json()
@@ -255,14 +250,12 @@ class Builder:
             else:
                 log(f"warning: --layout-tag {self.layout_tag}: missing umap files, seed-1 layout skipped")
 
-    # ------------------------------------------------------------------ per-image diagnostics + channels
-    def points_and_channels(self):
+    # ------------------------------------------------------------------ per-image diagnostics
+    def points(self):
         T, n = self.T, self.n
         fields = {}
         pred = np.zeros((T, n), np.int8)
         correct = np.zeros((T, n), np.uint8)
-        self.chan = {}           # (t, s) -> centred float32 (N, C)
-        self.channels = []
         present = None
         for t, step in enumerate(self.steps):
             path = self.src / f"points_{step}.npz"
@@ -277,33 +270,18 @@ class Builder:
                     fields.setdefault(f, np.full((T, n), np.nan, np.float32))[t] = p[f]
                 pred[t] = p["pred"]
                 correct[t] = p["correct"]
-                for s, site in enumerate(self.sites):
-                    q, lo, hi = p[f"chan_{site}"], p[f"chan_{site}_lo"], p[f"chan_{site}_hi"]
-                    if t == 0:
-                        self.channels.append(int(q.shape[1]))
-                    write(self.d / "chan" / f"{t}_{s}.bin", f32(lo).tobytes() + f32(hi).tobytes() + q.astype(np.uint8).tobytes())
-                    x = lo + (hi - lo) * (q.astype(np.float32) / 255.0)
-                    self.chan[(t, s)] = (x - x.mean(0)).astype(np.float32)
         present = present or []
         self.points_fields = present
         self.points_stamp = "|".join(f"{(self.src / f'points_{s}.npz').stat().st_mtime_ns}" for s in self.steps if (self.src / f'points_{s}.npz').exists())
         blob = b"".join(f32(fields[f]).tobytes() for f in present) + pred.tobytes() + correct.tobytes()
         write(self.d / "points.bin", blob)
-        # orthonormal bases of the channel column spaces (rank-revealing), for the R^2 grid
-        self.chan_basis = {}
-        for key, x in self.chan.items():
-            u, sv, _ = np.linalg.svd(x.astype(np.float64), full_matrices=False)
-            rank = int((sv > sv[0] * 1e-6).sum()) if sv.size and sv[0] > 0 else 0
-            self.chan_basis[key] = u[:, :rank].astype(np.float32)
-        log(f"points fields: {present}; channels per site {self.channels}")
+        log(f"points fields: {present}")
 
     # ------------------------------------------------------------------ blocks
     def blocks(self):
         n, R = self.n, self.R
         self.vals_all = {"layer": [], "time": []}
         fams = [("layer", self.steps, self.meta["layer_pairs"], self.S), ("time", self.sites, self.meta["time_pairs"], self.T)]
-        cells = [(t, s) for t in range(self.T) for s in range(self.S)]
-        bases = [self.chan_basis[c] for c in cells]
         worst_agree = 1.0
         self.browser_corr = []
         self.layouts_blk = {}
@@ -344,13 +322,10 @@ class Builder:
                 self.vals_all[fam].append(np.round(vals.astype(np.float64), 6).tolist())
                 for mi in range(self.M):
                     P = len(pairs)
-                    # all functions of all pairs of this (fam, idx, mode): (N, P*F)
-                    funcs = np.zeros((n, P * self.n_fun), np.float32)
                     rep_all, pn_all, bc_all = [], [], []
                     for pi in range(P):
                         psi = vecs[mi, pi].T.astype(np.float64) * scale[mi, pi] / qmax        # (N, 8)
                         v = np.concatenate([np.full((n, 1), 1 / np.sqrt(n)), psi], 1)
-                        cols = [psi]
                         bcorr_pair = []
                         pn_all.append((psi ** 2).sum(0) ** 2 / np.maximum((psi ** 4).sum(0), 1e-300))
                         psi8 = vecs8[mi, pi].T.astype(np.float64) * scale[mi, pi] / 127.0           # what the browser sees
@@ -369,7 +344,6 @@ class Builder:
                                 a_, b_ = s_[:, j] - s_[:, j].mean(), s8[:, j] - s8[:, j].mean()
                                 c_ = float(a_ @ b_ / (np.linalg.norm(a_) * np.linalg.norm(b_) + 1e-300))
                                 self.browser_corr.append(c_); bcorr_pair.append(c_)
-                            cols.append(s_)
                             for j in range(r):
                                 mem = np.flatnonzero(lab[mi, pi, ri] == j)
                                 top = mem[np.argsort(-s_[mem, j], kind="stable")]
@@ -378,20 +352,11 @@ class Builder:
                                 reps += [pad(top, REP_TOP), pad(bnd, REP_BND)]
                         rep_all.append(np.concatenate(reps).astype(np.uint16))
                         bc_all.append(np.array(bcorr_pair))
-                        funcs[:, pi * self.n_fun:(pi + 1) * self.n_fun] = np.concatenate(cols, 1)
-                    funcs -= funcs.mean(0)
-                    norm2 = (funcs.astype(np.float64) ** 2).sum(0) + 1e-30
-                    r2 = np.zeros((len(cells), P * self.n_fun), np.float32)
-                    for ci, U in enumerate(bases):
-                        if U.shape[1]:
-                            r2[ci] = ((U.T @ funcs) ** 2).sum(0) / norm2
-                    r2 = np.clip(r2, 0, 1).reshape(len(cells), P, self.n_fun).transpose(1, 2, 0)   # P, F, T*S
-                    r2q = np.round(r2 * 255).astype(np.uint8)
                     for pi in range(P):
                         rot_c = np.concatenate([rot[mi, pi, ri, :r, :r].ravel() for ri, r in enumerate(self.seba_r)])
                         ret_c = np.concatenate([rseba[mi, pi, ri, :r].ravel() for ri, r in enumerate(self.seba_r)])
                         parts = [f32(scale[mi, pi]), f32(vals[mi, pi]), f32(pn_all[pi]), f32(rot_c), f32(rpsi[mi, pi]), f32(ret_c), f32(bc_all[pi]),
-                                 rep_all[pi], vecs8[mi, pi], pack_nibbles(lab[mi, pi]), perm[mi, pi].astype(np.int8), r2q[pi]]
+                                 rep_all[pi], vecs8[mi, pi], pack_nibbles(lab[mi, pi]), perm[mi, pi].astype(np.int8)]
                         blob = b"".join(np.ascontiguousarray(a).tobytes() for a in parts)
                         assert len(blob) == size, (len(blob), size)
                         gz = gzip.compress(blob, compresslevel=6, mtime=0)   # decompressed in the browser (DecompressionStream)
@@ -441,7 +406,7 @@ class Builder:
             "kappa_q90": rnd(fl("kappa_q90")), "self_weight": rnd(fl("self_weight")), "nn_mass": rnd(mass), "seba_r": self.seba_r, "n_vecs": N_VECS, "n": self.n,
             "classes": m["classes"], "rule": m.get("rule", ""), "layer_pairs": m["layer_pairs"], "time_pairs": m["time_pairs"],
             "vals": self.vals_all, "block_layout": self.layouts_blk, "n_fun": self.n_fun, "browser_seba_corr": getattr(self, "browser_seba", None),
-            "points_fields": self.points_fields, "channels": self.channels, "layouts": self.layout_info,
+            "points_fields": self.points_fields, "layouts": self.layout_info,
             "val_acc": self.val_acc, "sprite_cols": self.sprite_cols, "palette": self.palette,
             "source_meta": {k: v for k, v in m.items() if k not in ("kappa", "kappa_q10", "kappa_q90", "self_weight", "nn_mass", "layer_pairs", "time_pairs", "steps", "sites", "modes", "classes")},
         }

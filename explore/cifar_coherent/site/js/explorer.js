@@ -265,7 +265,7 @@ export class Explorer {
     const { m, T, S } = ctx;
     this.st = {
       fam: "layer", anchor: T - 1, a: 0, b: S - 1, mode: m.default_mode, color: "seba", k: 1, r: m.seba_r.includes(4) ? 4 : m.seba_r[0],
-      kind: "set", focus: null, j: null, at: "own", lay: 0, ps: 1.6, cmp: null, loadCell: null, tap: "end",
+      kind: "set", focus: null, j: null, at: "own", lay: 0, ps: 1.6, cmp: null, tap: "end",
     };
     this.coords = { 0: toCoords(ctx.layouts[0]) };
     this.cur = this.coords[0];
@@ -365,7 +365,7 @@ export class Explorer {
     if (f === st.fam) return;
     if (f === "time") { const t = st.anchor, s = st.b; st.anchor = s; st.a = Math.max(0, t - 2); st.b = t; if (st.a === st.b && t > 0) st.a = t - 1; }
     else { const s = st.anchor, t = st.b; st.anchor = t; st.a = Math.max(0, s - 3); st.b = s; }
-    st.fam = f; st.focus = null; st.j = null; st.cmp = null; st.loadCell = null;
+    st.fam = f; st.focus = null; st.j = null; st.cmp = null;
   }
   setLayout(seed) {
     const st = this.st;
@@ -554,7 +554,7 @@ export class Explorer {
       }
     }
     this.dragPrev = null;
-    st.focus = st.color === "seba" ? null : st.focus; st.j = null; st.loadCell = null;
+    st.focus = st.color === "seba" ? null : st.focus; st.j = null;
     this.lensCell = [d.t, d.s];
     this.update();
   }
@@ -630,7 +630,7 @@ export class Explorer {
   renderAll() {
     if (!this.col || !this.geom) return;
     this.draw(); this.drawOverlay(); this.drawLens(); this.decorate();
-    this.renderBlockCard(); this.renderLegend(); this.renderImages(); this.renderRetention(); this.renderLoadings(); this.renderStats(); this.renderCaption();
+    this.renderBlockCard(); this.renderLegend(); this.renderImages(); this.renderRetention(); this.renderStats(); this.renderCaption();
   }
   prefetch() {
     const st = this.st, ctx = this.ctx, lim = st.fam === "layer" ? ctx.S : ctx.T;
@@ -674,7 +674,7 @@ export class Explorer {
     if (st.color === "seba") st.kind = "set"; if (st.color === "nodal" || st.color === "eig") st.kind = "psi";
     if (p.has("k")) { st.k = int("k", 1, m.n_vecs) ?? st.k; if (!BLOCK_KINDS.has(st.color)) st.kind = "psi"; }
     if (p.has("r")) { const r = int("r", 1, 99); if (m.seba_r.includes(r)) st.r = r; if (!BLOCK_KINDS.has(st.color)) st.kind = "set"; }
-    st.cmp = null; st.loadCell = null;
+    st.cmp = null;
     st.j = int("j", 0, 15); st.focus = st.color === "seba" ? st.j : null;
     if (p.get("at") === "final" || p.get("at") === "own") st.at = p.get("at");
     const lay = int("lay", 0, 1) ?? 0; if (lay < m.layouts.length && lay !== st.lay) this.setLayout(lay);
@@ -1007,81 +1007,22 @@ export class Explorer {
     $("ret-note").innerHTML = `ρ<sub>c</sub>(f) = f<sup>T</sup>M<sub>c</sub>f / f<sup>T</sup>f for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}, with f = ${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : "each SEBA vector (colours as the sets)"}; the block's snapshots are shaded. ${tg.kind === "psi" ? `λ<sub>${tg.k}</sub> (dashed) is the mean of ρ<sub>c</sub> over the shaded snapshots: an <b>average</b>, not a value in every snapshot.` : "The spectrum is an <b>average</b> of retention over the shaded snapshots, not a value in every snapshot."}`;
   }
 
-  async renderLoadings() {
-    const st = this.st, ctx = this.ctx, { m, pal, N, T, S } = ctx, blk = this.blk, tg = this.target(), body = $("load-body");
-    const ri = tg.kind === "set" ? tg.ri : 0, j = tg.kind === "set" ? (tg.j ?? 0) : 0;
-    const fi = tg.kind === "psi" ? tg.k - 1 : 8 + m.seba_r.slice(0, ri).reduce((x, y) => x + y, 0) + j;
-    const fname = tg.kind === "psi" ? `ψ${tg.k}` : `set ${j + 1} (r = ${st.r})`;
-    $("load-title").textContent = `Channel loadings: ${fname}`;
-    if (!st.loadCell) st.loadCell = st.fam === "layer" ? [st.anchor, st.b] : [st.b, st.anchor];
-    const [lt, ls] = st.loadCell;
-    body.replaceChildren();
-    if (tg.kind === "set") {
-      const chips = h("div", { class: "seg", style: { marginBottom: "6px", flexWrap: "wrap" } });
-      for (let q = 0; q < st.r; q++) { const b = h("button", { type: "button", text: `set ${q + 1}`, "aria-checked": String(q === j) }); b.addEventListener("click", () => { st.j = q; if (st.color === "seba") st.focus = q; this.col = colouring(ctx, st, blk); this.renderAll(); this.writeHash(); }); chips.append(b); }
-      body.append(chips);
-    }
-    // R^2 grid
-    const r2 = blk.r2.subarray(fi * T * S, (fi + 1) * T * S);
-    body.append(h("div", { class: "sub-h", text: "R² of a linear fit on each snapshot's channels (in-sample)" }));
-    const grid = h("div", { class: "r2grid", style: { gridTemplateColumns: `repeat(${S}, 1fr)` } });
-    for (let t = 0; t < T; t++) for (let s = 0; s < S; s++) {
-      const v = r2[t * S + s] / 255, d = h("div", { style: { background: pal.seq(v) } });
-      if (t === lt && s === ls) d.classList.add("sel");
-      if (inBlock(st, t, s)) d.classList.add("inb");
-      d.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(`${m.sites[s]} · step ${m.steps[t].toLocaleString("en")}`, [{ name: "R²", value: (100 * v).toFixed(1) + "%" }, { name: "chance ≈ C/N", value: (100 * m.channels[s] / N).toFixed(1) + "%" }])));
-      d.addEventListener("pointerleave", hideTip);
-      d.addEventListener("click", () => { hideTip(); st.loadCell = [t, s]; this.renderLoadings(); });
-      grid.append(d);
-    }
-    body.append(grid, h("div", { class: "r2-axis" }, h("span", { text: `${m.sites[0]} → ${m.sites[S - 1]}; rows = checkpoints` }), h("span", { text: "0" }, h("span", { class: "swatch", style: { "--sw": `linear-gradient(90deg, ${pal.seq(0)}, ${pal.seq(1)})`, width: "40px", margin: "0 4px", verticalAlign: "-1px", background: `linear-gradient(90deg, ${pal.seq(0)}, ${pal.seq(1)})` } }), "100%")));
-    const v = r2[lt * S + ls] / 255;
-    body.append(h("div", { class: "card-note" }));
-    body.lastChild.innerHTML = `Selected snapshot (click another square): <b>${m.sites[ls]}, step ${m.steps[lt].toLocaleString("en")}</b>: R² = <b>${(100 * v).toFixed(1)}%</b> on its ${m.channels[ls]} spatially averaged channels (chance ≈ ${(100 * m.channels[ls] / N).toFixed(1)}%). Descriptive, not held out.` + (tg.kind === "set" && m.browser_seba_corr ? ` Channel correlations below use the set's SEBA vector recomputed in your browser from 8-bit eigenvectors (correlation with the full-precision vector: median ${m.browser_seba_corr.median.toFixed(4)}, worst ${m.browser_seba_corr.min.toFixed(3)}).` : "");
-    const barsBox = h("div"), clsBox = h("div"); body.append(barsBox, clsBox);
-    // per-channel correlations at the selected cell, and alignment with the classifier at that checkpoint
-    const f = tg.kind === "psi" ? D.psi(m, blk, tg.k) : D.sebaVectors(m, blk, ri)[j];
-    const fc = new Float64Array(N); let mu = 0; for (let i = 0; i < N; i++) mu += f[i]; mu /= N;
-    let fn = 0; for (let i = 0; i < N; i++) { fc[i] = f[i] - mu; fn += fc[i] * fc[i]; } fn = Math.sqrt(fn) || 1;
-    const corr = (X, c) => { let s = 0, xx = 0; const o = c * N; for (let i = 0; i < N; i++) { const x = X[o + i]; s += x * fc[i]; xx += x * x; } return xx > 0 ? s / (Math.sqrt(xx) * fn) : 0; };
-    const tok = this._tok;
-    try {
-      const [cc, lg] = await Promise.all([D.chan(lt, ls), D.chan(lt, S - 1)]);
-      if (tok !== this._tok) return;
-      const so = m.seba_r.slice(0, ri).reduce((x, y) => x + y, 0), faithful = tg.kind === "psi" || !(blk.bcorr[so + j] < 0.99);
-      if (!faithful) {
-        barsBox.append(h("div", { class: "card-note", text: `Channel and classifier correlations are not shown for this set: recomputing it in the browser from 8-bit eigenvectors does not reproduce the full-precision vector (correlation ${blk.bcorr[so + j].toFixed(2)}), which happens when the set sits on very few images. The R\u00b2 grid above is computed at build time at full precision.` }));
-        return;
-      }
-      const cs = Array.from({ length: cc.C }, (_, c) => ({ c, r: corr(cc.X, c) })).sort((a, b) => Math.abs(b.r) - Math.abs(a.r)).slice(0, 8);
-      barsBox.append(h("div", { class: "sub-h", text: `Top channels at ${m.sites[ls]} by |correlation|` }), bars(cs.map(x => ({ lab: m.sites[ls] === "logits" ? m.classes[x.c] : `ch ${x.c}`, v: x.r })), pal));
-      // logits with class-mean removed
-      const C = lg.C, Z = new Float32Array(C * N);
-      for (let i = 0; i < N; i++) { let mm = 0; for (let c = 0; c < C; c++) mm += lg.X[c * N + i]; mm /= C; for (let c = 0; c < C; c++) Z[c * N + i] = lg.X[c * N + i] - mm; }
-      for (let c = 0; c < C; c++) { let mm = 0; for (let i = 0; i < N; i++) mm += Z[c * N + i]; mm /= N; for (let i = 0; i < N; i++) Z[c * N + i] -= mm; }
-      const al = Array.from({ length: C }, (_, c) => ({ lab: m.classes[c], v: corr(Z, c), color: pal.classes[c] }));
-      clsBox.append(h("div", { class: "sub-h", text: `Alignment with the classifier (step ${m.steps[lt].toLocaleString("en")})` }), bars(al, pal),
-        h("div", { class: "card-note", text: "corr(f, logit_c − mean over classes of the logits), per class: which class directions of the output the function lines up with." }));
-    } catch (e) { barsBox.append(h("div", { class: "card-note", text: "channel data unavailable" })); console.error(e); }
-  }
-
   renderStats() {
     const st = this.st, { m, T, S, N } = this.ctx, blk = this.blk, tg = this.target(), body = $("stats-body");
     const ri = tg.kind === "set" ? tg.ri : 0, j = tg.kind === "set" ? (tg.j ?? 0) : 0;
-    const fi = tg.kind === "psi" ? tg.k - 1 : 8 + m.seba_r.slice(0, ri).reduce((x, y) => x + y, 0) + j;
     $("stats-title").textContent = st.fam === "layer" ? `Sites at step ${m.steps[st.anchor].toLocaleString("en")}` : `Checkpoints at ${m.sites[st.anchor]}`;
     const tb = h("table", { class: "mini" });
-    tb.append(h("tr", {}, h("th", { text: st.fam === "layer" ? "site" : "step" }), h("th", { text: "κ" }), h("th", { text: "15-NN mass" }), h("th", { text: "ρ_c" }), h("th", { text: "R²" })));
+    tb.append(h("tr", {}, h("th", { text: st.fam === "layer" ? "site" : "step" }), h("th", { text: "κ" }), h("th", { text: "15-NN mass" }), h("th", { text: "ρ_c" })));
     const X = blk.X;
     for (let x = 0; x < X; x++) {
       const [t, s] = st.fam === "layer" ? [st.anchor, x] : [x, st.anchor];
       const ret = tg.kind === "psi" ? blk.ret_psi[(tg.k - 1) * X + x] : blk.ret_seba[(m.seba_r.slice(0, ri).reduce((p, q) => p + q, 0) + j) * X + x];
       const tr = h("tr", { class: inBlock(st, t, s) ? "inb" : "" },
         h("td", { text: st.fam === "layer" ? m.sites[s] : m.steps[t].toLocaleString("en") }), h("td", { text: m.kappa?.[st.mode]?.[t]?.[s] != null ? m.kappa[st.mode][t][s].toPrecision(3) : "–" }),
-        h("td", { text: pct(m.nn_mass?.[st.mode]?.[t]?.[s] ?? NaN) }), h("td", { text: fmt(ret, 3) }), h("td", { text: (100 * blk.r2[fi * T * S + t * S + s] / 255).toFixed(0) + "%" }));
+        h("td", { text: pct(m.nn_mass?.[st.mode]?.[t]?.[s] ?? NaN) }), h("td", { text: fmt(ret, 3) }));
       tb.append(tr);
     }
-    body.replaceChildren(tb, h("div", { class: "card-note", text: `κ (per-image median for perplexity rules; none for the kNN graph) and median 15-NN kernel mass under ${m.modes[st.mode]}; retention ρ_c and R² of ${tg.kind === "psi" ? "ψ" + tg.k : "SEBA vector " + (j + 1)}. Bold rows are in the block.` }));
+    body.replaceChildren(tb, h("div", { class: "card-note", text: `κ (per-image median for perplexity rules; none for the kNN graph) and median 15-NN kernel mass under ${m.modes[st.mode]}; retention ρ_c of ${tg.kind === "psi" ? "ψ" + tg.k : "SEBA vector " + (j + 1)}. Bold rows are in the block.` }));
   }
 
   renderKey() {
@@ -1144,14 +1085,4 @@ export function captionParts(ctx, st, col) {
     ...part("Colour:", colour + focus),
     ...part("Positions:", `${lay}; display only, no number on this page is computed from them. Rows: checkpoints (step, validation accuracy); columns: sites; ${T * S} panels, one per snapshot, of the same ${m.n.toLocaleString("en")} probe images.`),
   ];
-}
-
-function bars(items, pal) {
-  const box = h("div", { class: "bars" });
-  for (const it of items) {
-    const v = Math.max(-1, Math.min(1, it.v)), w = Math.abs(v) * 50;
-    const bar = h("i", { class: "bar", style: { left: (v < 0 ? 50 - w : 50) + "%", width: w + "%", background: it.color || (v < 0 ? pal.p.diverging.neg : pal.p.diverging.pos) } });
-    box.append(h("span", { class: "lab" }, it.color ? h("span", { class: "swatch", style: { "--sw": it.color } }) : null, it.lab), h("span", { class: "track" }, bar), h("span", { class: "v", text: (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) }));
-  }
-  return box;
 }

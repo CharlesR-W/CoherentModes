@@ -10,7 +10,7 @@ const ANCHOR_ALIAS = {
   "overview/hankel": "method/avgprod",
   "overview/kernel": "method/kernel",
   "overview/reading": "method/reading",
-  "overview/panels": "method/loadings",
+  "overview/panels": "method/reading",   // the loadings section was removed
   "overview/limits": "method/checks",
   "method/limits": "method/checks",
   "method/glossary-cell": "method/glossary-snapshot",                       // "cell" became "snapshot"

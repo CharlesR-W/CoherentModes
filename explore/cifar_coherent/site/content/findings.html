@@ -1,13 +1,32 @@
 <p class="lede" id="read-a-finding">These are readings of one network (ResNet-20, CIFAR-10, one seed) made with the
-procedure in the <a href="#overview/procedure">Overview</a>. They are also <b>worked examples of how to think with
-the tool</b>. <b>Each finding opens with a claim and a tag</b>: <em>observed</em> is a direct reading of a measured quantity,
+procedure in the <a href="#overview/procedure">Overview</a>. They are also worked examples of how to think with
+the tool. Each finding opens with a claim and a tag: <em>observed</em> is a direct reading of a measured quantity,
 <em>reading</em> is an interpretation I would defend, and <em>speculation</em> is a guess worth checking. Then come the
 evidence, with captions that only say what is plotted; how I read it, and what else it could be; and what to change
-in the explorer to test it yourself. Class names appear here, in the prose, to <b>describe sets that the method found
-without them</b>.</p>
+in the explorer to test it yourself. Class names appear here, in the prose, to describe sets that the method found
+without them.</p>
+
+<nav class="callout" id="findings-toc"><p class="callout-title">Contents</p><ol>
+<li><a href="#findings/f-end-sets">Four sets at the end of training, and what is in them</a></li>
+<li><a href="#findings/f-looking-back">Looking back: when the two-set split becomes vehicles against animals</a></li>
+<li><a href="#findings/f-depth">Where depth redraws the grouping</a></li>
+<li><a href="#findings/f-block-vs-cell">One snapshot's split against a block's</a></li>
+<li><a href="#findings/f-gradients">The sets and the training signal</a></li>
+<li><a href="#findings/qualitative">Readings from the images themselves (coming)</a></li>
+<li><a href="#findings/next-checks">Checks I'd like to run</a></li>
+</ol></nav>
+
 
 <!-- ============================================================ 1 -->
 <h2 id="f-end-sets">1. Four sets at the end of training, and what is in them</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 4$) of the <b>layer block b7 to pool</b> (four snapshots) at the <b>last checkpoint</b>, step {{fact:final_step}}, kernel rule {{fact:default_mode}}.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=late-layers"><img style="width: 100%; height: auto" src="assets/fig/view_late-layers.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
 
 <p><b>Claim</b> <em>(observed).</em> At the last checkpoint, the layer block b7 to pool splits the probe into four
 coherent sets of {{fact:q.f1.b7_pool.final.r4.set1.size}}, {{fact:q.f1.b7_pool.final.r4.set2.size}},
@@ -82,6 +101,14 @@ split; move the block's start from b7 down to b4.</p>
 
 <!-- ============================================================ 2 -->
 <h2 id="f-looking-back">2. Looking back: when the two-set split becomes vehicles against animals</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The two coherent sets ($r = 2$) of the <b>single-snapshot block at site b9</b>, recomputed <b>at each checkpoint</b> in turn. The screenshot shows step 64; change the checkpoint in the explorer to see the others.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=1&a=9&b=9&m=0&c=seba&r=2"><img style="width: 100%; height: auto" src="assets/fig/view_b9-step64.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
 
 <p>Now fix one site, b9, and ask what its own two-set split (the single-snapshot block, $r = 2$) looks like at each
 checkpoint. I score it against the class grouping {airplane, automobile, ship, truck} versus the other six, with the
@@ -168,6 +195,14 @@ late-training sets</a> and look up the column to see where they sat earlier.</p>
 <!-- ============================================================ 3 -->
 <h2 id="f-depth">3. Where depth redraws the grouping</h2>
 
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 4$) of the <b>single-snapshot block at each site</b>, compared between sites at the same checkpoint. The screenshot shows site b2 alone at step {{fact:final_step}}, its sets painted on every site.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b2-b3"><img style="width: 100%; height: auto" src="assets/fig/view_b2-b3.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
 <p><b>Claim</b> <em>(observed).</em> At the last checkpoint, the $r = 4$ sets of single-snapshot blocks at adjacent sites
 agree with matched Jaccard {{fact:q.carry.r4.final.adjacent_min}} to {{fact:q.carry.r4.final.adjacent_max}} (the
 permutation null for adjacent pairs at this checkpoint is at most {{fact:q.carry.r4.final.adjacent_null_hi_max}}). The grouping changes most at
@@ -215,6 +250,14 @@ at step 0</a>.</p>
 <!-- ============================================================ 4 -->
 <h2 id="f-block-vs-cell">4. One snapshot's split against a block's</h2>
 
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The leading eigenfunction $\psi_1$ (not the sets) of the <b>layer block b1 to logits</b> at step {{fact:final_step}}, compared with $\psi_1$ of the single-snapshot block at b1.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b1-block-psi1"><img style="width: 100%; height: auto" src="assets/fig/view_b1-block-psi1.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
 <p><b>Claim</b> <em>(observed).</em> At the end of training, the leading eigenfunction of the layer block b1 to
 logits is not b1's own (|cos| {{fact:q.f5.b1_vs_b1-logits.final.abs_cos_psi1}} between the two $\psi_1$); it is
 closest to the single-snapshot $\psi_1$ of {{fact:q.f5.b1_vs_b1-logits.final.block_psi1_best_static_site}} (|cos|
@@ -260,6 +303,14 @@ own</a>, and compare the retention strips.</p>
 
 <!-- ============================================================ 5 -->
 <h2 id="f-gradients">5. The sets and the training signal</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 2$ and $r = 4$) of the <b>time block at site b9 over all {{fact:n_checkpoints}} checkpoints</b>, set against per-image loss gradients at each checkpoint. The screenshot shows $r = 4$.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b9-all-training"><img style="width: 100%; height: auto" src="assets/fig/view_b9-all-training.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
 
 <p><b>Claim</b> <em>(observed).</em> On the images the sets assign, the within-minus-between gradient cosine of b9's
 label-free sets at the last checkpoint is {{fact:q.grad.r2.b9.all.final.sets_over_class_union_assigned}} times that of
@@ -328,6 +379,9 @@ of any $\psi_k$, in the explorer's representative-images panel), the image-stati
 
 <!-- ============================================================ checks -->
 <h2 id="next-checks">Checks I'd like to run</h2>
+
+<p>Longer-range directions (diverging trajectories, behaviour-relevant data over training, and the route from
+eigenfunctions back to weights) are sketched in the <a href="#overview/uses">Overview</a>.</p>
 
 <ul>
 <li>Split-half resampling of the probe, to see which sets survive.</li>

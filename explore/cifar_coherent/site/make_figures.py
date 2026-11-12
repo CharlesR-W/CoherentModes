@@ -1261,7 +1261,7 @@ def fig_howto(d: Data, mode, t_idx, a, b, site_time, c_time, d_time, hover_img, 
          None, False, both(spectrum(tvals, f"spectrum ({d.sites[site_time]}, steps {d.steps[c_time]:,}–{d.steps[d_time]:,})", nsel=r),
                            strip(tret, [f"{s:,}" for s in d.steps], c_time, d_time, "retention of ψ1 per checkpoint")), 8000),
         (tc, grey_first(tlab), tb, "Your turn: open the Explorer tab.",
-         "Also try the kernel rule, r, and the channel-loadings panel. Colours are always from the selected block.",
+         "Also try the kernel rule and r. Colours are always from the selected block.",
          None, False, None, 5000),
     ]
     frames, durs = [], []

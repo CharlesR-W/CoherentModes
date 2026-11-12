@@ -1,11 +1,11 @@
-<p class="lede">I gave a ResNet-20 the same {{fact:n_images}} CIFAR-10 test images at {{fact:n_checkpoints}} checkpoints
-of its training and recorded its activations at {{fact:n_sites}} sites, from the first convolution to the logits.
-Then I asked <b>which groups of images it treats alike, where in the network, and since when</b>, without telling
-the method anything about labels. On this network, <b>the last layers sort the images into four groups that line up
-with unions of classes</b>, site b9 already splits vehicle-like from animal-like images by step
-{{fact:q.va.b9.half_step}}, and the grouping changes most between b2 and b3. This page gives the procedure,
-<b><em>Neural Coherent Sets</em></b>, and a small vocabulary for such statements; the <a href="#explorer">explorer</a> is where you check
-them.</p>
+<p class="lede">Which inputs does a network treat the same, at which layer, and since when in training? I put that
+question to a ResNet-20, using {{fact:n_images}} CIFAR-10 test images at {{fact:n_checkpoints}} checkpoints of its
+training and recording its activations at {{fact:n_sites}} sites, from the first convolution to the logits. The answer
+comes from a label-free spectral construction I call <em>Neural Coherent Sets</em>. On this network, the last layers
+sort the images into four groups that line up with unions of classes; site b9 already splits vehicle-like from
+animal-like images by step {{fact:q.va.b9.half_step}}; and the grouping changes most between b2 and b3. Below, in
+order: where the question comes from, how the construction answers it, what it might be used for, and an
+<a href="#explorer">explorer</a> in which to check every statement.</p>
 
 <figure class="fig wide">
   <a href="#explorer?tour=b9-late"><img src="assets/fig/hero.png" loading="eager" alt="Site b9 of a ResNet-20 at eight training checkpoints, each panel a 2-d layout of the same 2,000 images, coloured by the four coherent sets of the time block steps 2,560 to 64,000."></a>
@@ -26,33 +26,80 @@ them.</p>
 
 <p class="cta"><a class="explore-link big" href="#explorer?tour=b9-late">Open the explorer at this view</a></p>
 
-<h2 id="motivation">Why coherent sets</h2>
+<h2 id="motivation">Where this comes from</h2>
 
-<p>This grew out of an observation by Stefan Heimersheim and collaborators about <a href="#method/glossary-activation-cell"><b><em>activation cells</em></b></a>: interpolate between three real activations of a
-layer, and the network's response jumps sharply rather than blending, as if activation space were tiled into
-Voronoi-like cells. I spent a long time trying to decompile language models with cells, but
-<b>cells resist direct analysis</b>: the space is huge, the data only sample it, and nothing measures a cell's boundary
-cheaply.</p>
+<p>In short, this is a continuation of work on <em>activation cells</em>, carried on with completely different
+tools. Its core intuition is to find what the network treats the same, and to find it at a cost that grows with the
+amount of data rather than with the size of the network, at a resolution the method makes explicit. It also connects
+the question to established work on inferring programs and dynamical systems, and on what neurons compute.</p>
 
-<p>My collaborator Brianna Grado-White and I make them tractable with a hypothesis: <b>within a cell, the network
-propagates the labels of the training points inside it to the rest of the cell</b>, a limited form of label
-propagation. A cell is then a cluster of points the network treats the same: a group that few neighbourhood links
-leave, <b>which is what spectral clustering finds</b>. Cells that persist across layers or training are
-<b><em>coherent sets</em></b>, and SEBA reads them off. I call the construction <b><em>Neural Coherent
-Sets</em></b>.</p>
+<h3 id="motivation-cells">1. Activation cells suggest a discrete code</h3>
 
-<p><b>It also sits in a lineage of program reconstruction.</b> Inferring weighted word or tree automata from Hankel
-matrices, which pair prefixes with continuations, is a form of program reconstruction, and the ambition is to reach richer programs, up to Turing machines.
-Dynamical systems have their own Hankel and Koopman methods, and Pughe-Sanford et al. (2025) suggest that coherent
-sets of a Koopman operator are <b>a good lens on what neurons compute</b>. Here depth or training plays the part of time,
-and the site averages the layers' walks rather than forming a Hankel-like product
+<p>Stefan Heimersheim and collaborators observed what they call <a href="#method/glossary-activation-cell">activation
+cells</a>. Take three real activations at some layer, interpolate between them, and run the rest of the network: its
+response does not blend smoothly but jumps sharply, as if the layer's activation space were tiled into Voronoi-like
+cells. If the rest of the network computes nearly the same thing everywhere in a cell, then at that layer the
+network behaves like a machine with discrete states, and which cell an input lands in carries most of what
+the rest of the network uses. A discrete code like that could in principle be decompiled, by reading off the states
+and the transitions between them the way one reads a finite automaton. I spent a long time trying to do this for
+language models.</p>
+
+<h3 id="motivation-cost">2. Cells are too expensive to find directly</h3>
+
+<p>Finding a cell means finding its boundary, and a boundary is where the downstream computation changes. Measuring
+that directly means measuring Jacobians of the rest of the network, or running interpolations, in many directions
+around every data point, at every layer. In the dimensions and at the data sizes where the question matters, that
+does not scale. The data also only sample the space, so most of any boundary is never seen.</p>
+
+<h3 id="motivation-reframe">3. A cell is a group of inputs the network treats the same</h3>
+
+<p>The question can be asked about groups of inputs instead of boundaries: which inputs does the rest of the
+network treat as interchangeable? My collaborator Brianna Grado-White and I take as a working hypothesis that
+inside a cell the network does a limited form of <em>harmonic label propagation</em>: the downstream output at an
+input is close to the average over its nearby inputs in the same cell, and changes only across boundaries. If
+that holds, links between neighbours inside a cell connect inputs with the same downstream output, and the output
+changes only along links that cross a boundary. A cell is then a group of inputs that few neighbourhood links leave. Finding groups like that is
+exactly what spectral clustering does, from one similarity matrix per layer and with no Jacobians. The network
+enters only through one forward pass per probe input and checkpoint; after that, the eigenproblems grow with the number of probe
+inputs, not with the size of the network. Two explicit choices set the scale of the grouping: the neighbourhood
+size, and the number of groups, chosen with the help of gaps in the eigenvalue spectrum. A first
+labelled test of the hypothesis has been designed but not yet run; until it has, this is motivation, not a result.</p>
+
+<h3 id="motivation-coherent">4. Groups that persist are coherent sets</h3>
+
+<p>A layer is one snapshot. A cell that matters should persist across neighbouring layers or across training, and
+a group of inputs that stays together under an evolving dynamics is what dynamical systems call a <em>coherent
+set</em> (Froyland and collaborators). The construction therefore averages the neighbourhood walks over a run of
+layers or checkpoints, with depth or training time in the role of time, and reads the sets off with SEBA, their
+tool for turning eigenvectors into sets. I call the result <em>Neural Coherent Sets</em>.</p>
+
+<h3 id="motivation-analogies">5. The same question in program inference, dynamics and neuroscience</h3>
+
+<p>"Which inputs does the rest of the computation treat the same?" also underlies three established bodies of work,
+and they share a spectral core.</p>
+<ul>
+<li><b>Program inference.</b> Weighted automata are reconstructed from Hankel matrices, which pair every prefix of an
+input with every continuation. For languages, prefixes that every continuation treats alike form one state of the
+minimal automaton (the Myhill–Nerode theorem); for weighted automata, a low-rank factorization of the Hankel matrix
+plays that role and recovers the program up to a change of basis. Reading a layer as the end of a prefix and
+the rest of the network as its continuation turns cells into states, and the spectral clustering here into a loose
+cousin of that factorization. The longer-term ambition is reconstructing richer programs this way.</li>
+<li><b>Dynamical systems.</b> Hankel matrices of time series pair windows of the past with windows of the future,
+and Koopman (transfer) operators carry functions of the present state forward in time. The leading singular vectors
+of either give a small state, or coherent sets, through which the past shapes the future.</li>
+<li><b>Neuroscience.</b> Pughe-Sanford et al. (2025) propose that sensory neurons learn membership of the coherent
+sets of their inputs' dynamics, so that coherent sets are a natural lens on what neurons compute.</li>
+</ul>
+<p>Hankel reconstruction, spectral clustering and coherent sets are close relatives, and each gives a principled
+reading of "treated the same". The analogies are loose, and the dropdown below says where each one stops. One
+concrete difference: a block here averages the walks of its layers rather than forming a Hankel-like product
 (<a href="#method/avgprod">the two agree closely</a>).</p>
 
-<details class="more"><summary>The precise statements, and where the analogy stops</summary>
+<details class="more"><summary>The precise statements, and where each analogy stops</summary>
 <ul>
 <li><b>The hypothesis, stated precisely.</b> Call a cell a region of a layer's activation space where the rest of
 the network computes nearly the same thing. If most neighbourhood edges of the walk $P$ stay inside cells, any
-downstream function $F$ satisfies $F \approx P F$ (harmonic, as in label propagation; Zhu, Ghahramani and Lafferty
+downstream function $F$ that is nearly constant within cells satisfies $F \approx P F$ (harmonic, as in label propagation; Zhu, Ghahramani and Lafferty
 2003) except at images with edges across a boundary, so its penalty $\tfrac12 \sum_{ij} P_{ij} \lVert F_i - F_j
 \rVert^2$ comes only from boundary-crossing edges. Cells are then low-cut sets, and the slowest eigenvectors
 approximately span their indicators; persistence across a block makes them coherent sets. This is a motivating
@@ -226,3 +273,29 @@ $\rho_c$, <a href="#method/glossary-coherent-set">coherent set</a>,
   <a href="#findings/f-depth">Finding 3</a> · <a class="explore-link" href="#explorer?tour=b2-b3">explorer</a></figcaption>
 </figure>
 </div>
+
+<h2 id="uses">Where this could go</h2>
+
+<p>These are sketches. None of them has been run.</p>
+
+<ul>
+<li><b>Where good and bad runs part ways.</b> Record a model's activations on trajectories that went well and ones
+that went badly (an agent's successful and failed episodes, say). Find the layer, or the point in the trajectory,
+at which the two stop falling into the same coherent sets. That would point to where the network first treats them
+differently, without anyone having to say in advance what the difference is.</li>
+<li><b>How behaviour-relevant data move through training.</b> Hold fixed a probe of, for example, aligned and
+misaligned examples, and follow it across checkpoints. Time blocks show whether the two move together or split
+apart, and when. Each set's trajectory can then be compared with whatever else is measured over training (loss,
+gradients, scores on behavioural assays), and the eigenfunctions can be broken down into their loadings on those
+assays.</li>
+<li><b>From activation space back to weight space.</b> An eigenfunction $\psi$ of a block is a function on the probe
+inputs, so it can be paired with anything else defined on them. For a weight matrix $W$ that reads inputs $U$ and
+receives backpropagated errors $\Delta$ (one row per probe input), the loss gradient on the probe is exactly
+$\nabla_W \mathcal L = \Delta^\top U = \sum_k (\Delta^\top \psi_k)(U^\top \psi_k)^\top$ for any complete orthonormal
+basis $\psi_k$ of functions on the probe. Taking the block's leading eigenfunctions as the first members of that basis
+splits the training signal on $W$ into one piece per mode: $U^\top \psi_k$ is the input direction the mode reads, and
+$\Delta^\top \psi_k$ is the output direction the training signal pushes along it. For a convolution, these terms are
+summed over positions. That would give a candidate account of which weights carry each coherent set and how training reshapes them, using
+only the network's own loss, with nothing fitted on top. It is <code>THEORY.md</code>'s mode decomposition of the
+gradient (section 7.2), applied to these eigenfunctions.</li>
+</ul>

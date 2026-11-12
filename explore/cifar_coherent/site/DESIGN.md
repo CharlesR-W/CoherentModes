@@ -21,7 +21,7 @@ is marked), `#findings`, `#measurements`, `#method`. `build_site.py <tag> [layou
   | `overview/hankel` | `method/avgprod` |
   | `overview/kernel` | `method/kernel` |
   | `overview/reading` | `method/reading` |
-  | `overview/panels` | `method/loadings` |
+  | `overview/panels` | `method/reading` |
   | `overview/limits`, `method/limits` | `method/checks` |
   | `method/glossary-cell` | `method/glossary-snapshot` |
   | `method/glossary-single-cell-block` | `method/glossary-single-snapshot-block` |

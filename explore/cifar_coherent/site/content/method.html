@@ -286,7 +286,7 @@ approximations to it. Then flip each column of $S$ so its sum is positive, divid
 by decreasing minimum entry (<b>reliability</b>), and clip negative entries to 0. Hard label of image $i$:
 $\arg\max_j S_{ij}$ if $\max_j S_{ij} > 0$, else unassigned. Set $j$ (1-based, reliability order) takes the $j$-th set
 colour; unassigned is grey. The rotation and permutation are stored, so the browser reconstructs the full vectors
-(not just the labels) for loadings and retention.</p>
+(not just the labels) for retention.</p>
 
 <figure class="fig wide">
   <img src="assets/fig/seba.png" alt="How SEBA turns eigenvectors into coloured sets: images at their eigenvector coordinates with threshold lines, the sparse vectors, and the resulting colours on a UMAP snapshot.">
@@ -383,7 +383,6 @@ permutation null.</li>
 <li><b>Representative images</b>: for $\psi_k$, the 12 images with the most positive values, the 12 most negative,
 and the 12 nearest zero. For a set, its members by decreasing SEBA value ("highest membership"), and its members with
 the smallest lead of their own SEBA value over the largest of the other $r - 1$ ("boundary members").</li>
-<li><b>Channel loadings</b>: see <a href="#method/loadings">loadings</a>.</li>
 </ul>
 
 <h2 id="umap">Layouts (display only)</h2>
@@ -410,15 +409,6 @@ come from seed 0's blocks. Seed 1's layouts are aligned along its own checkpoint
 pixels; per-sample loss gradients $g_i$ with respect to all trainable parameters, $\bar g = \frac1N \sum_i g_i$ over
 the probe, and $g_i \cdot \bar g$, $\cos(g_i, \bar g)$, $\lVert g_i \rVert$. These use labels through the loss and
 never enter an operator.</p>
-
-<h2 id="loadings">Channel loadings</h2>
-
-<p>Target $f$: the selected $\psi_k$, or a full SEBA vector (not winner-masked). For a snapshot with channel matrix
-$X \in \mathbb R^{N \times C}$ (spatial mean of each channel, columns centred; pool = b9's channel means; logits = the
-10 logits): Pearson $\mathrm{corr}(f, X_{:c})$ per channel; $R^2$ of in-sample ordinary least squares of centred $f$
-on $X$ (descriptive, not held out; chance about $C/N$, at most $64/2000 = 3.2\%$), shown for every snapshot as a grid.
-Alignment with the classifier: $\mathrm{corr}(f,\ z_c - \tfrac1{10}\sum_{c'} z_{c'})$ for each class $c$. Spatial
-means discard where a channel fired; the operators use the full maps.</p>
 
 <h2 id="questions">Statistics behind the Measurements tab</h2>
 
