@@ -11,7 +11,7 @@ site/assets/fig/:
                        superseded by steps.png, kept until the Overview switches over
   steps.png, step1..5.png   the Overview's procedure in five steps, same data as pipeline.png: a strip of five
                        numbered panels and one image per step (--only steps)
-  static_dynamic.png   psi_1 of a single-cell block vs psi_1 of a layer block containing it, with retention strips
+  static_dynamic.png   psi_1 of a single-snapshot block vs psi_1 of a layer block containing it, with retention strips
   timeblock.gif/_strip.png   one site through training, coloured by a time block's coherent sets
   hero.png             1200 x 630 preview image: the time block's site at all checkpoints, coloured by its sets
   kappa.png            (Method) kernel weight and cumulative kernel mass against neighbour rank under five
@@ -611,7 +611,7 @@ def _step2(fig, spec, d, g):
     pa.set_title("walk $P_c$ = Sinkhorn($K_c$)", loc="left", fontsize=13, weight="normal", pad=5)
     pa.text(0, -0.04, "rows, columns sum to 1", transform=pa.transAxes, va="top", fontsize=SMALL, color=MUTE)
     ka.text(0, -0.04, "log colour", transform=ka.transAxes, va="top", fontsize=SMALL, color=MUTE)
-    _step_head(fig, spec, 2, "Kernel, then walk", "same cell; lazy walk $M_c = (I + P_c)/2$", inner=True)
+    _step_head(fig, spec, 2, "Kernel, then walk", "same snapshot; lazy walk $M_c = (I + P_c)/2$", inner=True)
     return [ka, pa]
 
 
@@ -794,7 +794,7 @@ def fig_static_dynamic(d: Data, t_idx, mode, a, b, s):
     gs = fig.add_gridspec(2, nc + 2, width_ratios=[1] * nc + [0.35, 2.2], wspace=0.08, hspace=0.22, left=0.07,
                           right=0.985, top=0.86, bottom=0.11)
     xy = d.umap()[t_idx]
-    for row, (f, name) in enumerate([(fs, f"single-cell block {d.sites[s]}: ψ1"),
+    for row, (f, name) in enumerate([(fs, f"single-snapshot block {d.sites[s]}: ψ1"),
                                      (fb, f"layer block {d.sites[a]}–{d.sites[b]}: ψ1")]):
         col = div_colors(f)
         order = np.argsort(np.abs(f))
@@ -808,7 +808,7 @@ def fig_static_dynamic(d: Data, t_idx, mode, a, b, s):
     ax = fig.add_subplot(gs[:, nc + 1])
     x = np.arange(d.S)
     ax.axvspan(a - 0.5, b + 0.5, color=LINE, alpha=0.7, lw=0)
-    ax.plot(x, rs, color=MUTE, marker="o", ms=4, lw=1.6, label=f"ψ1 of single-cell block {d.sites[s]}")
+    ax.plot(x, rs, color=MUTE, marker="o", ms=4, lw=1.6, label=f"ψ1 of single-snapshot block {d.sites[s]}")
     ax.plot(x, rb, color=ACC, marker="o", ms=4, lw=1.8, label=f"ψ1 of layer block {d.sites[a]}–{d.sites[b]}")
     lam = d.vals("layer", t_idx, mode, a, b)[1]
     ax.hlines(lam, a - 0.5, b + 0.5, color=ACC, lw=0.9, ls="--")
@@ -822,7 +822,7 @@ def fig_static_dynamic(d: Data, t_idx, mode, a, b, s):
     ax.set_ylabel("retention ρ_c(ψ1) = ψ1ᵀ M_c ψ1")
     ax.set_title(f"Retention at every site, {stepname(d.steps[t_idx])}", loc="left")
     ax.legend(fontsize=8.5, loc="lower left")
-    fig.text(0.07, 0.95, f"ψ1 of a single-cell block vs ψ1 of a layer block ({stepname(d.steps[t_idx])}, "
+    fig.text(0.07, 0.95, f"ψ1 of a single-snapshot block vs ψ1 of a layer block ({stepname(d.steps[t_idx])}, "
              f"kernel rule: {d.modes[mode]})",
              fontsize=12, weight="semibold")
     save(fig, "static_dynamic.png")
@@ -1024,7 +1024,7 @@ def fig_rules(d: Data, step=None):
     adapt = [("union kNN 15", "kNN\ngraph"), ("perplexity 100", "perp.\n100"), ("perplexity 300", "perp.\n300")]
     metrics = [("ψ1 participation number", lambda r: r["participation"][0], "log", (1.5, 3000)),
                ("1 − λ1 (lower = slower ψ1)", lambda r: r["gaps"][0], "linear", (0, 0.5)),
-               ("smallest of 8 coherent sets (images)", lambda r: max(min(r["seba"]["8"]["sizes"]), 0.8), "log", (0.8, 1000))]
+               ("smallest of 8 coherent sets", lambda r: max(min(r["seba"]["8"]["sizes"]), 0.8), "log", (0.8, 1000))]
     fig = plt.figure(figsize=(13.6, 4.6))
     gs = fig.add_gridspec(1, 3, wspace=0.32, left=0.06, right=0.99, top=0.8, bottom=0.2)
     for mi, (name, fn_, scale, lim) in enumerate(metrics):
@@ -1051,7 +1051,7 @@ def fig_rules(d: Data, step=None):
         ax.set_xlim(1.8, 50)
         ax.set_xticks([2, 3, 5, 8, 12, 20, 30, 45], ["2", "3", "5", "8", "12", "20", "30", "45"])
         ax.minorticks_off()
-        ax.set_xlabel("one global κ for the cell")
+        ax.set_xlabel("one global κ for the snapshot")
         ax.set_title(name, loc="left")
         bx.set_xlim(-0.5, len(adapt) - 0.5)
         bx.set_xticks(range(len(adapt)), [l for _, l in adapt], fontsize=7.8)
@@ -1065,7 +1065,7 @@ def fig_rules(d: Data, step=None):
                bbox_to_anchor=(0.06, 0.93))
     fig.text(0.99, 0.02, "kNN graph = default rule; perp. = per-image perplexity; a smallest set of 0 is drawn at the "
              "floor", ha="right", fontsize=8, color=MUTE)
-    fig.text(0.06, 0.975, f"Label-free diagnostics against one global κ, one cell per site ({stepname(step)}); "
+    fig.text(0.06, 0.975, f"Label-free diagnostics against one global κ, one snapshot per site ({stepname(step)}); "
              "per-image kernel rules at right", fontsize=11.5, weight="semibold", va="top")
     save(fig, "rules.png")
 
@@ -1232,10 +1232,10 @@ def fig_howto(d: Data, mode, t_idx, a, b, site_time, c_time, d_time, hover_img, 
     steps_ = [  # (colors, order, block, text, sub, highlight, hover, side, ms)
         (neutral, None, None, "How to read the explorer (slowly)",
          "Ten steps, five to eight seconds each. The real thing is in the Explorer tab.", None, False, None, 4500),
-        (neutral, None, None, "Each square is one cell: one checkpoint (row), one site (column).",
-         "Every cell shows the same 2,000 test images, laid out by UMAP of that cell's activations. Display only.",
+        (neutral, None, None, "Each square is a panel: one snapshot, i.e. one checkpoint (row) at one site (column).",
+         "Every panel shows the same 2,000 test images, laid out by UMAP of that snapshot's activations. Display only.",
          [(t_idx, 4, t_idx, 4)], False, None, 6500),
-        (neutral, None, None, "A dot is the same image in every cell.",
+        (neutral, None, None, "A dot is the same image in every panel.",
          "Hover an image and it is ringed everywhere, so you can follow it through depth and training.",
          None, True, thumb, 6500),
         (cls, None, None, "Colour by class, for orientation.",
@@ -1245,15 +1245,15 @@ def fig_howto(d: Data, mode, t_idx, a, b, site_time, c_time, d_time, hover_img, 
          "Their walks M_c are averaged into the block operator M̄. Its eigenfunctions ψ_k vary least, on average.",
          None, False, spec_l, 7000),
         (eig, eig_order, lb, "Colour by eigenfunction ψ1: red > 0, blue < 0, grey ≈ 0.",
-         "Computed from the outlined block only, then painted on every cell. Its sign is a convention.",
+         "Computed from the outlined block only, then painted on every panel. Its sign is a convention.",
          None, False, spec_l, 7000),
         (eig, eig_order, lb, "Retention strip: ρ_c(ψ1) = ψ1ᵀ M_c ψ1 for each site.",
-         "The eigenvalue λ1 is its mean over the block. A lower ρ_c: ψ1 varies more between that cell's neighbours.",
+         "The eigenvalue λ1 is its mean over the block. A lower ρ_c: ψ1 varies more between that snapshot's neighbours.",
          None, False, both(spec_l, strip_l), 8000),
         (sebc, grey_first(slab), lb, f"Colour by coherent sets (SEBA, here r = {r}).",
          f"ψ0…ψ{r - 1} are rotated into {r} sparse vectors; each image takes its largest one; grey = unassigned.",
          None, False, spec_s, 7500),
-        (sebc, grey_first(slab), lb, "The block's colours are painted on every cell.",
+        (sebc, grey_first(slab), lb, "The block's colours are painted on every panel.",
          "Along the row: the other sites at this checkpoint. Up a column: the same site at earlier checkpoints.",
          [(0, b, t_idx, b), (t_idx, 0, t_idx, S - 1)], False, spec_s, 8000),
         (tc, grey_first(tlab), tb, f"Time block: fix a site ({d.sites[site_time]}), average over checkpoints.",

@@ -1,4 +1,5 @@
-<p class="lede">The reference tab: every definition and setting, in the order the pipeline runs. The
+<p class="lede">The reference tab for <b>Neural Coherent Sets</b>, my construction for finding the groups of inputs a
+neural network treats alike across layers and training: every definition and setting, in the order the pipeline runs. The
 <a href="#overview/procedure">Overview</a> gives the procedure in five steps; this tab gives the exact version of each
 step, how I chose the kernel, and how to rebuild everything.</p>
 
@@ -11,28 +12,31 @@ network; the same images, indexed $i = 1..N$, are used at every checkpoint and s
 residual blocks b1 to b9, pool, or logits ({{fact:n_sites}} in all).</li>
 <li id="glossary-checkpoint"><b>Checkpoint.</b> One of the {{fact:n_checkpoints}} saved training steps used here:
 {{fact:steps}}.</li>
-<li id="glossary-cell"><b>Cell.</b> A (checkpoint, site) pair. Its data are the $N$ activation vectors of the probe
-images at that site and checkpoint.</li>
-<li id="glossary-block"><b>Block.</b> A run of consecutive cells whose operators are averaged. A <b>layer block</b> is
+<li id="glossary-snapshot"><b>Snapshot.</b> A (checkpoint, site) pair. Its data are the $N$ activation vectors of the probe
+images at that site and checkpoint. In the explorer grid each snapshot is drawn as one <b>panel</b>.</li>
+<li id="glossary-activation-cell"><b>Activation cell.</b> A region of a layer's activation space on which the rest of
+the network computes nearly the same thing (after an observation by Stefan Heimersheim and collaborators); on
+this site "cell" means only this.</li>
+<li id="glossary-block"><b>Block.</b> A run of consecutive snapshots whose operators are averaged. A <b>layer block</b> is
 sites $a..b$ at one checkpoint; a <b>time block</b> is checkpoints $c..d$ at one site.</li>
-<li id="glossary-single-cell-block"><b>Single-cell block.</b> A block of one cell ($a = b$ or $c = d$). Its
-eigenfunctions are ordinary spectral clustering (diffusion maps) of that cell alone.</li>
-<li id="glossary-kernel-rule"><b>Kernel rule.</b> The recipe that turns a cell's cosine distances into a symmetric,
+<li id="glossary-single-snapshot-block"><b>Single-snapshot block.</b> A block of one snapshot ($a = b$ or $c = d$). Its
+eigenfunctions are ordinary spectral clustering (diffusion maps) of that snapshot alone.</li>
+<li id="glossary-kernel-rule"><b>Kernel rule.</b> The recipe that turns a snapshot's cosine distances into a symmetric,
 non-negative weight matrix $K$ with zero diagonal. There are five (<a href="#method/kappa">table</a>); the default is
 the {{fact:default_mode}}.</li>
-<li id="glossary-walk"><b>Walk $P_c$.</b> The Sinkhorn scaling $\mathrm{diag}(v)\,K\,\mathrm{diag}(v)$ of cell $c$'s
+<li id="glossary-walk"><b>Walk $P_c$.</b> The Sinkhorn scaling $\mathrm{diag}(v)\,K\,\mathrm{diag}(v)$ of snapshot $c$'s
 kernel: symmetric, non-negative, zero on the diagonal, every row and column summing to 1.</li>
 <li id="glossary-lazy-walk"><b>Lazy walk $M_c$.</b> $M_c = \tfrac12(I + P_c)$: stay put with probability one half,
 otherwise take a step of $P_c$. Same eigenvectors as $P_c$, eigenvalues in $[0, 1]$.</li>
 <li id="glossary-block-operator"><b>Block operator $\bar M$.</b> The equal-weight average $\bar M = \frac{1}{|B|}
-\sum_{c \in B} M_c$ over the cells of block $B$.</li>
+\sum_{c \in B} M_c$ over the snapshots of block $B$.</li>
 <li id="glossary-eigenfunction"><b>Eigenfunction $\psi_k$.</b> The $k$-th unit eigenvector of $\bar M$ in decreasing
 order of eigenvalue, read as a function on the probe images ($\psi_k(i)$ for image $i$). $\psi_0 = \mathbf
 1/\sqrt N$ is the constant.</li>
 <li id="glossary-spectrum"><b>Spectrum.</b> The eigenvalues $1 = \lambda_0 \ge \lambda_1 \ge \lambda_2 \ge \dots$ of
-$\bar M$. For a unit eigenfunction, $1 - \lambda_k = \frac{1}{|B|}\sum_{c \in B} \psi_k^\top (I - M_c)\, \psi_k$, the average <em>lazy</em> penalty over the block's cells, which is half the average walk penalty $\psi_k^\top (I - P_c)\, \psi_k$ of <a href="#method/eq-m-penalty">(1)</a>. For SEBA with $r$ sets the
+$\bar M$. For a unit eigenfunction, $1 - \lambda_k = \frac{1}{|B|}\sum_{c \in B} \psi_k^\top (I - M_c)\, \psi_k$, the average <em>lazy</em> penalty over the block's snapshots, which is half the average walk penalty $\psi_k^\top (I - P_c)\, \psi_k$ of <a href="#method/eq-m-penalty">(1)</a>. For SEBA with $r$ sets the
 relevant gap is $\lambda_{r-1} - \lambda_r$, between the last eigenvalue used and the first one left out.</li>
-<li id="glossary-retention"><b>Retention $\rho_c$.</b> For a function $f$ and any cell $c$, inside or outside the
+<li id="glossary-retention"><b>Retention $\rho_c$.</b> For a function $f$ and any snapshot $c$, inside or outside the
 block, $\rho_c(f) = f^\top M_c f / f^\top f \in [0, 1]$. A block eigenvalue is the mean retention of its
 eigenfunction over the block: $\lambda_k = \frac{1}{|B|} \sum_{c \in B} \rho_c(\psi_k)$.</li>
 <li id="glossary-seba-vector"><b>SEBA vector.</b> One of the $r$ sparse vectors that SEBA returns from
@@ -65,9 +69,9 @@ Convolutional sites are flattened ($C \times H \times W$: 16,384 dims for stem t
 b7 to b9).</li>
 </ul>
 
-<h2 id="operator">Per-cell operator</h2>
+<h2 id="operator">Per-snapshot operator</h2>
 
-<p>For cell $c$ with activations $h_i \in \mathbb{R}^D$:</p>
+<p>For snapshot $c$ with activations $h_i \in \mathbb{R}^D$:</p>
 
 $$ \hat h_i = \frac{h_i - \bar h}{\lVert h_i - \bar h\rVert}, \quad \bar h = \tfrac1N \textstyle\sum_i h_i, \qquad
 C_{ij} = \langle \hat h_i, \hat h_j \rangle, \qquad d_{ij} = 1 - C_{ij}. $$
@@ -79,7 +83,7 @@ rules</a>, for example $K_{ij} = \exp(-\kappa\, d_{ij})$ for the single-temperat
 <p><b>Sinkhorn.</b> Find $u$ with $\sum_j \exp(\log K_{ij} + u_i + u_j) = 1$ for all $i$ (symmetric scaling,
 $v = e^u$), in the log domain in float64: up to ten fixed-point steps $u \leftarrow u - \tfrac12 \log(\text{row
 sums})$, then, if needed, line-searched Newton steps on the convex objective $\tfrac12\sum_{ij} e^{\log K_{ij} + u_i +
-u_j} - \sum_i u_i$. A cell counts only if $\max_i |\text{row sum}_i - 1| < 2 \times 10^{-12}$; otherwise the
+u_j} - \sum_i u_i$. A snapshot counts only if $\max_i |\text{row sum}_i - 1| < 2 \times 10^{-12}$; otherwise the
 measurement fails (<code>coherent.symmetric_balance</code>). Then</p>
 
 $$ P = \mathrm{diag}(v)\, K\, \mathrm{diag}(v), \qquad M = \tfrac12 (I + P). $$
@@ -88,15 +92,15 @@ $$ P = \mathrm{diag}(v)\, K\, \mathrm{diag}(v), \qquad M = \tfrac12 (I + P). $$
 
 <div class="eq" id="eq-m-penalty" data-num="1">$$ f^\top (I - P)\, f \;=\; \tfrac12 \sum_{i,j} P_{ij}\,(f_i - f_j)^2 , $$</div>
 
-<p>small when $f$ is nearly constant on images the cell weights as similar, and $M$ has eigenvalues $\tfrac12(1 +
+<p>small when $f$ is nearly constant on images the snapshot weights as similar, and $M$ has eigenvalues $\tfrac12(1 +
 \lambda_P) \in [0, 1]$ with the eigenvectors of $P$.</p>
 
 <details class="more"><summary>Why Sinkhorn, why a zero diagonal, why $(I + P)/2$</summary>
 <ul>
-<li><b>Sinkhorn instead of degree normalisation.</b> With per-cell degree normalisation
-($D^{-1/2} K D^{-1/2}$, with or without Coifman-Lafon $\alpha = 1$), each cell has its own stationary vector
-$\propto \sqrt{\text{degree}}$, so an average over cells has no exact trivial mode and differences in density leak
-into the spectrum. A doubly stochastic $P$ has the uniform measure in every cell: $\psi_0 = \mathbf 1/\sqrt N$ with
+<li><b>Sinkhorn instead of degree normalisation.</b> With per-snapshot degree normalisation
+($D^{-1/2} K D^{-1/2}$, with or without Coifman-Lafon $\alpha = 1$), each snapshot has its own stationary vector
+$\propto \sqrt{\text{degree}}$, so an average over snapshots has no exact trivial mode and differences in density leak
+into the spectrum. A doubly stochastic $P$ has the uniform measure in every snapshot: $\psi_0 = \mathbf 1/\sqrt N$ with
 eigenvalue exactly 1 for every block. (Doubly stochastic normalisation for spectral clustering: Zass and Shashua
 2006; robustness to heteroskedastic noise: Landa, Coifman and Kluger 2021.)</li>
 <li><b>Zero diagonal.</b> This is a stated variant of the project's theory (THEORY.md, Section 3.1, keeps
@@ -104,10 +108,10 @@ $K_{ii} = 1$). With $K_{ii} = 1$ kept, the median diagonal entry of the Sinkhorn
 {{fact:final_step}} is {{fact:self_weight.rule4.final.mid_median}} (to the stored precision) under the calibrated
 half-mass rule, against {{fact:self_weight.rule3.final.mid_median}} under kNN scale (<code>meta.json</code>
 <code>self_weight</code>): those half-mass operators are within about $10^{-8}$ of the identity, and a block average
-would be dominated by its least lazy cells.</li>
-<li><b>$(I + P)/2$.</b> Fixes every cell's self-mass at exactly one half, and shifts the spectrum into $[0, 1]$ so that
+would be dominated by its least lazy snapshots.</li>
+<li><b>$(I + P)/2$.</b> Fixes every snapshot's self-mass at exactly one half, and shifts the spectrum into $[0, 1]$ so that
 an eigenvalue of $P$ near $-1$ (alternation across a nearly bipartite graph) is not read as a slow mode. It
-equalises laziness only; gaps and mixing rates still differ between cells and are part of what is measured.</li>
+equalises laziness only; gaps and mixing rates still differ between snapshots and are part of what is measured.</li>
 <li><b>How much the normalisation changes the result</b> (<code>normalisation_compare.json</code>, step
 {{fact:final_step}}, all 78 layer blocks, mean $\cos^2$ of principal angles between leading spans with the constant
 projected out; computed for the two single-temperature rules only). Under kNN scale: median 1.000 against both the
@@ -127,7 +131,7 @@ distance of 1.00 (<code>data/r20s0/stats_64000.json</code>). Even near neighbour
 <figure class="fig live" data-live="kernel" data-t="7" data-s="5" data-m="3">
   <figcaption><b>Plotted:</b> kernel weight $\exp(-\kappa d)$ against cosine distance $d = 1 - \cos$, for the $\kappa$
   set by the slider (buttons: each single-temperature rule's $\kappa$, or median $\kappa_i$ for the perplexity rules,
-  in this cell). Cell: b5, step {{fact:final_step}}. Vertical lines: $d_{15}$ of this cell (from the kNN-scale rule,
+  in this snapshot). Snapshot: b5, step {{fact:final_step}}. Vertical lines: $d_{15}$ of this snapshot (from the kNN-scale rule,
   $\kappa = 1/d_{15}$) and $d = 1$.</figcaption>
 </figure>
 
@@ -142,9 +146,9 @@ Sinkhorn scaling each such image sends nearly all its probability to its partner
 
 <p>Rules that adapt to each image work here. A 15-nearest-neighbour graph and t-SNE-style affinities with a per-image
 $\kappa_i$ give every image a comparable neighbourhood, so a single close pair cannot take over its row. In every
-final cell tested, $\psi_1$ is spread (participation number 890 to 1,450) and no 8-set SEBA partition has a set
+final snapshot tested, $\psi_1$ is spread (participation number 890 to 1,450) and no 8-set SEBA partition has a set
 smaller than 86 images; in the middle layers $1 - \lambda_1$ is 0.05 to 0.17. Per-image rules are not immune:
-perplexity 15 and 30 still give a 2-image set in some cell. At pool and logits, where the images are far more
+perplexity 15 and 30 still give a 2-image set in some snapshot. At pool and logits, where the images are far more
 clustered, every rule gives spread modes.</p>
 
 <p>So the default is the {{fact:default_mode}}. Perplexity 100 and 300 are offered too, and kNN scale and half-mass
@@ -165,9 +169,9 @@ as the UMAP layouts.</td></tr>
 <tr><td>1, 2</td><td><b>per-image perplexity 100, 300</b></td><td>For each $i$, $\kappa_i$ by bisection so that
 $p(j \mid i) \propto \exp(-\kappa_i d_{ij})$, $j \ne i$, has perplexity $\exp(H_i)$ = 100 (or 300);
 $K_{ij} = \tfrac12\big(p(j \mid i) + p(i \mid j)\big)$, the t-SNE affinity.</td></tr>
-<tr><td>3</td><td><b>kNN scale</b></td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa = 1/d_k$ per cell (kernel
+<tr><td>3</td><td><b>kNN scale</b></td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa = 1/d_k$ per snapshot (kernel
 $e^{-1}$ at $d_k$).</td></tr>
-<tr><td>4</td><td><b>half-mass, calibrated</b></td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa$ per cell by
+<tr><td>4</td><td><b>half-mass, calibrated</b></td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa$ per snapshot by
 bisection so that $\mathrm{median}_i \sum_{j \in \mathrm{NN}_k(i)} K_{ij} \big/ \sum_{j \ne i} K_{ij} =
 \tfrac12$.</td></tr>
 </table>
@@ -175,7 +179,7 @@ bisection so that $\mathrm{median}_i \sum_{j \in \mathrm{NN}_k(i)} K_{ij} \big/ 
 <p>Median 15-NN share of kernel mass (before Sinkhorn) over b1 to b8 at step {{fact:final_step}}:
 {{fact:nn_mass.rule0.final.mid_median}} (kNN graph), {{fact:nn_mass.rule1.final.mid_median}} (perplexity 100),
 {{fact:nn_mass.rule2.final.mid_median}} (perplexity 300), {{fact:nn_mass.rule3.final.mid_median}} (kNN scale),
-{{fact:nn_mass.rule4.final.mid_median}} (half-mass, by construction). <code>meta.json</code> stores per cell: $\kappa$
+{{fact:nn_mass.rule4.final.mid_median}} (half-mass, by construction). <code>meta.json</code> stores per snapshot: $\kappa$
 for rules 3 and 4; the median $\kappa_i$ (with 10th and 90th percentiles) for rules 1 and 2; nothing for rule 0; and
 the achieved median 15-NN share of kernel mass for every rule. The half-mass rule calibrates what an earlier version's
 two-distance heuristic, $\kappa = \log(N/k)/(d_\text{pair} - d_k)$, aimed at; the heuristic appears only in the
@@ -203,8 +207,8 @@ $\kappa$ figure below.</p>
 
 <p>Candidates (<code>data/r20s0b/sweep.json</code>, produced by <code>sweep_math.py</code>), 19 in all: one global
 $\kappa \in \{2, 3, 5, 8, 12, 16, 20, 25, 30\}$; $\kappa$ calibrated to a median 15-NN mass share of 0.05, 0.1, 0.2,
-0.5; per-image perplexity 15, 30, 100, 300; kNN graphs with $k$ = 15, 50. Cells: b2, b5, b8, pool and logits at steps
-256, 6,400 and 64,000. Each cell's operator is computed alone ($M = \tfrac12(I + P)$, Sinkhorn as above). Label-free
+0.5; per-image perplexity 15, 30, 100, 300; kNN graphs with $k$ = 15, 50. Snapshots: b2, b5, b8, pool and logits at steps
+256, 6,400 and 64,000. Each snapshot's operator is computed alone ($M = \tfrac12(I + P)$, Sinkhorn as above). Label-free
 diagnostics: the participation number $\mathrm{PN}(\psi) = 1/\sum_i \psi_i^4$ of the unit vectors $\psi_1..\psi_8$
 ($N$ when all entries have equal size, 2 when two images carry everything); $1 - \lambda_1..\lambda_8$; the sizes of
 the SEBA sets for $r = 4, 8$; and Sinkhorn stability. Matched Jaccard of the SEBA sets with the classes was computed
@@ -212,9 +216,9 @@ after the choice, as validation.</p>
 
 <figure class="fig wide">
   <img src="assets/fig/rules.png" alt="Participation number of the leading eigenvector, one minus its eigenvalue, and the smallest SEBA set, against a single global kappa for five sites, with the per-image rules shown at the right of each panel.">
-  <figcaption><b>Plotted:</b> single-cell operators at step {{fact:final_step}}, one line per site (b2, b5, b8, pool,
-  logits; light to dark). Wide part of each panel: one global $\kappa$ for the cell (log axis); red crosses: the
-  $\kappa$ the calibrated half-mass rule picks in that cell. Narrow grey part: the per-image rules (kNN graph $k$ =
+  <figcaption><b>Plotted:</b> single-snapshot operators at step {{fact:final_step}}, one line per site (b2, b5, b8, pool,
+  logits; light to dark). Wide part of each panel: one global $\kappa$ for the snapshot (log axis); red crosses: the
+  $\kappa$ the calibrated half-mass rule picks in that snapshot. Narrow grey part: the per-image rules (kNN graph $k$ =
   15, perplexity 100, perplexity 300). Left: $\mathrm{PN}(\psi_1)$, log scale, dashed line at 2. Middle: $1 -
   \lambda_1$. Right: size of the smallest of the $r = 8$ SEBA sets, log scale (a size of 0 is drawn at the floor).
   Source: <code>sweep.json</code>.<br>
@@ -224,7 +228,7 @@ after the choice, as validation.</p>
 
 <figure class="fig wide">
   <img src="assets/fig/sweep.png" alt="Participation number, one minus the leading eigenvalue, and class agreement of SEBA sets for every candidate kernel rule and five sites at the final checkpoint.">
-  <figcaption><b>Plotted:</b> all 19 candidate rules at step {{fact:final_step}}, single-cell operators, one line per
+  <figcaption><b>Plotted:</b> all 19 candidate rules at step {{fact:final_step}}, single-snapshot operators, one line per
   site (b2, b5, b8, pool, logits; light to dark). x: the rule's parameter, grouped by family (global $\kappa$; median
   15-NN mass target; per-image perplexity; kNN graph $k$). Top: median $\mathrm{PN}$ of $\psi_1..\psi_8$ (solid) and
   minimum (dotted), log scale, dashed line at 2. Middle: $1 - \lambda_1$ of $M$. Bottom: matched Jaccard of the $r =
@@ -256,11 +260,11 @@ smallest <em>average</em> penalty over the block. Since $I - \bar M = \tfrac12 (
 (not stored); $\psi_1..\psi_8$ stored with unit norm, sign fixed so the largest-magnitude entry is positive, quantised
 to int16 relative to $\max_i |\psi_k(i)|$.</li>
 <li><b>Retention</b> $\rho_{c'}(f) = f^\top M_{c'} f / f^\top f$ is stored for $\psi_1..\psi_8$ and every SEBA
-vector, for every cell of the checkpoint (layer blocks) or every checkpoint of the site (time blocks), inside and
+vector, for every snapshot of the checkpoint (layer blocks) or every checkpoint of the site (time blocks), inside and
 outside the block. Identity: $\lambda_k = \frac{1}{|B|}\sum_{c \in B} \rho_c(\psi_k)$. A high $\lambda_k$ is a high
-average, not high retention in every cell; the retention strip shows each cell's value.</li>
-<li><b>Single-cell blocks</b> ($a = b$ or $c = d$) are ordinary spectral clustering / diffusion maps of that cell. The
-averaging over cells follows Froyland's dynamic Laplacian (Froyland 2015; Froyland and Junge 2018) and Banisch and
+average, not high retention in every snapshot; the retention strip shows each snapshot's value.</li>
+<li><b>Single-snapshot blocks</b> ($a = b$ or $c = d$) are ordinary spectral clustering / diffusion maps of that snapshot. For longer
+blocks, Neural Coherent Sets builds on two constructions for flows: Froyland's dynamic Laplacian (Froyland 2015; Froyland and Junge 2018) and Banisch and
 Koltai's space-time diffusion maps (2017), here with Sinkhorn-normalised kernels and uniform weight on each image's
 trajectory; in those works averaging over time finds coherent sets of a flow, and here the "time" axis is depth or
 training.</li>
@@ -285,20 +289,20 @@ colour; unassigned is grey. The rotation and permutation are stored, so the brow
 (not just the labels) for loadings and retention.</p>
 
 <figure class="fig wide">
-  <img src="assets/fig/seba.png" alt="How SEBA turns eigenvectors into coloured sets: images at their eigenvector coordinates with threshold lines, the sparse vectors, and the resulting colours on a UMAP cell.">
+  <img src="assets/fig/seba.png" alt="How SEBA turns eigenvectors into coloured sets: images at their eigenvector coordinates with threshold lines, the sparse vectors, and the resulting colours on a UMAP snapshot.">
   <figcaption><b>Plotted:</b> layer block b7 to pool, step {{fact:final_step}}, {{fact:default_mode}}, $r = 3$ (input
   $\psi_0, \psi_1, \psi_2$). Left: each probe image at $(\sqrt N \psi_1(i), \sqrt N \psi_2(i))$, coloured by its hard
   set (grey: unassigned). Each dashed line, in a set's colour, is where that set's rotated coordinate $(VR)_{ij}$
   equals the threshold $\mu$; it is straight because $(VR)_{:j}$ is a fixed combination of $\psi_0$ (constant),
   $\psi_1$ and $\psi_2$. Middle: the three SEBA vectors (scaled to maximum 1, negatives clipped), images sorted by set
-  and, within a set, by decreasing value. Right: the pool cell at the same step (UMAP layout), coloured by set.<br>
+  and, within a set, by decreasing value. Right: the pool panel at the same step (UMAP layout), coloured by set.<br>
   <b>Values:</b> $\lambda_1$ = {{fact:q.f1.b7_pool.final.r3.lambda1}}, $\lambda_2$ = {{fact:q.f1.b7_pool.final.r3.lambda2}}, gap $\lambda_2 - \lambda_3$ = {{fact:q.f1.b7_pool.final.r3.gap_after_lambda2}}; set sizes {{fact:q.f1.b7_pool.final.r3.set1.size}}, {{fact:q.f1.b7_pool.final.r3.set2.size}} and {{fact:q.f1.b7_pool.final.r3.set3.size}}; {{fact:q.f1.b7_pool.final.r3.n_unassigned}} unassigned.</figcaption>
 </figure>
 
 <h2 id="canonical">What is and is not canonical</h2>
 
 <ul>
-<li>Given the cells, the kernel rule and the normalisation, $\bar M$ and its spectrum are well defined.</li>
+<li>Given the snapshots, the kernel rule and the normalisation, $\bar M$ and its spectrum are well defined.</li>
 <li>An individual $\psi_k$ is defined only up to sign, and only when $\lambda_k$ is separated from its neighbours;
 inside a group of close eigenvalues only the span is meaningful. SEBA uses the span of the leading $r$, so it
 depends on where $r$ cuts the spectrum: the gap $\lambda_{r-1} - \lambda_r$ says how sharp that cut is.</li>
@@ -342,12 +346,12 @@ perplexity 100, 0.993 (0.645) and 0.995 (0.649), and 0.979 (0.664) and 0.981 (0.
 
 <h2 id="reading">Reading the layouts and colourings</h2>
 
-<p>The explorer grid has one row per checkpoint and one column per site; each cell is a 2-d layout of the $N$ probe
-images in that cell (<a href="#method/umap">UMAP</a>), and each image is one dot in every cell. The layouts are for
+<p>The explorer grid has one row per checkpoint and one column per site; each panel is a 2-d layout of the $N$ probe
+images in one snapshot (<a href="#method/umap">UMAP</a>), and each image is one dot in every panel. The layouts are for
 display only: nothing is computed from them, and a set that looks scattered in a layout can be compact in the
 operator, or the reverse.</p>
 
-<p>A colouring is computed from the <em>selected block only</em> (outlined) and painted on every cell, inside and
+<p>A colouring is computed from the <em>selected block only</em> (outlined) and painted on every panel, inside and
 outside the block, so a block's functions and sets can be followed into other sites and checkpoints.</p>
 
 <ul>
@@ -370,8 +374,8 @@ every row (<a href="#method/perimage">definitions</a>).</li>
 <li><b>Spectrum</b>: $\lambda_1..\lambda_8$ of $\bar M$, with $\mathrm{PN}(\psi_k) = (\sum_i \psi_k(i)^2)^2 / \sum_i
 \psi_k(i)^4$ under each; a mode with $\mathrm{PN} < 0.01N$ is marked localised. With a SEBA colouring the
 eigenvalues of $\psi_1..\psi_{r-1}$ are drawn dark.</li>
-<li><b>Retention strip</b>: $\rho_c$ of the selected function in every cell of the block's checkpoint (layer block)
-or site (time block); the block's cells are shaded, and for $\psi_k$ a dashed line marks $\lambda_k$, their
+<li><b>Retention strip</b>: $\rho_c$ of the selected function in every snapshot of the block's checkpoint (layer block)
+or site (time block); the block's snapshots are shaded, and for $\psi_k$ a dashed line marks $\lambda_k$, their
 mean.</li>
 <li><b>Legend</b>: each set's size and its class make-up as a bar (validation). Matched Jaccard of the sets against
 the classes and against a second block of the same family, kernel rule and $r$, each with the mean of a 30-draw
@@ -388,7 +392,7 @@ the smallest lead of their own SEBA value over the largest of the other $r - 1$ 
 <li>Per checkpoint: <code>umap.AlignedUMAP</code> across the 12 sites (identity relations between consecutive
 sites), <code>n_neighbors=15</code>, <code>min_dist=0.1</code>, <code>alignment_regularisation=0.02</code>,
 <code>random_state=0</code>, on the top 50 principal components ($u_k\sqrt{\lambda_k}$ from the eigendecomposition of
-$C$) of each cell.</li>
+$C$) of each snapshot.</li>
 <li>Across checkpoints, per site: centre, scale to unit RMS, orthogonal Procrustes (reflections allowed) onto the
 previous checkpoint, then rescale to the 0.5 and 99.5 percentiles for drawing. The within-checkpoint alignment is part
 of the UMAP objective and shapes the layouts; across checkpoints only rotation, reflection, centring and scale
@@ -409,10 +413,10 @@ never enter an operator.</p>
 
 <h2 id="loadings">Channel loadings</h2>
 
-<p>Target $f$: the selected $\psi_k$, or a full SEBA vector (not winner-masked). For a cell with channel matrix
+<p>Target $f$: the selected $\psi_k$, or a full SEBA vector (not winner-masked). For a snapshot with channel matrix
 $X \in \mathbb R^{N \times C}$ (spatial mean of each channel, columns centred; pool = b9's channel means; logits = the
 10 logits): Pearson $\mathrm{corr}(f, X_{:c})$ per channel; $R^2$ of in-sample ordinary least squares of centred $f$
-on $X$ (descriptive, not held out; chance about $C/N$, at most $64/2000 = 3.2\%$), shown for every cell as a grid.
+on $X$ (descriptive, not held out; chance about $C/N$, at most $64/2000 = 3.2\%$), shown for every snapshot as a grid.
 Alignment with the classifier: $\mathrm{corr}(f,\ z_c - \tfrac1{10}\sum_{c'} z_{c'})$ for each class $c$. Spatial
 means discard where a channel fired; the operators use the full maps.</p>
 
@@ -433,9 +437,9 @@ mean over $\min(|A_i|, |B_j|) / \max(|A_i|, |B_j|)$, the largest score any sets 
 explorer's legend uses the same score with a 30-draw null.</p>
 
 <ul>
-<li><b>When</b> (<code>q_when</code>): for each site and checkpoint, matched Jaccard of that single-cell block's sets
+<li><b>When</b> (<code>q_when</code>): for each site and checkpoint, matched Jaccard of that single-snapshot block's sets
 with the same site's sets at the final checkpoint, and with the classes.</li>
-<li><b>Carry-over</b> (<code>q_carry</code>): at each checkpoint, matched Jaccard between the single-cell sets of
+<li><b>Carry-over</b> (<code>q_carry</code>): at each checkpoint, matched Jaccard between the single-snapshot sets of
 every pair of sites (no null), of adjacent sites (with null), and of adjacent layer blocks of width 2 and 3.</li>
 </ul>
 
@@ -443,14 +447,14 @@ every pair of sites (no null), of adjacent sites (with null), and of adjacent la
 
 <p>For the default rule, every layer block and every time block, and $r \in \{2, 3, 4\}$: the $(r + 1) \times 10$
 table of counts $n_{jc} = \#\{\text{images in SEBA set } j \text{ with class } c\}$, rows in reliability order, with a
-last row for the unassigned images. The charts show it for single-cell blocks as a heatmap with a checkpoint slider
-(colour range 0 to 200, the images per class). <b>Per-class placement</b> (at $r = 2$): for each class $c$ and cell,
+last row for the unassigned images. The charts show it for single-snapshot blocks as a heatmap with a checkpoint slider
+(colour range 0 to 200, the images per class). <b>Per-class placement</b> (at $r = 2$): for each class $c$ and snapshot,
 the fraction of $c$'s 200 images in the set matched to $c$'s super-class (below), and the fraction unassigned.</p>
 
 <h3 id="stat-va">Vehicles against animals at $r = 2$</h3>
 
 <p>$V$ = {airplane, automobile, ship, truck} (800 images), $A$ = the other six classes (1,200). For every kernel rule
-and single-cell block (and, for the default rule, every time block), the two $r = 2$ SEBA sets are compared with the
+and single-snapshot block (and, for the default rule, every time block), the two $r = 2$ SEBA sets are compared with the
 2-set labeling $(V, A)$:</p>
 
 <ul>
@@ -472,9 +476,9 @@ not exceed its null maximum.</li>
 Monte Carlo permutation $p$ of $1/201$, the smallest 200 draws can give) is step {{fact:q.va.onset_step.all_sites}} at every site here, so the charts report half_step and most_step.</li>
 </ul>
 
-<p><b>Pixel baseline</b> (a closed-form comparison, not part of the method): for each cell, each of the 12 image
+<p><b>Pixel baseline</b> (a closed-form comparison, not part of the method): for each snapshot, each of the 12 image
 statistics below and each sign, assign the top $n_1$ images by the signed statistic to set 1 and the bottom $n_2$ to
-set 2 ($n_j$ = that cell's SEBA set sizes; the rest unassigned), and score the split against $(V, A)$ the same way.
+set 2 ($n_j$ = that snapshot's SEBA set sizes; the rest unassigned), and score the split against $(V, A)$ the same way.
 pixel_best is the largest of these 24 scores. It is chosen using the labels, so it is an upper reference for
 single-statistic splits of these sizes. <b>Best class bipartition</b> (default rule): over all 511 splits of the 10
 classes into two groups, the one whose labeling has the largest matched Jaccard with the $r = 2$ sets, and the rank of
@@ -495,7 +499,7 @@ of (bc_r, bc_g, bc_b).</li>
 per image (half the Nyquist radius) among all non-zero frequencies.</li>
 </ul>
 
-<p>For each block (every single-cell block; layer blocks stem..logits, b1..logits, b5..pool and b7..pool at every
+<p>For each block (every single-snapshot block; layer blocks stem..logits, b1..logits, b5..pool and b7..pool at every
 checkpoint; time blocks over all checkpoints and over the later half at every site), 17 functions: $\psi_1..\psi_8$
 and the SEBA vectors for $r = 2, 3, 4$.</p>
 <ul>
@@ -590,7 +594,7 @@ uv run --with modal python measure_v2.py deploy
 uv run --with modal python measure_v2.py launch all         # status: measure_v2.py status all
 uv run --with modal python measure_v2.py launch derivatives
 uv run --with modal python measure_v2.py launch validate
-uv run --with modal python measure_v2.py launch sweep       # 19 rules x 15 cells
+uv run --with modal python measure_v2.py launch sweep       # 19 rules x 15 snapshots
 uv run --with modal python measure_v2.py launch layouts     # seed 1, after its training
 # then the seven commands of the rebuild path above</code></pre>
 
@@ -611,5 +615,15 @@ systems. <i>Physica D</i> 250 (2013).</li>
 <li>R. Zass, A. Shashua. Doubly stochastic normalization for spectral clustering. <i>NeurIPS</i> (2006).</li>
 <li>B. Landa, R. R. Coifman, Y. Kluger. Doubly stochastic normalization of the Gaussian kernel is robust to
 heteroskedastic noise. <i>SIAM J. Math. Data Sci.</i> 3 (2021).</li>
+<li>X. Zhu, Z. Ghahramani, J. Lafferty. Semi-supervised learning using Gaussian fields and harmonic functions.
+<i>ICML</i> (2003).</li>
 <li>L. McInnes, J. Healy, J. Melville. UMAP: Uniform Manifold Approximation and Projection (2018).</li>
+<li>J. L. Pughe-Sanford, X. Ding, J. J. Moore, A. M. Sengupta, C. Epstein, P. Greengard, D. B. Chklovskii. Neurons as
+detectors of coherent sets in sensory dynamics. <i>NeurIPS</i> (2025), arXiv:2510.26955.</li>
+<li>U. von Luxburg. A tutorial on spectral clustering. <i>Statistics and Computing</i> 17 (2007).</li>
+<li>A. Nerode. Linear automaton transformations. <i>Proc. Amer. Math. Soc.</i> 9(4):541–544 (1958), doi:10.1090/S0002-9939-1958-0135681-9.</li>
+<li>D. Hsu, S. M. Kakade, T. Zhang. A spectral algorithm for learning hidden Markov models. <i>J. Comput. Syst.
+Sci.</i> 78 (2012), arXiv:0811.4413.</li>
+<li>B. Balle, X. Carreras, F. M. Luque, A. Quattoni. Spectral learning of weighted automata: a forward-backward
+perspective. <i>Machine Learning</i> 96:33–63 (2014), doi:10.1007/s10994-013-5416-x.</li>
 </ul>

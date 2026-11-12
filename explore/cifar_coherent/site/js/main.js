@@ -13,6 +13,8 @@ const ANCHOR_ALIAS = {
   "overview/panels": "method/loadings",
   "overview/limits": "method/checks",
   "method/limits": "method/checks",
+  "method/glossary-cell": "method/glossary-snapshot",                       // "cell" became "snapshot"
+  "method/glossary-single-cell-block": "method/glossary-single-snapshot-block",
 };
 let explorer = null, current = null;
 

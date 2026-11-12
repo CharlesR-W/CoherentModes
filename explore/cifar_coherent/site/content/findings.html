@@ -14,7 +14,7 @@ coherent sets of {{fact:q.f1.b7_pool.final.r4.set1.size}}, {{fact:q.f1.b7_pool.f
 {{fact:q.f1.b7_pool.final.r4.set3.size}} and {{fact:q.f1.b7_pool.final.r4.set4.size}} images, with
 {{fact:q.f1.b7_pool.final.r4.n_unassigned}} unassigned, and every set's SEBA vector keeps a retention between
 {{fact:q.f1.b7_pool.final.r4.retention_min}} and {{fact:q.f1.b7_pool.final.r4.retention_max}} in each of the
-block's four cells. Here they are, from the top of each set.</p>
+block's four snapshots. Here they are, from the top of each set.</p>
 
 <div class="fig-row">
 <figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="0" data-n="22">
@@ -68,7 +68,7 @@ the four.</li>
 <li><b>The readout seen from below.</b> The block includes pool, which is one linear map away from the logits, so the
 sets could be the classifier's geometry propagated back. Against this, the sets agree more with b9's own late-training
 sets (time block steps 2,560 to {{fact:final_step}}: matched Jaccard {{fact:q.f1.b7_pool.final.r4.vs_b9_time_late}})
-than with b9's single cell ({{fact:q.f1.b7_pool.final.r4.vs_b9_alone}}).</li>
+than with b9 alone, its single-snapshot block ({{fact:q.f1.b7_pool.final.r4.vs_b9_alone}}).</li>
 <li><b>The kernel rule.</b> The same block under perplexity 100, perplexity 300 and kNN scale gives sets matching
 these at {{fact:q.f1.b7_pool.final.r4.vs_rule1}}, {{fact:q.f1.b7_pool.final.r4.vs_rule2}} and
 {{fact:q.f1.b7_pool.final.r4.vs_rule3}}; half-mass, the rule that fails in the middle layers
@@ -83,7 +83,7 @@ split; move the block's start from b7 down to b4.</p>
 <!-- ============================================================ 2 -->
 <h2 id="f-looking-back">2. Looking back: when the two-set split becomes vehicles against animals</h2>
 
-<p>Now fix one site, b9, and ask what its own two-set split (the single-cell block, $r = 2$) looks like at each
+<p>Now fix one site, b9, and ask what its own two-set split (the single-snapshot block, $r = 2$) looks like at each
 checkpoint. I score it against the class grouping {airplane, automobile, ship, truck} versus the other six, with the
 matched Jaccard, its permutation null, and the ceiling that the set sizes allow
 (<a href="#measurements/va">Measurements</a>).</p>
@@ -96,7 +96,7 @@ same stretch, airplanes leave the vehicle set.</p>
 
 <figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.2.b9">
   <figcaption><b>Plotted:</b> the number of probe images in each SEBA set (rows: sets 1 and 2 in reliability order,
-  then unassigned) of each CIFAR class (columns), for the single-cell block b9, {{fact:default_mode}}, $r = 2$; the
+  then unassigned) of each CIFAR class (columns), for the single-snapshot block b9, {{fact:default_mode}}, $r = 2$; the
   slider selects the checkpoint. Colour from 0 to 200, the images per class.</figcaption>
 </figure>
 
@@ -123,7 +123,7 @@ assigned images. Airplanes in the vehicle set: {{fact:q.va.b9.step1024.airplane_
 <figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.by_mode.0.lines_norm_excess">
   <figcaption><b>Plotted:</b> for each site (one line, light for the stem to dark for the logits) and checkpoint
   ($x$, symlog in steps), the normalised excess $(s - \mu_0)/(s_{\max} - \mu_0)$, where $s$ is the matched Jaccard
-  between the $r = 2$ sets of that single-cell block and the grouping {airplane, automobile, ship, truck} against the
+  between the $r = 2$ sets of that single-snapshot block and the grouping {airplane, automobile, ship, truck} against the
   other six classes, $\mu_0$ its mean over 200 permutations of the set labels, and $s_{\max}$ the largest value two
   sets of these sizes can reach. {{fact:default_mode}}. 0 is the null mean; 1 is as aligned as the sizes
   allow.</figcaption>
@@ -168,7 +168,7 @@ late-training sets</a> and look up the column to see where they sat earlier.</p>
 <!-- ============================================================ 3 -->
 <h2 id="f-depth">3. Where depth redraws the grouping</h2>
 
-<p><b>Claim</b> <em>(observed).</em> At the last checkpoint, the $r = 4$ sets of single-cell blocks at adjacent sites
+<p><b>Claim</b> <em>(observed).</em> At the last checkpoint, the $r = 4$ sets of single-snapshot blocks at adjacent sites
 agree with matched Jaccard {{fact:q.carry.r4.final.adjacent_min}} to {{fact:q.carry.r4.final.adjacent_max}} (the
 permutation null for adjacent pairs at this checkpoint is at most {{fact:q.carry.r4.final.adjacent_null_hi_max}}). The grouping changes most at
 {{fact:q.carry.r4.final.adjacent_min_pair}} ({{fact:q.carry.r4.final.b2_b3}}), then stem to b1
@@ -178,7 +178,7 @@ create this agreement: the mean over adjacent pairs is {{fact:q.carry.r4.step0.m
 {{fact:q.carry.r4.step64000.mean_adjacent}} at the end.</p>
 
 <figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_carry.0_4.matrix">
-  <figcaption><b>Plotted:</b> matched Jaccard between the hard sets of the single-cell blocks at the row site and the
+  <figcaption><b>Plotted:</b> matched Jaccard between the hard sets of the single-snapshot blocks at the row site and the
   column site, {{fact:default_mode}}, $r = 4$, unassigned images in no set; the slider selects the checkpoint.
   <b>Values</b> (step {{fact:final_step}}): stem against logits {{fact:q.carry.r4.final.stem_logits}}, b9 against
   logits {{fact:q.carry.r4.final.b9_logits}}; permutation null for adjacent pairs at step {{fact:final_step}} at
@@ -213,20 +213,20 @@ alone</a>. For contrast, look at <a class="explore-link" href="#explorer?fam=lay
 at step 0</a>.</p>
 
 <!-- ============================================================ 4 -->
-<h2 id="f-block-vs-cell">4. One cell's split against a block's</h2>
+<h2 id="f-block-vs-cell">4. One snapshot's split against a block's</h2>
 
 <p><b>Claim</b> <em>(observed).</em> At the end of training, the leading eigenfunction of the layer block b1 to
 logits is not b1's own (|cos| {{fact:q.f5.b1_vs_b1-logits.final.abs_cos_psi1}} between the two $\psi_1$); it is
-closest to the single-cell $\psi_1$ of {{fact:q.f5.b1_vs_b1-logits.final.block_psi1_best_static_site}} (|cos|
+closest to the single-snapshot $\psi_1$ of {{fact:q.f5.b1_vs_b1-logits.final.block_psi1_best_static_site}} (|cos|
 {{fact:q.f5.b1_vs_b1-logits.final.block_psi1_best_static_abs_cos}}). Averaging trades retention at b1 for retention
 in the later layers.</p>
 
 <figure class="fig wide">
-  <img src="assets/fig/static_dynamic.png" alt="The leading eigenfunction of the single-cell block b1 and of the layer block b1 to logits, each painted on five sites, with their retention at every site.">
-  <figcaption><b>Plotted:</b> step {{fact:final_step}}, {{fact:default_mode}}. Top row: $\psi_1$ of the single-cell
+  <img src="assets/fig/static_dynamic.png" alt="The leading eigenfunction of the single-snapshot block b1 and of the layer block b1 to logits, each painted on five sites, with their retention at every site.">
+  <figcaption><b>Plotted:</b> step {{fact:final_step}}, {{fact:default_mode}}. Top row: $\psi_1$ of the single-snapshot
   block b1; bottom row: $\psi_1$ of the layer block b1 to logits; each painted on the UMAP layouts of b1, b3, b6, b9
   and logits (red positive, blue negative, scaled by $\max_i |\psi_1(i)|$). Right: retention $\rho_c(\psi_1)$ of each
-  at every site, block shaded; dashed lines are the means over the block. <b>Values:</b> single-cell $\psi_1$:
+  at every site, block shaded; dashed lines are the means over the block. <b>Values:</b> single-snapshot $\psi_1$:
   {{fact:q.f5.b1_vs_b1-logits.final.static_ret_own}} at b1, {{fact:q.f5.b1_vs_b1-logits.final.static_ret_b9}} at b9,
   mean {{fact:q.f5.b1_vs_b1-logits.final.static_ret_block_mean}}; block $\psi_1$: $\lambda_1$ =
   {{fact:q.f5.b1_vs_b1-logits.final.block_lambda1}}, retention {{fact:q.f5.b1_vs_b1-logits.final.block_ret_own}} at
@@ -248,7 +248,7 @@ agreement with the start site's own $\psi_1$ rises as the block starts later (b5
 <li><b>$\psi_1$ may not be canonical.</b> If $\lambda_1$ and $\lambda_2$ are close, the single direction is arbitrary
 within their span. The leading three-dimensional spans also differ (mean $\cos^2$
 {{fact:q.f5.b1_vs_b1-logits.final.span3_mean_cos2}}), so this is not only a rotation within a span.</li>
-<li><b>Average against product.</b> The theory's object is the product of the walks, which weights cells differently;
+<li><b>Average against product.</b> The theory's object is the product of the walks, which weights snapshots differently;
 the comparison is in <a href="#method/avgprod">Method</a>.</li>
 </ul>
 </details>

@@ -56,14 +56,14 @@
     </div>
     <span class="status" id="ex-status" aria-live="polite"></span>
     <div class="ex-help" id="ex-kappa-help" hidden>
-      <p>The <b>kernel rule</b> decides which probe images count as neighbours in each cell before the walk $P_c$ is built. With cosine similarity $C$ and distance $d = 1 - C$, a temperature rule uses $K_{ij} = e^{-\kappa d_{ij}}$; $\kappa$ is the inverse temperature. The answer depends on the rule, so it is exposed here rather than hidden.</p>
+      <p>The <b>kernel rule</b> decides which probe images count as neighbours in each snapshot before the walk $P_c$ is built. With cosine similarity $C$ and distance $d = 1 - C$, a temperature rule uses $K_{ij} = e^{-\kappa d_{ij}}$; $\kappa$ is the inverse temperature. The answer depends on the rule, so it is exposed here rather than hidden.</p>
       <ul>
         <li><b>kNN graph, k = 15</b> (default): link $i$ and $j$ if either is among the other's 15 nearest neighbours. Rank-based, no $\kappa$; the same neighbourhood size as the UMAP layouts.</li>
         <li><b>per-point perplexity 100 / 300</b>: each image gets its own $\kappa_i$ so that its neighbour distribution has perplexity 100 (or 300, coarser); the t-SNE affinity. Expect results close to the kNN graph.</li>
-        <li><b>kNN scale</b> (flat reference): one $\kappa = 1/d_{15}$ per cell, about 1.2 in the trained middle layers. A nearly flat kernel: spread, PCA-like modes with weak eigenvalues.</li>
-        <li><b>half-mass, calibrated</b> (cautionary): one $\kappa$ per cell chosen so the 15 nearest neighbours carry half the kernel mass; $\kappa$ 26 to 43 in the middle layers. Leading modes sit on near-duplicate pairs of images (watch the PN row under the spectrum).</li>
+        <li><b>kNN scale</b> (flat reference): one $\kappa = 1/d_{15}$ per snapshot, about 1.2 in the trained middle layers. A nearly flat kernel: spread, PCA-like modes with weak eigenvalues.</li>
+        <li><b>half-mass, calibrated</b> (cautionary): one $\kappa$ per snapshot chosen so the 15 nearest neighbours carry half the kernel mass; $\kappa$ 26 to 43 in the middle layers. Leading modes sit on near-duplicate pairs of images (watch the PN row under the spectrum).</li>
       </ul>
-      <p class="mute">In the trained middle layers the cosine geometry is nearly equidistant, so one temperature per cell is either too flat or too sharp; the last two rules fail in those opposite ways and are kept so you can see it. The side panel gives $\kappa$ and the median 15-NN kernel mass over the block's cells. More in <a href="#method">Method</a>.</p>
+      <p class="mute">In the trained middle layers the cosine geometry is nearly equidistant, so one temperature per snapshot is either too flat or too sharp; the last two rules fail in those opposite ways and are kept so you can see it. The side panel gives $\kappa$ and the median 15-NN kernel mass over the block's snapshots. More in <a href="#method">Method</a>.</p>
     </div>
   </div>
   <div class="ex-body" id="ex-body">
@@ -81,18 +81,18 @@
             <img class="gif" loading="lazy" decoding="async" src="assets/fig/howto.gif" data-still="assets/fig/howto_still.png" alt="A slow, annotated walk through the explorer: the grid, a block, its eigenfunction and coherent-set colourings, the spectrum and retention strip, and a time block.">
           </figure>
           <div class="ex-howto-text">
-            <p><b>The grid.</b> Rows are checkpoints (training step and validation accuracy), columns are sites, from the stem to the logits. Each cell shows the same probe images, placed by a 2-d UMAP of that cell's activations. Positions are for display only; no number on this page is computed from them.</p>
-            <p><b>The block</b> (outlined) is a run of cells along one row (a <i>layer block</i>) or one column (a <i>time block</i>); one cell alone is a <i>single-cell block</i>. Its block operator $\bar M$ averages the lazy walks $M_c$ of its cells. The colouring comes from that block only and is painted on every cell, so you can follow the same images to other layers and checkpoints.</p>
-            <p><b>The side panel</b> describes the selection: the spectrum of $\bar M$, representative images, retention $\rho_c$ in every cell of the row or column, the cell under the pointer enlarged, channel loadings, and per-cell numbers.</p>
+            <p><b>The grid.</b> Rows are checkpoints (training step and validation accuracy), columns are sites, from the stem to the logits. Each panel shows the same probe images at one snapshot (a checkpoint and a site), placed by a 2-d UMAP of that snapshot's activations. Positions are for display only; no number on this page is computed from them.</p>
+            <p><b>The block</b> (outlined) is a run of snapshots along one row (a <i>layer block</i>) or one column (a <i>time block</i>); one snapshot alone is a <i>single-snapshot block</i>. Its block operator $\bar M$ averages the lazy walks $M_c$ of its snapshots. The colouring comes from that block only and is painted on every panel, so you can follow the same images to other layers and checkpoints.</p>
+            <p><b>The side panel</b> describes the selection: the spectrum of $\bar M$, representative images, retention $\rho_c$ in every snapshot of the row or column, the panel under the pointer enlarged, channel loadings, and per-snapshot numbers.</p>
             <p><b>Extras.</b> <i>Layout: seed 1</i> places the points by a second network's UMAP while colours still come from the first. The per-image diagnostics (loss, input-Jacobian norm, gradient alignment) and CIFAR class only colour; none enters the kernel or the sets. Definitions: <a href="#method/glossary">glossary</a>.</p>
           </div>
         </div>
       </details>
       <div class="ex-head">
         <ol class="ex-steps" id="ex-hint">
-          <li><b>Pick a block.</b> <span class="mouse-only">Click a cell to end the block there; shift-click or drag along the row (or column) to set its start.</span><span class="touch-only">Tap a cell to set the block's
+          <li><b>Pick a block.</b> <span class="mouse-only">Click a panel to end the block there; shift-click or drag along the row (or column) to set its start.</span><span class="touch-only">Tap a panel to set the block's
             <span class="seg" id="ex-tap" role="radiogroup" aria-label="What a tap sets"><button type="button" data-v="end">end</button><button type="button" data-v="start">start</button></span></span></li>
-          <li><b>Hover a point.</b> <span class="mouse-only">The same image is ringed in every cell.</span><span class="touch-only">Tap a point: the same image is ringed in every cell.</span></li>
+          <li><b>Hover a point.</b> <span class="mouse-only">The same image is ringed in every panel.</span><span class="touch-only">Tap a point: the same image is ringed in every panel.</span></li>
           <li><b>Read the panel.</b> Spectrum, sets and their images, retention, loadings.</li>
         </ol>
         <label class="ex-ps"><span>dot size</span><input type="range" id="ex-ps" min="0.8" max="3.2" step="0.2" value="1.6"></label>
@@ -125,14 +125,14 @@
         <div id="img-body"></div>
       </section>
       <section class="card" id="card-ret">
-        <h3 class="card-title" id="ret-title">Retention &rho;<sub>c</sub> in every cell</h3>
+        <h3 class="card-title" id="ret-title">Retention &rho;<sub>c</sub> in every snapshot</h3>
         <div id="ret-body" class="chart"></div>
         <div class="card-note" id="ret-note"></div>
       </section>
       <section class="card" id="card-lens">
-        <h3 class="card-title" id="lens-title">Cell</h3>
+        <h3 class="card-title" id="lens-title">Panel</h3>
         <div class="lens-wrap"><canvas id="lens"></canvas></div>
-        <div class="card-note">Hovered cell, enlarged (or the last clicked one).</div>
+        <div class="card-note">Hovered panel, enlarged (or the last clicked one).</div>
       </section>
       <section class="card" id="card-load">
         <h3 class="card-title" id="load-title">Channel loadings</h3>

@@ -3,7 +3,7 @@
     "id": "default",
     "label": "The default view",
     "hash": "#explorer?fam=layer&t=7&a=0&b=11&m=0&c=seba&r=4",
-    "note": "Layer block: all {{fact:n_sites}} sites, stem to logits, at step {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: each image's coherent set ($r = 4$) from this block, painted on every cell; grey = unassigned.<br>Try: switch the colouring to class, then to the eigenfunction $\\psi_1$."
+    "note": "Layer block: all {{fact:n_sites}} sites, stem to logits, at step {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: each image's coherent set ($r = 4$) from this block, painted on every panel; grey = unassigned.<br>Try: switch the colouring to class, then to the eigenfunction $\\psi_1$."
   },
   {
     "id": "b9-late",
@@ -15,25 +15,25 @@
     "id": "late-layers",
     "label": "Finding 1: late layers at the end of training",
     "hash": "#explorer?fam=layer&t=7&a=7&b=10&m=0&c=seba&r=4",
-    "note": "Layer block: sites b7 to pool at step {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: coherent sets ($r = 4$) of this block, painted on every cell; grey = unassigned.<br>Try: set $r$ to 3, then 6; then move the block's start from b7 to b4."
+    "note": "Layer block: sites b7 to pool at step {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: coherent sets ($r = 4$) of this block, painted on every panel; grey = unassigned.<br>Try: set $r$ to 3, then 6; then move the block's start from b7 to b4."
   },
   {
     "id": "b9-two-sets",
     "label": "Finding 2: site b9 through training, two sets",
     "hash": "#explorer?fam=time&t=9&a=4&b=7&m=0&c=seba&r=2",
-    "note": "Time block: site b9, steps 2,560 to {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: coherent sets ($r = 2$) of this block, painted on all {{fact:n_checkpoints}} checkpoints, so earlier rows show where these sets sat before the block; grey = unassigned.<br>Try: compare with b9 alone at step 64 (a single-cell block at that checkpoint), then switch the colouring to class."
+    "note": "Time block: site b9, steps 2,560 to {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: coherent sets ($r = 2$) of this block, painted on all {{fact:n_checkpoints}} checkpoints, so earlier rows show where these sets sat before the block; grey = unassigned.<br>Try: compare with b9 alone at step 64 (a single-snapshot block at that checkpoint), then switch the colouring to class."
   },
   {
     "id": "b2-b3",
     "label": "Finding 3: site b2 alone, at the end of training",
     "hash": "#explorer?fam=layer&t=7&a=2&b=2&m=0&c=seba&r=4",
-    "note": "Single-cell block: site b2 at step {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: coherent sets ($r = 4$) of this one cell, painted on every site.<br>Try: select b3 alone and compare its sets in the b2 and b3 columns."
+    "note": "Single-snapshot block: site b2 at step {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: coherent sets ($r = 4$) of this one snapshot, painted on every site.<br>Try: select b3 alone and compare its sets in the b2 and b3 columns."
   },
   {
     "id": "b1-block-psi1",
-    "label": "Finding 4: one cell's split against a block's",
+    "label": "Finding 4: one snapshot's split against a block's",
     "hash": "#explorer?fam=layer&t=7&a=1&b=11&m=0&c=eig&k=1",
-    "note": "Layer block: sites b1 to logits at step {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: the block's eigenfunction $\\psi_1$ (blue negative, red positive), with its retention $\\rho_c(\\psi_1)$ in each cell in the side panel.<br>Try: select b1 alone, then b6 alone, and compare the retention strips."
+    "note": "Layer block: sites b1 to logits at step {{fact:final_step}}; kernel rule: {{fact:default_mode}}.<br>Colour: the block's eigenfunction $\\psi_1$ (blue negative, red positive), with its retention $\\rho_c(\\psi_1)$ in each snapshot in the side panel.<br>Try: select b1 alone, then b6 alone, and compare the retention strips."
   },
   {
     "id": "b9-all-training",

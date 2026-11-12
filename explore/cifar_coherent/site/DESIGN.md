@@ -23,6 +23,8 @@ is marked), `#findings`, `#measurements`, `#method`. `build_site.py <tag> [layou
   | `overview/reading` | `method/reading` |
   | `overview/panels` | `method/loadings` |
   | `overview/limits`, `method/limits` | `method/checks` |
+  | `method/glossary-cell` | `method/glossary-snapshot` |
+  | `method/glossary-single-cell-block` | `method/glossary-single-snapshot-block` |
 
   When you move or rename a section that may have been linked, add a row here and in `ANCHOR_ALIAS`. Never reuse an
   old id for something with a different meaning.
@@ -96,7 +98,7 @@ A numbered step with its picture beside it (the Overview's procedure): the pictu
 (default 45%) and goes full width below 640 px; the link opens the full-size image.
 ```html
 <div class="step">
-<h3 id="step-1">1. Compare images within one cell</h3>
+<h3 id="step-1">1. Compare images within one snapshot</h3>
 <a class="step-fig" style="--w: 32%" href="assets/fig/step1.png" target="_blank" rel="noopener"><img src="assets/fig/step1.png" alt="..."></a>
 <p>...</p>
 <details class="more"><summary>The maths</summary> ... </details>
@@ -134,7 +136,8 @@ bc_g bc_b bc_lum bc_dist hf_frac`; write `px%3Aluminance` or `px:luminance` in a
 
 ## The explorer
 
-- Wording follows the glossary (`#method/glossary`): layer block / time block / single-cell block, kernel rule,
+- Wording follows the glossary (`#method/glossary`): snapshot (a checkpoint and a site; never "cell", which means activation cells), panel (a
+  picture in the grid), layer block / time block / single-snapshot block, kernel rule,
   block operator $\bar M$, lazy walk $M_c$, eigenfunction $\psi_k$, spectrum, retention $\rho_c$, SEBA vector,
   coherent set, unassigned, matched Jaccard. Keep new UI text in these terms.
 - Under the grid, a generated caption states the block (family, anchor, range), the kernel rule, the colouring (with
@@ -168,16 +171,16 @@ the reader changes the view, the URL drops `tour=` and the note dims with a "bac
 A `figure.fig.live` with a `data-live` attribute is rendered by the site's JS when it scrolls into view (data
 are fetched lazily). Put a `<figcaption>` inside it as for any figure; the JS inserts the chart before it.
 
-`data-live="cells"`: a strip of UMAP cells coloured by a block (same renderer and hover as the explorer).
+`data-live="cells"` (the identifier is unchanged): a strip of panels, one UMAP layout per snapshot, coloured by a block (same renderer and hover as the explorer).
 ```html
 <figure class="fig wide live" data-live="cells" data-cells="7:0,7:4,7:8,7:11"
         data-fam="layer" data-t="7" data-a="4" data-b="9" data-m="2" data-c="seba" data-r="4">
   <figcaption>...</figcaption>
 </figure>
 ```
-`data-cells` lists `checkpoint_index:site_index` pairs (default: the block's own cells). An out-of-range block, `r`
+`data-cells` lists `checkpoint_index:site_index` pairs, one per snapshot (default: the block's own snapshots). An out-of-range block, `r`
 or `k` shows an error in place of the figure. Colour parameters are
-the explorer link parameters above. `data-size` = cell size in px (default 150).
+the explorer link parameters above. `data-size` = panel size in px (default 150).
 
 `data-live="images"`: a grid of probe-image thumbnails for one coherent set, or for one end of an eigenfunction, of
 one block. Same images and order as the explorer's "Representative images" panel (computed at build time from
@@ -199,8 +202,8 @@ order is continued in the browser from the 8-bit vectors); `data-size` = minimum
 A one-line generated label above the grid names the set or end, its size and the block.
 
 `data-live="kernel"`: interactive kappa slider showing vMF kernel weight exp(kappa (c - 1)) against cosine
-distance, with the measured 15th-neighbour and median pairwise distances of one cell marked.
-Attributes: `data-t`, `data-s` (cell), `data-m` (initial rule).
+distance, with the measured 15th-neighbour and median pairwise distances of one snapshot marked.
+Attributes: `data-t`, `data-s` (with `data-t`, the snapshot), `data-m` (initial rule).
 
 `data-live="lines"` and `data-live="heatmap"`: charts from a JSON object, normally in `assets/questions.json`.
 `data-src="assets/questions.json#path.to.object"` (dot path into the JSON).
@@ -218,7 +221,7 @@ Attributes: `data-t`, `data-s` (cell), `data-m` (initial rule).
   reference line at the maximum finite value of that object's `z` (or `y`), labelled by `data-ceiling-label`.
 - heatmap object: `{"rows": [...], "cols": [...], "z": [[...]] or [[[...]]], "zlabel": str, "zrange": [lo, hi],
   "rowlabel": str, "collabel": str, "slider": {"label": str, "values": [...]}?, "diverging": bool?, "fmt": str?}`;
-  with a slider, `z` is indexed `[slider][row][col]`. Column labels that do not fit their cells (class names) are
+  with a slider, `z` is indexed `[slider][row][col]`. Column labels that do not fit their columns (class names) are
   rotated 45 degrees; every column label shows its full name on hover. Hover shows the value; the slider steps through e.g.
   checkpoints. Values (hover and colour-bar ends) print as integers when every `z` is an integer (counts), else to
   3 significant figures; `"fmt"` overrides: `"int"`, `"pct"` (×100, with %), `"<n>f"` (n decimals) or `"<n>g"`

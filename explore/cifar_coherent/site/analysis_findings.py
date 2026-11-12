@@ -574,7 +574,7 @@ def run(D, data_dir, A, classmix_modes=None):
     heat_psi = {str(k): dict(rows=[STAT_LABELS[x] for x in STATS], cols=sites,
                              z=C[:, :, k - 1].transpose(0, 2, 1), zlabel=f'Pearson corr with ψ{k}',
                              zrange=[-zr_sig, zr_sig], diverging=True, rowlabel='image statistic',
-                             collabel='site (single-cell block)', slider=slider) for k in range(1, 9)}
+                             collabel='site (single-snapshot block)', slider=slider) for k in range(1, 9)}
     off = {2: 8, 3: 10, 4: 13}
     heat_seba = {}
     for r in RS:
@@ -583,7 +583,7 @@ def run(D, data_dir, A, classmix_modes=None):
                                  cols=[f'{sites[s]} set {j + 1}' for s in range(S) for j in range(r)],
                                  z=z.reshape(T, S * r, ns).transpose(0, 2, 1), zlabel=f'Pearson corr with SEBA vector '
                                  f'(r = {r})', zrange=[-zr_sig, zr_sig], diverging=True, rowlabel='image statistic',
-                                 collabel='site, SEBA set (single-cell block)', slider=slider)
+                                 collabel='site, SEBA set (single-snapshot block)', slider=slider)
     BC = np.array([b['corr'] for b in blocks])  # (nb, 17, ns)
     bnames = [b['name'] for b in blocks]
     q_img = dict(
@@ -606,11 +606,11 @@ def run(D, data_dir, A, classmix_modes=None):
                                 z=np.abs(np.array([[cells[(t, s)]['corr_wc'][:8] for s in range(S)]
                                                    for t in range(T)])).max(2).transpose(0, 2, 1),
                                 zlabel='max over k = 1..8 of |within-class corr(statistic, ψk)|', zrange=zr_max,
-                                rowlabel='image statistic', collabel='site (single-cell block)', slider=slider),
+                                rowlabel='image statistic', collabel='site (single-snapshot block)', slider=slider),
         heat_r2_psi=dict(rows=fnames[:8], cols=sites, z=np.array([[cells[(t, s)]['r2_psi'] for s in range(S)]
                                                                    for t in range(T)]).transpose(0, 2, 1),
                          zlabel='R² of ψk on the 12 image statistics (least-squares fit)', zrange=[0, 1],
-                         rowlabel='eigenfunction', collabel='site (single-cell block)', slider=slider),
+                         rowlabel='eigenfunction', collabel='site (single-snapshot block)', slider=slider),
         class_contrast=dict(rows=classes, cols=[STAT_LABELS[x] for x in STATS],
                             z=np.array([Zx[cls == c].mean(0) - Zx[cls != c].mean(0) for c in range(10)]),
                             zlabel='class mean − other classes, in SDs of the statistic', zrange=[-1.5, 1.5],
@@ -620,7 +620,7 @@ def run(D, data_dir, A, classmix_modes=None):
         thr_global=thr_global,
         heat_maxabs_psi=dict(rows=[STAT_LABELS[x] for x in STATS], cols=sites, z=maxabs.transpose(0, 2, 1),
                              zlabel='max over k = 1..8 of |corr(statistic, ψk)|', zrange=zr_max,
-                             rowlabel='image statistic', collabel='site (single-cell block)', slider=slider),
+                             rowlabel='image statistic', collabel='site (single-snapshot block)', slider=slider),
         heat_psi=heat_psi, heat_seba=heat_seba,
         heat_blocks_psi=dict(rows=[STAT_LABELS[x] for x in STATS], cols=fnames[:8], z=BC[:, :8].transpose(0, 2, 1),
                              zlabel='Pearson corr', zrange=[-zr_sig, zr_sig], diverging=True,
@@ -635,7 +635,7 @@ def run(D, data_dir, A, classmix_modes=None):
                                       'training step', f'max over k of |corr({STAT_LABELS[st]}, ψk)|', 'symlog',
                                       zr_max, colors='ordinal',
                                       refline=dict(y=float(TFP[:, :, i].max()),
-                                                   label='permutation null 95 % (max over cells)'))
+                                                   label='permutation null 95 % (max over snapshots)'))
                           for i, st in enumerate(STATS)})
 
     # ------------------------------------------------ 4. facts and findings support

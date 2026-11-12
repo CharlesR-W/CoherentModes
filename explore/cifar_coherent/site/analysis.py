@@ -115,6 +115,7 @@ JSON layout (site/assets/questions.json; floats rounded to 4 decimals; NaN -> nu
  "q_imgstats": pixel statistics of the probe images, their correlations (and within-class correlations, set
          contrasts, least-squares R^2) with psi_1..psi_8 and SEBA vectors, with permutation nulls; lines/heatmaps,
  "findings_support": single-cell psi_1 vs layer-block psi_1 comparisons (finding 5),
+ "q_harm": merged from data/<tag>/harmonic.json, written by site/harmonic.py (harmonicity test; see its docstring),
  "facts": flat {name: formatted string}; build_site.py exposes them as {{fact:q.<name>}}. Carry-over ("carry.*")
          and gradient ("grad.*") facts are computed here from Q2/Q3; the rest in analysis_findings.py.
          grad.r<r>.b9.<all|late>.*class_union_assigned*: within-minus-between gradient cosine of the class-union
@@ -125,6 +126,7 @@ JSON layout (site/assets/questions.json; floats rounded to 4 decimals; NaN -> nu
 """
 import argparse
 import datetime
+import importlib.util
 import json
 import multiprocessing as mp
 import sys
@@ -527,6 +529,7 @@ def main():
     out.update(clean(sections))
     facts.update(when_decod_facts(o, dr, dec, steps, sites, T, S))
     out['facts'] = facts
+    # Harmonicity test (site/harmonic.py) shelved 2026-11-12 by the owner; not merged into the site.
     out['meta']['definitions_findings'] = ('See the docstring of site/analysis_findings.py: q_classmix (class counts '
                                            'per SEBA set), q_va (r = 2 sets vs vehicles/animals), q_imgstats (pixel '
                                            'statistics vs psi_k and SEBA vectors), facts.')
@@ -754,7 +757,7 @@ def figures(out, fig_dir, dm, dr):
     w = out['q_when'][key]
     fig, axs = plt.subplots(1, 2, figsize=(7, 3.4), gridspec_kw=dict(width_ratios=[1, 1.15]))
     stl = [f'{x // 1000}k' if x >= 1000 else str(x) for x in steps]
-    heatmap(axs[0], w['vs_final']['z'], sites, stl, 'Single-cell sets vs the same site\'s\nsets at the last checkpoint', fig,
+    heatmap(axs[0], w['vs_final']['z'], sites, stl, 'Single-snapshot sets vs the same site\'s\nsets at the last checkpoint', fig,
             'matched Jaccard',
             annot=True)
     axs[0].set_xlabel('training step')
@@ -772,7 +775,7 @@ def figures(out, fig_dir, dm, dr):
     ax.set_ylim(0, 1)
     ax.set_xlabel('training step')
     ax.set_ylabel('matched Jaccard')
-    ax.set_title('Single-cell sets vs\nthe 10 CIFAR classes', loc='left')
+    ax.set_title('Single-snapshot sets vs\nthe 10 CIFAR classes', loc='left')
     ax.legend(ncol=2, loc='upper left', bbox_to_anchor=(1.0, 1.02), handlelength=1.2, columnspacing=0.8)
     fig.suptitle(sub, x=0.01, ha='left', fontsize=7.5, color=mute)
     fig.tight_layout()
@@ -782,7 +785,7 @@ def figures(out, fig_dir, dm, dr):
     # q_carry
     c = out['q_carry'][key]
     fig, axs = plt.subplots(1, 2, figsize=(7, 3.4), gridspec_kw=dict(width_ratios=[1, 1.15]))
-    heatmap(axs[0], c['matrix']['z'][-1], sites, sites, f'Single-cell sets, site vs site,\nstep {steps[-1]:,}', fig,
+    heatmap(axs[0], c['matrix']['z'][-1], sites, sites, f'Single-snapshot sets, site vs site,\nstep {steps[-1]:,}', fig,
             'matched Jaccard')
     ax = axs[1]
     adj, adjn = c['adjacent'], c['adjacent_null']
@@ -796,7 +799,7 @@ def figures(out, fig_dir, dm, dr):
     ax.set_xticklabels(adj['xticklabels'], rotation=55, ha='right', fontsize=7)
     ax.set_ylim(0, 1)
     ax.set_ylabel('matched Jaccard')
-    ax.set_title('Single-cell sets:\nsite vs next site', loc='left')
+    ax.set_title('Single-snapshot sets:\nsite vs next site', loc='left')
     ax.legend(title='step', title_fontsize=7, loc='upper left', bbox_to_anchor=(1.0, 1.02), handlelength=1.2)
     fig.suptitle(sub, x=0.01, ha='left', fontsize=7.5, color=mute)
     fig.tight_layout()

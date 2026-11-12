@@ -227,7 +227,7 @@ export function heatmap(container, o) {
     const Wc = Math.max(260, container.clientWidth || 480);
     const ml = o.ml ?? (o.rowlabel ? 70 : 56), mt = 8;
     const cw = Math.max(6, Math.min(44, (Wc - ml - 70) / nc)), ch = o.cellH || Math.max(10, Math.min(24, cw));
-    // column labels: horizontal when every label fits its cell, otherwise rotated 45 degrees (full name on hover)
+    // column labels: horizontal when every label fits its column, otherwise rotated 45 degrees (full name on hover)
     const colTxt = o.cols.map(c => typeof c === "number" ? fmtStep(c) : String(c)), CH = 6.1;
     const rot = colTxt.some(t => t.length * CH > cw - 3), lmax = Math.max(...colTxt.map(t => t.length)) * CH;
     const mb = rot ? 30 + Math.min(110, lmax * .72) : 46;

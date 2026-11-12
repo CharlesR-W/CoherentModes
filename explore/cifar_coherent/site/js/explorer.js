@@ -73,8 +73,8 @@ function diagRanges(ctx) {
 
 export function pairOf(ctx, st) { return ctx.pairIdx[st.fam][st.a + "," + st.b]; }
 export function blockOf(ctx, st) { return D.block(st.fam, st.anchor, st.mode, pairOf(ctx, st)); }
-// "Layer block" / "Time block" / "Single-cell block" (glossary terms)
-export const blockKind = st => st.a === st.b ? "Single-cell block" : st.fam === "layer" ? "Layer block" : "Time block";
+// "Layer block" / "Time block" / "Single-snapshot block" (glossary terms)
+export const blockKind = st => st.a === st.b ? "Single-snapshot block" : st.fam === "layer" ? "Layer block" : "Time block";
 export function blockLabel(ctx, st) {
   const { m } = ctx;
   if (st.fam === "layer") {
@@ -434,7 +434,7 @@ export class Explorer {
     this.blockbox = g.appendChild(h("div", { class: "blockbox" }));
     this.axisS = g.appendChild(h("div", { class: "axis-t", text: "site →" }));
     this.axisT = g.appendChild(h("div", { class: "axis-t", text: "step ↓  val acc" }));
-    this.canvas = g.appendChild(h("canvas", { class: "base", "aria-label": "Grid of UMAP cells; hover to inspect points, click to choose the block" }));
+    this.canvas = g.appendChild(h("canvas", { class: "base", "aria-label": "Grid of panels, one UMAP layout per snapshot; hover to inspect points, click to choose the block" }));
     this.ov = g.appendChild(h("canvas", { class: "ov" }));
     const cv = this.canvas;
     cv.addEventListener("pointermove", e => this.onMove(e));
@@ -762,7 +762,7 @@ export class Explorer {
     const rng = a => { const lo = Math.min(...a), hi = Math.max(...a); return Math.abs(hi - lo) < 1e-3 * hi ? fmtK(lo) : `${fmtK(lo)}–${fmtK(hi)}`; };
     const kap = ks.length ? (perPoint ? `median per-image κ ${rng(ks)}` : `κ ${rng(ks)}`) : "rank-based, no κ";
     const mass = ms.length ? (() => { const lo = Math.min(...ms), hi = Math.max(...ms); return `, median 15-NN kernel mass ${hi - lo < .005 ? pct(lo) : pct(lo) + "–" + pct(hi)}`; })() : "";
-    $("blk-sub").textContent = `${m.modes[st.mode]}: ${kap}${mass} over the ${n} cell${n > 1 ? "s" : ""}`;
+    $("blk-sub").textContent = `${m.modes[st.mode]}: ${kap}${mass} over the ${n} snapshot${n > 1 ? "s" : ""}`;
     // spectrum: lambda_1..8 as lollipops
     const vals = Array.from(blk.vals), box = $("blk-spec");
     box.replaceChildren();
@@ -792,7 +792,7 @@ export class Explorer {
       hit.addEventListener("click", () => { st.kind = "psi"; st.k = k; if (st.color === "seba") st.color = "eig"; st.focus = null; this.update(); });
     }
     const locNote = nLoc ? ` <span style="color:${m.palette.accent};font-weight:600">${nLoc} localised mode${nLoc > 1 ? "s" : ""}</span> (PN below ${LOC}): a mode carried by a handful of images, not a grouping; sets built from it are suspect.` : "";
-    $("blk-spec-note").innerHTML = `Spectrum of the block operator M̄, the mean of the lazy walks M<sub>c</sub> over the block's ${st.b - st.a + 1} cell${st.a === st.b ? "" : "s"}: λ<sub>1</sub>..λ<sub>8</sub> (λ<sub>0</sub> = 1, the constant ψ<sub>0</sub>, not shown). 1 − λ<sub>k</sub> is ψ<sub>k</sub>'s average variation across the block's walks.`
+    $("blk-spec-note").innerHTML = `Spectrum of the block operator M̄, the mean of the lazy walks M<sub>c</sub> over the block's ${st.b - st.a + 1} snapshot${st.a === st.b ? "" : "s"}: λ<sub>1</sub>..λ<sub>8</sub> (λ<sub>0</sub> = 1, the constant ψ<sub>0</sub>, not shown). 1 − λ<sub>k</sub> is ψ<sub>k</sub>'s average variation across the block's walks.`
       + (st.kind === "psi" ? ` Click a bar to colour by that ψ.` : ` The r = ${st.r} coherent sets come from SEBA on ψ<sub>0</sub>..ψ<sub>${st.r - 1}</sub> (dark).`)
       + ` PN: participation number (Σψ²)²/Σψ⁴, roughly how many images a mode is spread over.` + locNote;
     this.renderBlockMap();
@@ -867,7 +867,7 @@ export class Explorer {
         gcos: `Cosine between the image's loss gradient (all parameters) and the mean gradient over the 2,000 probe images. At ${st.at === "final" ? "the final checkpoint" : "each row's own checkpoint"}. Uses labels through the loss.`,
         gdot: `Dot product of the image's loss gradient with the mean gradient (scale: 99th percentile of |value|). At ${st.at === "final" ? "the final checkpoint" : "each row's own checkpoint"}. Uses labels through the loss.`,
       };
-      if (pxk) notes[st.color] = pxDef(pxk) + " Computed from the probe image's pixels, so it is the same in every cell. Labels do not enter it.";
+      if (pxk) notes[st.color] = pxDef(pxk) + " Computed from the probe image's pixels, so it is the same in every panel. Labels do not enter it.";
       body.append(h("div", { class: "leg-note", text: notes[st.color] || "" }));
     }
   }
@@ -969,8 +969,8 @@ export class Explorer {
       x: xs, series, yrange: [lo, 1.0], height: 150, xticks: xs.filter(i => X <= 8 || (X - 1 - i) % 2 === 0), xfmt: i => names[i], shade: [st.a - .45, st.b + .45],
       yfmt: v => v.toFixed(2), refline: tg.kind === "psi" ? { y: blk.vals[tg.k], label: `λ${tg.k} (block mean)` } : null, ml: 36, xname: st.fam === "layer" ? "site" : "step",
     });
-    $("ret-title").innerHTML = `Retention ρ<sub>c</sub>(${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : tg.j == null ? "SEBA vectors" : `SEBA vector ${tg.j + 1}`}) in every cell`;
-    $("ret-note").innerHTML = `ρ<sub>c</sub>(f) = f<sup>T</sup>M<sub>c</sub>f / f<sup>T</sup>f for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}, with f = ${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : "each SEBA vector (colours as the sets)"}; the block's cells are shaded. ${tg.kind === "psi" ? `λ<sub>${tg.k}</sub> (dashed) is the mean of ρ<sub>c</sub> over the shaded cells: an <b>average</b>, not a value in every cell.` : "The spectrum is an <b>average</b> of retention over the shaded cells, not a value in every cell."}`;
+    $("ret-title").innerHTML = `Retention ρ<sub>c</sub>(${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : tg.j == null ? "SEBA vectors" : `SEBA vector ${tg.j + 1}`}) in every snapshot`;
+    $("ret-note").innerHTML = `ρ<sub>c</sub>(f) = f<sup>T</sup>M<sub>c</sub>f / f<sup>T</sup>f for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}, with f = ${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : "each SEBA vector (colours as the sets)"}; the block's snapshots are shaded. ${tg.kind === "psi" ? `λ<sub>${tg.k}</sub> (dashed) is the mean of ρ<sub>c</sub> over the shaded snapshots: an <b>average</b>, not a value in every snapshot.` : "The spectrum is an <b>average</b> of retention over the shaded snapshots, not a value in every snapshot."}`;
   }
 
   async renderLoadings() {
@@ -989,7 +989,7 @@ export class Explorer {
     }
     // R^2 grid
     const r2 = blk.r2.subarray(fi * T * S, (fi + 1) * T * S);
-    body.append(h("div", { class: "sub-h", text: "R² of a linear fit on each cell's channels (in-sample)" }));
+    body.append(h("div", { class: "sub-h", text: "R² of a linear fit on each snapshot's channels (in-sample)" }));
     const grid = h("div", { class: "r2grid", style: { gridTemplateColumns: `repeat(${S}, 1fr)` } });
     for (let t = 0; t < T; t++) for (let s = 0; s < S; s++) {
       const v = r2[t * S + s] / 255, d = h("div", { style: { background: pal.seq(v) } });
@@ -1003,7 +1003,7 @@ export class Explorer {
     body.append(grid, h("div", { class: "r2-axis" }, h("span", { text: `${m.sites[0]} → ${m.sites[S - 1]}; rows = checkpoints` }), h("span", { text: "0" }, h("span", { class: "swatch", style: { "--sw": `linear-gradient(90deg, ${pal.seq(0)}, ${pal.seq(1)})`, width: "40px", margin: "0 4px", verticalAlign: "-1px", background: `linear-gradient(90deg, ${pal.seq(0)}, ${pal.seq(1)})` } }), "100%")));
     const v = r2[lt * S + ls] / 255;
     body.append(h("div", { class: "card-note" }));
-    body.lastChild.innerHTML = `Selected cell (click another): <b>${m.sites[ls]}, step ${m.steps[lt].toLocaleString("en")}</b>: R² = <b>${(100 * v).toFixed(1)}%</b> on its ${m.channels[ls]} spatially averaged channels (chance ≈ ${(100 * m.channels[ls] / N).toFixed(1)}%). Descriptive, not held out.` + (tg.kind === "set" && m.browser_seba_corr ? ` Channel correlations below use the set's SEBA vector recomputed in your browser from 8-bit eigenvectors (correlation with the full-precision vector: median ${m.browser_seba_corr.median.toFixed(4)}, worst ${m.browser_seba_corr.min.toFixed(3)}).` : "");
+    body.lastChild.innerHTML = `Selected snapshot (click another square): <b>${m.sites[ls]}, step ${m.steps[lt].toLocaleString("en")}</b>: R² = <b>${(100 * v).toFixed(1)}%</b> on its ${m.channels[ls]} spatially averaged channels (chance ≈ ${(100 * m.channels[ls] / N).toFixed(1)}%). Descriptive, not held out.` + (tg.kind === "set" && m.browser_seba_corr ? ` Channel correlations below use the set's SEBA vector recomputed in your browser from 8-bit eigenvectors (correlation with the full-precision vector: median ${m.browser_seba_corr.median.toFixed(4)}, worst ${m.browser_seba_corr.min.toFixed(3)}).` : "");
     const barsBox = h("div"), clsBox = h("div"); body.append(barsBox, clsBox);
     // per-channel correlations at the selected cell, and alignment with the classifier at that checkpoint
     const f = tg.kind === "psi" ? D.psi(m, blk, tg.k) : D.sebaVectors(m, blk, ri)[j];
@@ -1084,10 +1084,10 @@ export function captionParts(ctx, st, col) {
   const { m, T, S } = ctx, step = t => `step ${m.steps[t].toLocaleString("en")}`, n = st.b - st.a + 1;
   let blk;
   if (st.fam === "layer") blk = st.a === st.b ? `site ${m.sites[st.a]} at ${step(st.anchor)}`
-    : `sites ${m.sites[st.a]} to ${m.sites[st.b]} at ${step(st.anchor)} (${n} cells)`;
+    : `sites ${m.sites[st.a]} to ${m.sites[st.b]} at ${step(st.anchor)} (${n} snapshots)`;
   else blk = st.a === st.b ? `site ${m.sites[st.anchor]} at ${step(st.a)}`
-    : `site ${m.sites[st.anchor]}, checkpoints ${step(st.a)} to ${step(st.b)} (${n} cells)`;
-  const fromBlk = "computed on the outlined block only and painted on every cell; ";
+    : `site ${m.sites[st.anchor]}, checkpoints ${step(st.a)} to ${step(st.b)} (${n} snapshots)`;
+  const fromBlk = "computed on the outlined block only and painted on every panel; ";
   const focus = col && col.groups && st.focus != null && st.focus < col.groups.n ? ` Only ${col.groups.names[st.focus]} is coloured; the rest are light grey.` : "";
   const at = st.at === "final" ? `at the final checkpoint (${step(T - 1)}) in every row` : "at each row's own checkpoint";
   const side = st.kind === "psi" ? `side panel: ψ${st.k}` : `side panel: r = ${st.r} coherent sets`;
@@ -1101,14 +1101,14 @@ export function captionParts(ctx, st, col) {
     jac: `Frobenius norm of the input Jacobian of the logits, ${at}, log scale fixed across rows. The block sets only the side panel (${side}).`,
     gcos: `cosine between the image's loss gradient (all parameters) and the mean gradient over the probe images, ${at}. The block sets only the side panel (${side}).`,
     gdot: `dot product of the image's loss gradient with the mean gradient, ${at}. The block sets only the side panel (${side}).`,
-  }[st.color] || (isPx(st.color) ? `image statistic ${ctx.imgstats?.labels[st.color.slice(3)] || IMGSTATS[st.color.slice(3)]?.label || st.color.slice(3)}: ${pxDef(st.color.slice(3))} The same per-image value in every cell (a property of the probe image, not of the network). The block sets only the side panel (${side}).` : st.color);
-  const lay = m.layouts.length > 1 && st.lay ? `UMAP of seed ${st.lay} (a second network; colours from seed 0)` : "UMAP of each cell (AlignedUMAP across sites, Procrustes across checkpoints)";
+  }[st.color] || (isPx(st.color) ? `image statistic ${ctx.imgstats?.labels[st.color.slice(3)] || IMGSTATS[st.color.slice(3)]?.label || st.color.slice(3)}: ${pxDef(st.color.slice(3))} The same per-image value in every panel (a property of the probe image, not of the network). The block sets only the side panel (${side}).` : st.color);
+  const lay = m.layouts.length > 1 && st.lay ? `UMAP of seed ${st.lay} (a second network; colours from seed 0)` : "UMAP of each snapshot (AlignedUMAP across sites, Procrustes across checkpoints)";
   const part = (label, text) => [h("b", { text: label + " " }), text + " "];
   return [
     ...part("Block:", `${blockKind(st).toLowerCase()}, ${blk}.`),
     ...part("Kernel rule:", `${m.modes[st.mode]}.`),
     ...part("Colour:", colour + focus),
-    ...part("Positions:", `${lay}; display only, no number on this page is computed from them. Rows: checkpoints (step, validation accuracy); columns: sites; ${T * S} cells of the same ${m.n.toLocaleString("en")} probe images.`),
+    ...part("Positions:", `${lay}; display only, no number on this page is computed from them. Rows: checkpoints (step, validation accuracy); columns: sites; ${T * S} panels, one per snapshot, of the same ${m.n.toLocaleString("en")} probe images.`),
   ];
 }
 

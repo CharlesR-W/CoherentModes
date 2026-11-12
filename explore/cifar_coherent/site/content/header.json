@@ -2,7 +2,7 @@
   "title": "Towards Characterizing a Neural Network's Native Ontology: Coherent Sets of Data Through Layers and Over Training",
   "subtitle": "or, Sparse Eigenbases of the Tempered Cross-Hankel Operator for Spectral Identification of the Kantian Categories by Neural Coherent Sets",
   "joke": "",
-  "short_title": "A network's native ontology",
+  "short_title": "Neural Coherent Sets",
   "date": "2026-11-12",
   "description": "A label-free procedure, and a language, for finding which images a neural network treats alike, layer by layer and over training: coherent sets in a ResNet-20 on CIFAR-10, with an interactive explorer."
 }

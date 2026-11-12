@@ -3,8 +3,9 @@ of its training and recorded its activations at {{fact:n_sites}} sites, from the
 Then I asked which groups of images it treats alike, where in the network, and since when, without telling the
 method anything about labels. On this network, the last layers end up sorting the images into four groups that line
 up with unions of classes, site b9 already splits vehicle-like from animal-like images by step
-{{fact:q.va.b9.half_step}}, and the grouping changes most between b2 and b3. This page gives the procedure and a
-small vocabulary for such statements; the <a href="#explorer">explorer</a> is where you check them.</p>
+{{fact:q.va.b9.half_step}}, and the grouping changes most between b2 and b3. This page gives the procedure, Neural
+Coherent Sets, and a small vocabulary for such statements; the <a href="#explorer">explorer</a> is where you check
+them.</p>
 
 <figure class="fig wide">
   <a href="#explorer?tour=b9-late"><img src="assets/fig/hero.png" loading="eager" alt="Site b9 of a ResNet-20 at eight training checkpoints, each panel a 2-d layout of the same 2,000 images, coloured by the four coherent sets of the time block steps 2,560 to 64,000."></a>
@@ -25,13 +26,77 @@ small vocabulary for such statements; the <a href="#explorer">explorer</a> is wh
 
 <p class="cta"><a class="explore-link big" href="#explorer?tour=b9-late">Open the explorer at this view</a></p>
 
+<h2 id="motivation">Why coherent sets</h2>
+
+<p>This grew out of an observation by Stefan Heimersheim and collaborators about <a href="#method/glossary-activation-cell"><em>activation cells</em></a>: interpolate between three real activations of a
+layer, and the network's response jumps sharply rather than blending, as if activation space were tiled into
+Voronoi-like cells. I spent a long time trying to decompile language models with cells, but they
+resist direct analysis: the space is huge, the data only sample it, and nothing measures a cell's boundary
+cheaply.</p>
+
+<p>My collaborator Brianna Grado-White and I make them tractable with a hypothesis: within a cell, the network propagates
+the labels of the training points that fall inside it to every other point of the cell, a limited form of label
+propagation. A cell is then a cluster of points the network treats the same, which is the same notion as a group
+that few neighbourhood links leave, and that is what spectral clustering finds; those that persist across layers or training are <em>coherent sets</em>, and SEBA reads them off.
+I call the construction <em>Neural Coherent Sets</em>.</p>
+
+<p>It also sits in a lineage. Inferring weighted word or tree automata from Hankel matrices, which pair prefixes with
+continuations, is program reconstruction, and the ambition is to reach richer programs, up to Turing machines.
+Dynamical systems have their own Hankel and Koopman methods, and Pughe-Sanford et al. (2025) suggest that coherent
+sets of a Koopman operator are a good lens on what neurons compute. Here depth or training plays the part of time,
+and the site averages the layers' walks rather than forming a Hankel-like product
+(<a href="#method/avgprod">the two agree closely</a>).</p>
+
+<details class="more"><summary>The precise statements, and where the analogy stops</summary>
+<ul>
+<li><b>The hypothesis, stated precisely.</b> Call a cell a region of a layer's activation space where the rest of
+the network computes nearly the same thing. If most neighbourhood edges of the walk $P$ stay inside cells, any
+downstream function $F$ satisfies $F \approx P F$ (harmonic, as in label propagation; Zhu, Ghahramani and Lafferty
+2003) except at images with edges across a boundary, so its penalty $\tfrac12 \sum_{ij} P_{ij} \lVert F_i - F_j
+\rVert^2$ comes only from boundary-crossing edges. Cells are then low-cut sets, and the slowest eigenvectors
+approximately span their indicators; persistence across a block makes them coherent sets. This is a motivating
+hypothesis, not a result.</li>
+<li><b>Hankel matrices.</b> For a function $f$ on strings, $H_f[u, v] = f(uv)$, with prefixes $u$ as rows and
+suffixes $v$ as columns. Over the reals, $f$ is computed by a weighted finite automaton exactly when $H_f$ has finite
+rank, and $\operatorname{rank} H_f$ is the smallest linear state dimension of such an automaton. Reconstruction
+factors a rank-complete prefix–suffix block of $H_f$, together with its symbol-shifted blocks and boundary vectors,
+and yields a minimal realization up to a change of basis, not privileged hidden states (Balle et al. 2014). For a
+language, the distinct rows of its 0/1 Hankel matrix are the states of its minimal deterministic automaton
+(Myhill–Nerode). Hankel rank does not in general give the minimal number of hidden states of an HMM (positivity
+constraints apply); related spectral methods, under rank and nondegeneracy assumptions, learn observable
+representations of hidden Markov models (Hsu, Kakade and Zhang 2012).</li>
+<li><b>The analogy.</b> Read layer $a$ as the end of a prefix and layers $a$ to $b$ as its continuation. In the
+product $Q = M_b \cdots M_a$, image $j$'s column is where its layer-$a$ neighbourhood spreads as it diffuses through
+the later layers' neighbourhoods; images with similar columns are treated alike downstream, and $Q$'s leading
+singular vectors play the part of a small state. This is an analogy only: they inherit none of the Hankel
+reconstruction guarantees, the network is not an automaton, there is one fixed continuation rather than all
+suffixes, the walks measure neighbourhoods rather than outputs, and no rank here counts states.</li>
+<li><b>The variational meaning.</b> For one walk $P$ and the indicator of a set $A$, the penalty
+$\tfrac12 \sum_{ij} P_{ij} (f_i - f_j)^2$ equals $\operatorname{cut}(A, \bar A) = \sum_{i \in A,\, j \notin A}
+P_{ij}$, the total transition weight crossing between $A$ and its complement. Sinkhorn makes every image's degree 1,
+so normalised cut equals ratio cut. Relaxing the balanced two-valued indicator to a real function gives
+$\min_{f \perp \mathbf 1,\, \lVert f \rVert = 1} f^\top (I - P) f$, solved by the leading non-constant eigenvector of
+$P$ (equivalently of $M$) (von Luxburg 2007). The penalty is linear in the walk, so for a block the cut is averaged
+over its snapshots. The multiway relaxation takes orthonormal columns $\psi_1, \dots, \psi_{r-1}$; SEBA turns that
+relaxed span into candidate hard sets and does not solve the discrete multiway cut exactly.</li>
+<li><b>Pughe-Sanford et al.</b> They propose that sensory neurons learn membership of finite-time coherent sets of
+their input's dynamics. A balanced coherent pair is a present region and a future region that trajectories move
+between with high probability over a horizon $\tau$; relaxing the indicators gives singular-function pairs of the
+stochastic Koopman operator, and a neuron computes one of them, thresholded or rectified. For stable
+Ornstein–Uhlenbeck dynamics the leading non-constant singular-function pair is linear (higher ones are polynomial),
+and the linear-feature Galerkin estimator on lag vectors reduces to past–future canonical correlation. Their operator
+is the stochastic Koopman operator of real input dynamics, not an average of constructed smoothers, and they model
+biological sensory computation without claiming that trained artificial units do this.</li>
+</ul>
+</details>
+
 <h2 id="why">What is unusual about this approach</h2>
 
 <ul>
 <li><b>Label-free.</b> Nothing semantic defines the kernel or the basis; labels balance the probe, and after that they only colour and check.</li>
 <li><b>Each layer in its own geometry.</b> The construction fits no map between layers or checkpoints (the 2-d
 layouts are aligned for display only).</li>
-<li><b>Depth and training time are one object.</b> A block is a run of cells along either axis.</li>
+<li><b>Depth and training time are one object.</b> A block is a run of snapshots along either axis.</li>
 <li><b>Groups of images, not directions.</b> The sparsity is over images; nothing assumes sparse activations.</li>
 <li><b>Nothing trained on top.</b> Only fixed computations and eigenproblems.</li>
 <li><b>Architecture-agnostic.</b> It needs only activations on a fixed probe set.</li>
@@ -43,30 +108,30 @@ layouts are aligned for display only).</li>
 <a href="#method/operator">Method</a>.</p>
 
 <div class="step">
-<h3 id="step-1">1. Compare images within one cell</h3>
-<a class="step-fig" style="--w: 32%; max-width: 62%" href="assets/fig/step1.png" target="_blank" rel="noopener"><img src="assets/fig/step1.png" loading="eager" alt="Cosine Gram matrix of one cell, images ordered by their final set."></a>
-<p>For one cell (one site at one checkpoint), centre the activations over the probe images, scale each image's
+<h3 id="step-1">1. Compare images within one snapshot</h3>
+<a class="step-fig" style="--w: 32%; max-width: 62%" href="assets/fig/step1.png" target="_blank" rel="noopener"><img src="assets/fig/step1.png" loading="eager" alt="Cosine Gram matrix of one snapshot, images ordered by their final set."></a>
+<p>For one snapshot (one site at one checkpoint), centre the activations over the probe images, scale each image's
 vector to unit length, and take the cosine between every pair of images.</p>
 <details class="more"><summary>The maths</summary>
-<p>With $h_i$ the activation of image $i$ in cell $c$ and $\bar h$ its mean over the probe,
+<p>With $h_i$ the activation of image $i$ in snapshot $c$ and $\bar h$ its mean over the probe,
 $$ \hat h_i = \frac{h_i - \bar h}{\lVert h_i - \bar h \rVert}, \qquad C_{ij} = \langle \hat h_i, \hat h_j \rangle,
 \qquad d_{ij} = 1 - C_{ij}. $$
-The dot product on each cell is the only geometric assumption. Cosine drops the activation norm.</p>
+The dot product on each snapshot is the only geometric assumption. Cosine drops the activation norm.</p>
 </details>
 </div>
 
 <div class="step">
 <h3 id="step-2">2. Turn similarity into a walk</h3>
-<a class="step-fig" style="--w: 50%" href="assets/fig/step2.png" target="_blank" rel="noopener"><img src="assets/fig/step2.png" loading="eager" alt="The kernel of one cell and its Sinkhorn-scaled walk."></a>
+<a class="step-fig" style="--w: 50%" href="assets/fig/step2.png" target="_blank" rel="noopener"><img src="assets/fig/step2.png" loading="eager" alt="The kernel of one snapshot and its Sinkhorn-scaled walk."></a>
 <p>A <a href="#method/glossary-kernel-rule">kernel rule</a> turns the cosines into neighbourhood weights $K_c$
 (default: the {{fact:default_mode}}), and Sinkhorn scaling makes them a symmetric random walk $P_c$ between similar
-images. Symmetric scaling gives every image the same stationary weight, so differences between cells' stationary
+images. Symmetric scaling gives every image the same stationary weight, so differences between snapshots' stationary
 measures do not enter the block comparison. The lazy walk $M_c = \tfrac12(I + P_c)$ stays put half the time.</p>
 <details class="more"><summary>The maths</summary>
 <p>Sinkhorn finds $v > 0$ with $P_c = \mathrm{diag}(v)\, K_c\, \mathrm{diag}(v)$ having every row and column sum
 equal to 1. For a function $f$ on the images (entry $f_i$ for image $i$), the walk defines a penalty</p>
 <div class="eq" id="eq-penalty" data-num="1">$$ f^\top (I - P_c)\, f \;=\; \tfrac12 \sum_{i,j} (P_c)_{ij}\,(f_i - f_j)^2 , $$</div>
-<p>which is small when $f$ is nearly constant on images the cell treats as neighbours. $M_c$ has the eigenvectors of
+<p>which is small when $f$ is nearly constant on images the snapshot treats as neighbours. $M_c$ has the eigenvectors of
 $P_c$, with eigenvalues $\tfrac12(1 + \lambda) \in [0, 1]$. The kernel rule mattered more than anything else here;
 <a href="#method/kernel">choosing the kernel</a> explains why the default adapts to each image.</p>
 </details>
@@ -75,8 +140,8 @@ $P_c$, with eigenvalues $\tfrac12(1 + \lambda) \in [0, 1]$. The kernel rule matt
 <div class="step">
 <h3 id="step-3">3. Average over a block</h3>
 <a class="step-fig" style="--w: 52%" href="assets/fig/step3.png" target="_blank" rel="noopener"><img src="assets/fig/step3.png" loading="eager" alt="The lazy walks of sites b7, b8, b9 and pool, and their average."></a>
-<p>A block is a run of cells: consecutive sites at one checkpoint (a <em>layer block</em>) or consecutive
-checkpoints at one site (a <em>time block</em>). Its operator $\bar M$ is the plain average of the cells' lazy walks.</p>
+<p>A block is a run of snapshots: consecutive sites at one checkpoint (a <em>layer block</em>) or consecutive
+checkpoints at one site (a <em>time block</em>). Its operator $\bar M$ is the plain average of the snapshots' lazy walks.</p>
 <details class="more"><summary>The maths</summary>
 <p>$\bar M = \frac{1}{|B|} \sum_{c \in B} M_c = \tfrac12(I + \bar P)$, with $\bar P$ the mean walk. The penalty is
 linear in the walk, so</p>
@@ -89,19 +154,19 @@ are roughly geometric in steps.</p>
 </div>
 
 <div class="step">
-<h3 id="step-4">4. Take its eigenfunctions, with their retention in every cell</h3>
-<a class="step-fig" style="--w: 39%; max-width: 72%" href="assets/fig/step4.png" target="_blank" rel="noopener"><img src="assets/fig/step4.png" loading="eager" alt="The leading eigenvectors of the block operator, and a table of their retention in each cell."></a>
+<h3 id="step-4">4. Take its eigenfunctions, with their retention in every snapshot</h3>
+<a class="step-fig" style="--w: 39%; max-width: 72%" href="assets/fig/step4.png" target="_blank" rel="noopener"><img src="assets/fig/step4.png" loading="eager" alt="The leading eigenvectors of the block operator, and a table of their retention in each snapshot."></a>
 <p>The leading eigenvectors $\psi_1, \psi_2, \dots$ of $\bar M$ are the functions on the images with the smallest
-<em>average</em> variation across the block's walks. An average is not "in every cell": a function can rank high
-while varying a lot in one cell. So I always show, next to each eigenfunction, its <em>retention</em>
-$\rho_c(\psi_k)$ in each cell, which marks the cells where that candidate distinction is weaker. Retention 1 means
-the function is constant on every neighbourhood of the cell; a random function gets about
+<em>average</em> variation across the block's walks. An average is not "in every snapshot": a function can rank high
+while varying a lot in one snapshot. So I always show, next to each eigenfunction, its <em>retention</em>
+$\rho_c(\psi_k)$ in each snapshot, which marks the snapshots where that candidate distinction is weaker. Retention 1 means
+the function is constant on every neighbourhood of the snapshot; a random function gets about
 0.5. Retention near 1 means a step of the walk changes the function's value little relative to its overall size;
 lower retention means larger changes.</p>
 <details class="more"><summary>The maths</summary>
 <p>Among unit functions orthogonal to the constant $\psi_0$ and to each other, the eigenvectors of $\bar M$ in
 decreasing order of eigenvalue minimise the block-average penalty <a href="#overview/eq-block">(2)</a>. Retention
-in any cell $c$, inside or outside the block, is
+in any snapshot $c$, inside or outside the block, is
 $$ \rho_c(f) = \frac{f^\top M_c f}{f^\top f} \in [0, 1], \qquad \lambda_k = \frac{1}{|B|} \sum_{c \in B}
 \rho_c(\psi_k). $$
 An individual $\psi_k$ is meaningful only when $\lambda_k$ is separated from its neighbours; otherwise only the
@@ -111,7 +176,7 @@ span is.</p>
 
 <div class="step">
 <h3 id="step-5">5. Turn the span into sets with SEBA</h3>
-<a class="step-fig" style="--w: 53%" href="assets/fig/step5.png" target="_blank" rel="noopener"><img src="assets/fig/step5.png" loading="eager" alt="The four SEBA vectors over the images, and the resulting coherent sets on a layout of the pool cell."></a>
+<a class="step-fig" style="--w: 53%" href="assets/fig/step5.png" target="_blank" rel="noopener"><img src="assets/fig/step5.png" loading="eager" alt="The four SEBA vectors over the images, and the resulting coherent sets on a layout of the pool snapshot."></a>
 <p>$r$ is the number of groups you ask for. SEBA takes the constant $\psi_0$ and the leading $r - 1$ non-constant
 eigenfunctions, and returns $r$ sparse vectors that approximate their span. When the retained eigenvalues are near 1, functions in
 that span vary little on average across the block's walks; a sparse one is large on some images and zero on the rest, which is what a group looks like. Giving each image to the vector that is largest there yields $r$
@@ -129,9 +194,9 @@ the spectrum is the gap $\lambda_{r-1} - \lambda_r$. Details in <a href="#method
 
 <p id="vocabulary"><b>Vocabulary</b> (<a href="#method/glossary">glossary</a>):
 <a href="#method/glossary-probe-image">probe image</a>, <a href="#method/glossary-site">site</a>,
-<a href="#method/glossary-checkpoint">checkpoint</a>, <a href="#method/glossary-cell">cell</a> (a site at a
-checkpoint), <a href="#method/glossary-block">block</a> (a run of cells along depth or training),
-<a href="#method/glossary-single-cell-block">single-cell block</a>,
+<a href="#method/glossary-checkpoint">checkpoint</a>, <a href="#method/glossary-snapshot">snapshot</a> (a site at a
+checkpoint), <a href="#method/glossary-block">block</a> (a run of snapshots along depth or training),
+<a href="#method/glossary-single-snapshot-block">single-snapshot block</a>,
 <a href="#method/glossary-eigenfunction">eigenfunction</a> $\psi_k$ of the
 <a href="#method/glossary-block-operator">block operator</a>, <a href="#method/glossary-retention">retention</a>
 $\rho_c$, <a href="#method/glossary-coherent-set">coherent set</a>,
@@ -154,8 +219,8 @@ $\rho_c$, <a href="#method/glossary-coherent-set">coherent set</a>,
   <a href="#findings/f-looking-back">Finding 2</a> · <a class="explore-link" href="#explorer?tour=b9-two-sets">explorer</a></figcaption>
 </figure>
 <figure class="fig">
-  <a href="#findings/f-depth"><img src="assets/fig/q_carry.png" loading="eager" alt="Matched Jaccard between the single-cell sets of every pair of sites at the last checkpoint, and between adjacent sites at every checkpoint."></a>
-  <figcaption><b>Agreement between sites.</b> Plotted: matched Jaccard between the $r = 4$ sets of single-cell
+  <a href="#findings/f-depth"><img src="assets/fig/q_carry.png" loading="eager" alt="Matched Jaccard between the single-snapshot sets of every pair of sites at the last checkpoint, and between adjacent sites at every checkpoint."></a>
+  <figcaption><b>Agreement between sites.</b> Plotted: matched Jaccard between the $r = 4$ sets of single-snapshot
   blocks, site against site (left: step {{fact:final_step}}; right: adjacent sites at every checkpoint).<br>
   <a href="#findings/f-depth">Finding 3</a> · <a class="explore-link" href="#explorer?tour=b2-b3">explorer</a></figcaption>
 </figure>

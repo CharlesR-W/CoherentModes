@@ -156,7 +156,7 @@ async function kernel(body, ds) {
   const ctl = h("div", { class: "chart-controls" }, h("label", {}, "κ = ", out, " "), inp, chips);
   const box = h("div"), read = h("p", { class: "chart-sub" });
   const noKappa = m.modes.filter((_, i) => kap[i] == null);
-  body.append(ctl, box, read, h("p", { class: "chart-sub", text: `Cell: ${m.sites[s]} at step ${m.steps[t].toLocaleString("en")}. The buttons set \u03ba to each rule's value for this cell` +
+  body.append(ctl, box, read, h("p", { class: "chart-sub", text: `Snapshot: ${m.sites[s]} at step ${m.steps[t].toLocaleString("en")}. The buttons set \u03ba to each rule's value for this snapshot` +
     (noKappa.length ? ` (${noKappa.join(", ")} is rank-based and has no \u03ba)` : "") + "." }));
   inp.addEventListener("input", () => { kappa = Math.exp(+inp.value); draw(); });
   const draw = () => {
