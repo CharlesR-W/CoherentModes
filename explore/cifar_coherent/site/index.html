@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE_TEXT}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<link rel="preload" href="vendor/fonts/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="vendor/fonts/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='5' cy='6' r='3.2' fill='%232a78d6'/%3E%3Ccircle cx='11' cy='6' r='3.2' fill='%23eb6834'/%3E%3Ccircle cx='8' cy='11' r='3.2' fill='%231baf7a'/%3E%3C/svg%3E">
+</head>
+<body data-tab="overview">
+<a class="skip" href="#main">Skip to content</a>
+<div class="banner" role="note">
+  <span class="banner-tag">Exploratory</span>
+  <span>A side study on one network (ResNet-20, CIFAR-10, one seed). Nothing here is a validated result.</span>
+  <a href="https://github.com/CharlesR-W/CoherentModes">Repository</a>
+</div>
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="title">{{TITLE}}</h1>
+    <p class="subtitle">{{SUBTITLE}}</p>
+    <p class="byline"><span>Charles R-W</span><span class="dot">·</span><time datetime="{{DATE_ISO}}">{{DATE}}</time><span class="dot">·</span><a href="https://github.com/CharlesR-W/CoherentModes/tree/main/explore/cifar_coherent">code and data</a></p>
+    <p class="cta"><a class="explore-link" href="#explorer">Open the explorer</a></p>
+  </div>
+</header>
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-inner">
+    <a class="tabs-home" href="#overview" title="{{TITLE_TEXT}}">{{SHORT_TITLE}}</a>
+    <div class="tablist" role="tablist">
+      <a role="tab" href="#overview" data-tab="overview">Overview</a>
+      <a role="tab" href="#explorer" data-tab="explorer">Explorer</a>
+      <a role="tab" href="#questions" data-tab="questions">Questions</a>
+      <a role="tab" href="#method" data-tab="method">Method</a>
+    </div>
+  </div>
+</nav>
+<main id="main">
+  <section class="tab-panel" id="tab-overview" data-tab="overview">
+    <article class="prose">
+{{CONTENT_OVERVIEW}}
+    </article>
+  </section>
+  <section class="tab-panel" id="tab-explorer" data-tab="explorer" hidden>
+{{EXPLORER}}
+  </section>
+  <section class="tab-panel" id="tab-questions" data-tab="questions" hidden>
+    <header class="page-head"><h1>Questions</h1></header>
+    <article class="prose">
+{{CONTENT_QUESTIONS}}
+    </article>
+  </section>
+  <section class="tab-panel" id="tab-method" data-tab="method" hidden>
+    <header class="page-head"><h1>Method</h1></header>
+    <article class="prose">
+{{CONTENT_METHOD}}
+    </article>
+  </section>
+</main>
+<footer class="foot">
+  <div>Built {{BUILD_DATE}} from data tag <code>{{TAG}}</code>{{FIXTURE_NOTE}}. Static page; no tracking, no external requests.</div>
+  <div>Type: Source Serif 4, Inter, JetBrains Mono (SIL OFL). Maths: KaTeX (MIT).</div>
+</footer>
+<div id="tooltip" class="tooltip" hidden></div>
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="vendor/katex/auto-render.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Coherent sets explorer · ResNet-20 CIFAR-10</title>
+<style>
+  :root { --bg:#fbfbfa; --fg:#1d1d1f; --mute:#6b6b70; --line:#e2e2e0; --acc:#d9480f; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:10px 16px 6px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0 0 2px; }
+  header p { margin:0; color:var(--mute); max-width:1200px; }
+  .bar { display:flex; flex-wrap:wrap; gap:14px; align-items:center; padding:8px 16px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; }
+  .bar label { color:var(--mute); }
+  .bar select { font:inherit; padding:2px 4px; }
+  main { display:flex; gap:14px; padding:10px 16px; align-items:flex-start; }
+  #grid { flex:1; min-width:0; }
+  #side { width:300px; flex:none; position:sticky; top:52px; }
+  table { border-collapse:collapse; }
+  th { font-weight:500; color:var(--mute); font-size:11px; padding:2px; white-space:nowrap; }
+  th.row { text-align:right; padding-right:6px; }
+  td { padding:1px; }
+  canvas.cell { display:block; background:#fff; border:1px solid var(--line); cursor:crosshair; }
+  canvas.cell.inblock { border:2px solid var(--acc); }
+  canvas.cell.srcrow { border-color:#f1b08f; }
+  .panel { border:1px solid var(--line); background:#fff; padding:8px; margin-bottom:10px; }
+  .panel h3 { margin:0 0 6px; font-size:12px; font-weight:600; }
+  .legend-item { display:flex; align-items:center; gap:6px; padding:2px 3px; cursor:pointer; border-radius:3px; }
+  .legend-item:hover { background:#f2f2f0; }
+  .legend-item.on { outline:2px solid var(--acc); }
+  .sw { width:12px; height:12px; border-radius:2px; flex:none; }
+  .comp { display:flex; height:9px; flex:1; border:1px solid var(--line); }
+  .comp div { height:100%; }
+  #hover img { width:96px; height:96px; image-rendering:pixelated; border:1px solid var(--line); }
+  .mute { color:var(--mute); }
+  .small { font-size:11px; }
+  #status { color:var(--acc); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Coherent sets across layer blocks · ResNet-20 on CIFAR-10 (exploratory)</h1>
+  <p>Rows: training checkpoints. Columns: residual-stream sites (stem, block outputs b1–b9, global-average pool, logits). Each cell is an AlignedUMAP (aligned across sites within a checkpoint, Procrustes-aligned across checkpoints) of the same 2,000 test images (200 per class) from that site's centred-cosine geometry. Pick a source checkpoint and a block of sites L′..L: the leading eigenvectors of that block's averaged vMF diffusion operator (a dynamic-Laplacian discretisation) colour <b>every</b> cell, so you can follow a set the block treats as coherent through other layers and other times. Click a cell to set the source checkpoint and L; shift-click to set L′. Click a legend entry to isolate that set.</p>
+</header>
+<div class="bar">
+  <span><label>κ </label><select id="mode"></select></span>
+  <span><label>source checkpoint </label><select id="src"></select></span>
+  <span><label>block L′ </label><select id="la"></select> <label>to L </label><select id="lb"></select></span>
+  <span><label>colour by </label><select id="color">
+    <option value="class">class</option>
+    <option value="seba">SEBA coherent sets</option>
+    <option value="nodal">nodal domains of ψ</option>
+    <option value="eig">eigenfunction ψ</option>
+  </select> <select id="kk"></select></span>
+  <span><label>point size </label><select id="ps"><option>1</option><option selected>1.6</option><option>2.2</option><option>3</option></select></span>
+  <span id="status"></span>
+</div>
+<main>
+  <div id="grid"></div>
+  <div id="side">
+    <div class="panel"><h3 id="spec-title">Block spectrum</h3><canvas id="spec" width="284" height="110"></canvas>
+      <div class="small mute" id="spec-note"></div></div>
+    <div class="panel"><h3 id="legend-title">Legend</h3><div id="legend"></div></div>
+    <div class="panel" id="hover"><h3>Point</h3><div class="mute small">Hover a point in any cell; it is ringed in every cell.</div></div>
+    <div class="panel small"><h3>Site statistics (source checkpoint)</h3><div id="sitestats"></div></div>
+    <div class="panel small mute" id="method"></div>
+  </div>
+</main>
+<script src="meta.js"></script>
+<script>
+"use strict";
+const M = window.META;
+const dec = (s, T) => { const b = Uint8Array.from(atob(s), c => c.charCodeAt(0)); return new T(b.buffer); };
+const N = M.n, T = M.steps.length, S = M.sites.length, K = M.n_modes, R = M.seba_r.length;
+const labels = dec(M.labels, Int8Array);
+const umap = dec(M.umap, Uint16Array); // T,S,N,2
+const pairIndex = {}; M.pairs.forEach((p, i) => pairIndex[p[0] + "," + p[1]] = i);
+const CLS = ["#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f","#edc948","#b07aa1","#ff9da7","#9c755f","#bab0ac"];
+const SETC = ["#1f77b4","#d62728","#2ca02c","#9467bd","#ff7f0e","#17becf","#8c564b","#e377c2"];
+const GREY = "#d4d4d4";
+const sprite = new Image(); sprite.src = M.sprite;
+
+// ---- chunk loading (JSONP so it works from file://)
+const chunks = {}, pending = {};
+window.__chunk = (key, payload) => {
+  chunks[key] = { vecs: dec(payload.vecs, Int8Array), seba: dec(payload.seba, Int8Array) };
+  if (pending[key]) { pending[key].forEach(f => f()); delete pending[key]; }
+};
+function loadChunk(step, mi) {
+  const key = step + "_" + mi;
+  if (chunks[key]) return Promise.resolve(chunks[key]);
+  return new Promise(res => {
+    if (!pending[key]) {
+      pending[key] = [];
+      const s = document.createElement("script"); s.src = "chunks/spec_" + key + ".js"; document.body.appendChild(s);
+    }
+    pending[key].push(() => res(chunks[key]));
+  });
+}
+
+// ---- controls
+const $ = id => document.getElementById(id);
+const state = { mode: Math.max(0, M.modes.indexOf("layer: half-mass")), src: T - 1, la: 0, lb: S - 1, color: "seba", kk: 2, focus: null, hover: -1, ps: 1.6 };
+M.modes.forEach((m, i) => $("mode").add(new Option(m, i)));
+M.steps.forEach((s, i) => $("src").add(new Option("step " + s.toLocaleString() + accStr(i), i)));
+M.sites.forEach((s, i) => { $("la").add(new Option(s, i)); $("lb").add(new Option(s, i)); });
+function accStr(t) { const a = M.stats[t].val_acc; return a == null ? "" : " · " + (100 * a).toFixed(1) + "%"; }
+function fillK() {
+  const sel = $("kk"); sel.innerHTML = "";
+  if (state.color === "class") { sel.style.display = "none"; return; }
+  sel.style.display = "";
+  if (state.color === "seba") M.seba_r.forEach(r => sel.add(new Option("r = " + r, r)));
+  else for (let k = 1; k < K; k++) sel.add(new Option("ψ" + k, k));
+  if (![...sel.options].some(o => +o.value === state.kk)) state.kk = +sel.options[state.color === "seba" ? 1 : 0].value;
+  sel.value = state.kk;
+}
+function syncControls() {
+  $("mode").value = state.mode; $("src").value = state.src; $("la").value = state.la; $("lb").value = state.lb;
+  $("color").value = state.color; fillK(); $("ps").value = state.ps;
+}
+$("mode").onchange = e => { state.mode = +e.target.value; state.focus = null; update(); };
+$("src").onchange = e => { state.src = +e.target.value; state.focus = null; update(); };
+$("la").onchange = e => { state.la = +e.target.value; if (state.lb < state.la) state.lb = state.la; state.focus = null; update(); };
+$("lb").onchange = e => { state.lb = +e.target.value; if (state.la > state.lb) state.la = state.lb; state.focus = null; update(); };
+$("color").onchange = e => { state.color = e.target.value; state.focus = null; fillK(); update(); };
+$("kk").onchange = e => { state.kk = +e.target.value; state.focus = null; update(); };
+$("ps").onchange = e => { state.ps = +e.target.value; drawAll(); };
+
+// ---- grid
+const cellPx = Math.max(70, Math.min(118, Math.floor((window.innerWidth - 16 * 2 - 330 - 70) / S) - 3));
+const canvases = [];
+(function buildGrid() {
+  const tb = document.createElement("table");
+  const hr = tb.insertRow(); hr.appendChild(document.createElement("th"));
+  M.sites.forEach(s => { const th = document.createElement("th"); th.textContent = s; hr.appendChild(th); });
+  for (let t = 0; t < T; t++) {
+    const tr = tb.insertRow();
+    const th = document.createElement("th"); th.className = "row";
+    th.innerHTML = "step " + M.steps[t].toLocaleString() + "<br><span class=mute>" + accStr(t).replace(" · ", "") + "</span>";
+    tr.appendChild(th);
+    canvases[t] = [];
+    for (let s = 0; s < S; s++) {
+      const td = tr.insertCell(); const c = document.createElement("canvas");
+      c.className = "cell"; c.width = cellPx * devicePixelRatio; c.height = cellPx * devicePixelRatio;
+      c.style.width = c.style.height = cellPx + "px";
+      c.title = M.sites[s] + " · step " + M.steps[t];
+      c.onclick = ev => { state.src = t; if (ev.shiftKey) { state.la = s; if (state.lb < s) state.lb = s; } else { state.lb = s; if (state.la > s) state.la = s; } state.focus = null; update(); };
+      c.onmousemove = ev => hoverAt(t, s, ev);
+      c.onmouseleave = () => { state.hover = -1; drawAll(); };
+      td.appendChild(c); canvases[t][s] = c;
+    }
+  }
+  $("grid").appendChild(tb);
+})();
+const pad = 4;
+function xy(t, s, i) {
+  const o = ((t * S + s) * N + i) * 2, w = cellPx - 2 * pad;
+  return [pad + w * umap[o] / 65535, pad + w * (1 - umap[o + 1] / 65535)];
+}
+function hoverAt(t, s, ev) {
+  const r = ev.target.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  let best = -1, bd = 36;
+  for (let i = 0; i < N; i++) { const [x, y] = xy(t, s, i); const d = (x - mx) ** 2 + (y - my) ** 2; if (d < bd) { bd = d; best = i; } }
+  if (best !== state.hover) { state.hover = best; drawAll(); showHover(); }
+}
+
+// ---- colouring
+let colors = new Array(N).fill(GREY), groups = null, cur = null;
+function divColor(v) { // v in [-1,1] -> blue-white-red
+  const a = Math.min(1, Math.abs(v)), c1 = v < 0 ? [33, 102, 172] : [178, 24, 43];
+  const r = Math.round(247 + (c1[0] - 247) * a), g = Math.round(247 + (c1[1] - 247) * a), b = Math.round(247 + (c1[2] - 247) * a);
+  return `rgb(${r},${g},${b})`;
+}
+function computeColors() {
+  groups = null;
+  const p = pairIndex[state.la + "," + state.lb];
+  if (state.color === "class") {
+    for (let i = 0; i < N; i++) colors[i] = CLS[labels[i]];
+    groups = { ids: Array.from(labels), names: M.classes, cols: CLS };
+    return;
+  }
+  if (!cur) return;
+  if (state.color === "seba") {
+    const ri = M.seba_r.indexOf(state.kk), off = (p * R + ri) * N;
+    const ids = new Array(N);
+    for (let i = 0; i < N; i++) { const l = cur.seba[off + i]; ids[i] = l; colors[i] = l < 0 ? GREY : SETC[l % SETC.length]; }
+    groups = { ids, names: Array.from({ length: state.kk }, (_, j) => "set " + (j + 1)), cols: SETC, unassigned: true };
+  } else {
+    const off = (p * K + state.kk) * N;
+    if (state.color === "eig") for (let i = 0; i < N; i++) colors[i] = divColor(cur.vecs[off + i] / 127);
+    else {
+      const ids = new Array(N);
+      for (let i = 0; i < N; i++) { const v = cur.vecs[off + i]; ids[i] = v > 0 ? 0 : v < 0 ? 1 : -1; colors[i] = v > 0 ? "#b2182b" : v < 0 ? "#2166ac" : GREY; }
+      groups = { ids, names: ["ψ" + state.kk + " > 0", "ψ" + state.kk + " < 0"], cols: ["#b2182b", "#2166ac"], unassigned: true };
+    }
+  }
+}
+function drawCell(t, s) {
+  const c = canvases[t][s], ctx = c.getContext("2d"), dpr = devicePixelRatio;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cellPx, cellPx);
+  const ps = state.ps, h = ps / 2, foc = state.focus, ids = groups && groups.ids;
+  const passes = foc == null ? [null] : ["bg", "fg"];
+  for (const pass of passes) {
+    for (let i = 0; i < N; i++) {
+      const inF = foc == null || (ids && ids[i] === foc);
+      if (pass === "bg" && inF) continue;
+      if (pass === "fg" && !inF) continue;
+      const [x, y] = xy(t, s, i);
+      ctx.fillStyle = pass === "bg" ? "#ececec" : colors[i];
+      ctx.fillRect(x - h, y - h, ps, ps);
+    }
+  }
+  if (state.hover >= 0) {
+    const [x, y] = xy(t, s, state.hover);
+    ctx.strokeStyle = "#000"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, 4, 0, 6.3); ctx.stroke();
+  }
+  c.classList.toggle("inblock", t === state.src && s >= state.la && s <= state.lb);
+  c.classList.toggle("srcrow", t === state.src && !(s >= state.la && s <= state.lb));
+}
+function drawAll() { for (let t = 0; t < T; t++) for (let s = 0; s < S; s++) drawCell(t, s); }
+
+// ---- side panels
+function drawSpectrum() {
+  const p = pairIndex[state.la + "," + state.lb], v = M.vals[M.steps[state.src]][state.mode][p];
+  const c = $("spec"), ctx = c.getContext("2d"), W = c.width, H = c.height;
+  ctx.clearRect(0, 0, W, H);
+  const lo = Math.min(0.9, Math.min(...v)) , bw = (W - 30) / v.length;
+  ctx.fillStyle = "#6b6b70"; ctx.font = "10px system-ui"; ctx.fillText("1", 2, 10); ctx.fillText(lo.toFixed(2), 2, H - 14);
+  v.forEach((x, k) => {
+    const hgt = (H - 20) * (x - lo) / (1 - lo + 1e-9);
+    ctx.fillStyle = state.color !== "class" && state.color !== "seba" && k === state.kk ? "#d9480f" : (state.color === "seba" && k < state.kk ? "#4e79a7" : "#b8c4d6");
+    ctx.fillRect(28 + k * bw + 2, H - 14 - hgt, bw - 4, hgt);
+    ctx.fillStyle = "#6b6b70"; ctx.fillText("ψ" + k, 28 + k * bw + 3, H - 2);
+  });
+  $("spec-title").textContent = `Block spectrum · ${M.sites[state.la]}..${M.sites[state.lb]} · step ${M.steps[state.src].toLocaleString()}`;
+  const ks = M.kappa[state.mode][state.src].slice(state.la, state.lb + 1);
+  const kap = M.modes[state.mode] + (M.modes[state.mode].startsWith("layer") ? ` (κ ${Math.min(...ks).toFixed(1)}–${Math.max(...ks).toFixed(1)} over the block)` : "");
+  $("spec-note").textContent = `Top ${K} eigenvalues of the averaged diffusion operator, ${kap}. ψ0 ≈ constant. Eigenvalues near 1 = splits the whole block keeps apart.`;
+}
+function drawLegend() {
+  const el = $("legend"); el.innerHTML = "";
+  if (!groups) {
+    $("legend-title").textContent = "ψ" + state.kk + " (blue < 0 < red, scaled to max |ψ|)";
+    return;
+  }
+  $("legend-title").textContent = state.color === "class" ? "Classes" : state.color === "seba" ? `SEBA sets (r = ${state.kk}) · class composition` : `Nodal domains of ψ${state.kk} · class composition`;
+  const names = groups.names.slice(), keys = names.map((_, j) => j);
+  if (groups.unassigned) { names.push(state.color === "nodal" ? "ψ ≈ 0" : "unassigned"); keys.push(-1); }
+  keys.forEach((g, j) => {
+    const mem = []; for (let i = 0; i < N; i++) if (groups.ids[i] === g) mem.push(i);
+    const row = document.createElement("div"); row.className = "legend-item" + (state.focus === g ? " on" : "");
+    const col = g < 0 ? GREY : groups.cols[g % groups.cols.length];
+    const comp = document.createElement("div"); comp.className = "comp";
+    if (state.color !== "class") {
+      const cnt = new Array(10).fill(0); mem.forEach(i => cnt[labels[i]]++);
+      cnt.forEach((c, k) => { if (!c) return; const d = document.createElement("div"); d.style.width = (100 * c / mem.length) + "%"; d.style.background = CLS[k]; d.title = M.classes[k] + ": " + c; comp.appendChild(d); });
+    }
+    row.innerHTML = `<span class="sw" style="background:${col}"></span><span style="width:86px">${names[j]}</span><span class="mute small" style="width:34px">${mem.length}</span>`;
+    if (state.color !== "class") row.appendChild(comp);
+    row.onclick = () => { state.focus = state.focus === g ? null : g; drawLegend(); drawAll(); };
+    el.appendChild(row);
+  });
+  if (state.color !== "class") {
+    const n = document.createElement("div"); n.className = "small mute"; n.style.marginTop = "4px";
+    n.textContent = "Bars: class make-up of each set (class colours as in 'colour by class').";
+    el.appendChild(n);
+  }
+}
+function showHover() {
+  const i = state.hover, el = $("hover");
+  if (i < 0) return;
+  const cols = M.sprite_cols, cv = document.createElement("canvas"); cv.width = cv.height = 32;
+  cv.getContext("2d").drawImage(sprite, (i % cols) * 32, Math.floor(i / cols) * 32, 32, 32, 0, 0, 32, 32);
+  let extra = "";
+  if (cur && state.color !== "class") {
+    const p = pairIndex[state.la + "," + state.lb];
+    const vals = []; for (let k = 1; k < Math.min(K, 5); k++) vals.push("ψ" + k + " " + (cur.vecs[(p * K + k) * N + i] / 127).toFixed(2));
+    extra = "<div class='small mute'>" + vals.join(" · ") + "</div>";
+  }
+  el.innerHTML = `<h3>Point #${i} · ${M.classes[labels[i]]}</h3><img src="${cv.toDataURL()}">${extra}`;
+}
+function siteStats() {
+  const st = M.stats[state.src].sites;
+  let h = "<table><tr><th>site</th><th>eff. rank</th><th>kNN d</th><th>cos in/out</th><th>κ</th></tr>";
+  st.forEach((r, s) => {
+    h += `<tr><td>${r.site}</td><td>${r.participation_ratio.toFixed(1)}</td><td>${r.knn_median.toFixed(3)}</td><td>${r.cos_within.toFixed(2)}/${r.cos_between.toFixed(2)}</td><td>${M.kappa[state.mode][state.src][s].toFixed(1)}</td></tr>`;
+  });
+  $("sitestats").innerHTML = h + "</table><div class='mute'>eff. rank = participation ratio of the Gram spectrum; kNN d = median cosine distance to 15th neighbour; cos in/out = mean cosine within / between classes; κ under the selected rule.</div>";
+}
+$("method").innerHTML = `<b>Method.</b> Per site: centre activations over the probe set, normalise rows, C = cosine Gram. vMF kernel K = exp(κ(C − 1)); α = ${M.alpha} density normalisation; symmetric diffusion operator M = D^−½ K̃ D^−½. Block L′..L: average M over the sites, take the top ${K} eigenvectors ψ. Nodal domains = sign of ψ_k. SEBA (Froyland et al. 2019) rotates ψ0..ψ_{r−1} into r sparse sets; points in none are 'unassigned'. κ rules: ${M.rule}`;
+
+async function update() {
+  syncControls();
+  $("status").textContent = "loading…";
+  cur = await loadChunk(M.steps[state.src], state.mode);
+  $("status").textContent = "";
+  computeColors(); drawAll(); drawSpectrum(); drawLegend(); siteStats(); if (state.hover >= 0) showHover();
+}
+sprite.onload = () => update();
+</script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<p class="lede">I fed a small image classifier (a ResNet-20 trained on CIFAR-10) the same $N = 2{,}000$ test images at
+eight saved points during training and recorded its activations at twelve places, from the first convolution to
+the logits. The question: which groups of images does the network treat alike, at which layers, and since when?</p>
+
+<aside class="callout caveat">
+<p class="callout-title">Status</p>
+<p>An exploratory side study: one architecture, one training seed, 2,000 probe images. Nothing here is a validated
+result. Class labels are used only to draw a class-balanced probe (200 images per class); after that they never
+define a kernel or a basis, and only colour plots and serve as a check.</p>
+</aside>
+
+<h2 id="treated-alike">Things the network treats similarly</h2>
+
+<p>By a <em>coherent set</em> I mean a group of images that, in each of a chosen range of layers (or checkpoints),
+has activations similar to one another and different from the rest. "Similar" is judged in each layer's own
+geometry; nothing compares positions across layers. The coloured sets on this site are computed <em>candidates</em>
+for such groups. This is my small, unassuming step towards finding the network's ontology.</p>
+
+<p>A <em>cell</em> is one checkpoint at one site (stem, residual blocks b1 to b9, pool, logits). In each cell I
+centre the activations over the images, scale each image's vector to unit length, and let $\cos_{ij}$ be the dot
+product of images $i$ and $j$. A kernel turns cosines into weights, e.g. $K_{ij} = \exp\big(\kappa(\cos_{ij} -
+1)\big)$ for $i \ne j$, $K_{ii} = 0$, with an inverse temperature $\kappa$ (the "tempered" in the title); the default
+rule adapts to each image (<a href="#overview/kernel">below</a>). Rescaling rows and columns of $K$ until each sums
+to one (Sinkhorn scaling) gives a symmetric random walk $P$ between similar images. For a function on the images, a
+vector $f$ with entry $f_i$ for image $i$, it defines a penalty</p>
+
+<div class="eq" id="eq-penalty" data-num="1">$$ f^\top (I - P)\, f \;=\; \tfrac12 \sum_{i,j} P_{ij}\,(f_i - f_j)^2 , $$</div>
+
+<p>small when $f$ is nearly constant on images the cell considers similar. Among unit-length functions orthogonal to
+the constant $\psi_0$ and to each other, the smallest penalties belong to the leading eigenvectors $\psi_1, \psi_2,
+\dots$ of $P$: ordinary spectral clustering of one layer, whose splits I call <em>static</em>. The explorer uses the
+walk $M = \tfrac12(I + P)$ ($I$ the identity), which stays put half the time; it has the same eigenvectors, and each
+eigenvalue $\lambda$ of $P$ becomes $\tfrac12(1 + \lambda) \in [0, 1]$. A procedure called SEBA
+(<a href="#overview/reading">below</a>) turns the leading $r$ eigenvectors into $r$ candidate sets.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/pipeline.png" alt="Pipeline on real data: probe images, cosine Gram matrix, kernel and walk for one site; the walks of every site in a block, their average, its leading eigenvectors, the SEBA vectors, and the resulting sets painted on a UMAP cell.">
+  <figcaption><b>How to read.</b> The square panels are image-by-image matrices (2,000 by 2,000, shown as averages
+  over 8 by 8 tiles): cosines in red and blue, kernel and walk entries on a log blue scale. Images are ordered by the
+  set they end up in, which is chosen after computing the sets, so the diagonal blocks illustrate the result rather
+  than test it. The line panels show eigenvectors and SEBA vectors over the same ordering. <b>What it shows.</b>
+  Sites b7 to pool at the last checkpoint, default rule. The leading eigenvalues of $\bar M$ are 0.958, 0.927 and 0.916, and the four SEBA sets have 726, 396, 424 and 316 images (138 unassigned); by class make-up, a check only, they are mostly frog, cat and dog; automobile and truck; ship and airplane; horse and deer.</figcaption>
+</figure>
+
+<h2 id="blocks">From one layer to a block</h2>
+
+<p>What I care about is which splits <em>persist</em>. Take a block of cells, say sites b5 to pool at the last
+checkpoint, and average their walks: $\bar P = \frac{1}{|B|}\sum_{c \in B} P_c$ and $\bar M = \tfrac12(I + \bar P)$.
+The penalty is linear in the walk, so</p>
+
+<div class="eq" id="eq-block" data-num="2">$$ f^\top (I - \bar P)\, f \;=\; \frac{1}{|B|} \sum_{c \in B} f^\top (I - P_c)\, f , $$</div>
+
+<p>and the leading eigenvectors of $\bar M$ have the smallest <em>average</em> penalty over the block. No map between
+layers is needed, only each layer's own sense of which images are similar. The idea comes from fluid dynamics, where
+averaging over time (Froyland's dynamic Laplacian, Banisch and Koltai's space-time diffusion maps) finds coherent
+sets, blobs of fluid that move together; here time is depth.</p>
+
+<p>Call $\psi_k^\top M_c \psi_k$ the <em>retention</em> of the unit vector $\psi_k$ in cell $c$: between 0 and 1,
+closer to 1 the less $\psi_k$ varies between images that cell weights as similar. Each block eigenvalue is the
+average retention over the block, $\lambda_k = \frac{1}{|B|}\sum_{c \in B} \psi_k^\top M_c \psi_k$, and the explorer
+draws retention for every cell as a strip. Reading the two together:</p>
+
+<ul>
+<li>A split present in one layer only is demoted by the average. A static split of b5 missing from the block's
+leading directions may have been blurred by later layers or merely outranked; its retention there helps tell which.</li>
+<li>A leading eigenvalue well separated from the rest (within one kernel rule), with high, even retention across a
+wide block, is evidence of a distinction carried across those cells.</li>
+<li>It is an average, not a guarantee: a split expensive in one cell can still rank high. A dip in the strip marks
+that cell.</li>
+</ul>
+
+<figure class="fig wide">
+  <img src="assets/fig/static_dynamic.png" alt="A split computed from one layer alone and the leading split of a block containing that layer, both painted on the block's cells, with their retention strips.">
+  <figcaption><b>How to read.</b> Each small panel is a 2-d layout of the 2,000 images at one site (UMAP, see below);
+  each image is one dot in every panel, coloured by its value of the eigenvector (red positive, blue negative). Top
+  row: the leading eigenvector of one cell alone (static). Bottom row: the leading eigenvector of the whole block.
+  Right: each one's retention (0 to 1, higher is smoother) in every site of the checkpoint, block shaded. <b>What it
+  shows.</b> Block b1 to logits, last checkpoint. The static $\psi_1$ of b1 has retention 0.94 at b1 but about 0.71 by b9; its mean over the block (grey dashes) is 0.81. The block's $\psi_1$ has $\lambda_1 = 0.91$, with retention rising from 0.83 at b1 to 0.96 at pool. The two are related (correlation 0.70 in magnitude) but are not the same split: averaging over depth prefers a split the later layers keep.</figcaption>
+</figure>
+
+<h2 id="through-training">Through training</h2>
+
+<p>The same average works along the other axis: fix a site and average over checkpoints. The leading eigenvectors
+are the splits that layer draws, on average, across that stretch of training; high retention throughout is
+consistent with a distinction kept at those checkpoints, though eight snapshots cannot date its onset. Checkpoints
+count equally and are roughly geometric in steps (0, 64, 256, ..., 64,000), so early training weighs heavily.</p>
+
+<figure class="fig wide">
+  <img class="gif" src="assets/fig/timeblock.gif" data-still="assets/fig/timeblock_strip.png" alt="The UMAP layout of one site across the eight checkpoints, coloured by the SEBA sets of a through-training block.">
+  <figcaption><b>How to read.</b> One site at eight checkpoints; each image is one dot throughout, coloured by the
+  SEBA set it belongs to in the time block b9, steps 2,560 to 64,000. Positions are a 2-d display, not the
+  coordinates used to compute the sets, and the motion between checkpoints is interpolated for display only.
+  <b>What it shows.</b> The four sets (760, 380, 392 and 318 images, 150 unassigned) are, by class make-up, mostly frog, cat and bird; automobile and truck; ship and airplane; horse and deer. Each keeps retention of at least 0.92 at every checkpoint in the block, against 0.62 to 0.66 at step 0, where the colours are still mixed; they separate visibly by step 1,024.</figcaption>
+</figure>
+
+<h2 id="hankel">Spectral clustering, Hankel, and the title</h2>
+
+<p>One cell is spectral clustering; a block is spectral clustering of several layers' walks at once. The
+cross-Hankel in the title is an analogy: a Hankel matrix links a time series' past to its future, and the nearest
+cross-layer object is the product $Q = M_b \cdots M_a$ ("diffuse at layer $a$, then the next, ..."), which the
+project's theory builds on. The explorer uses the average instead; their leading spans agree closely here, a median mean $\cos^2$ of 0.99 over layer pairs at the last checkpoint (lowest 0.84; default rule, $r = 3$) (<a href="#method/avgprod">details</a>). Hence "Not-Quite".</p>
+
+<h2 id="kernel">Choosing the kernel, and a finding about it</h2>
+
+<p>Nothing in the network fixes the kernel, and here it mattered more than anything else. In the trained middle
+layers (b1 to b8, last checkpoint) the median cosine distance from an image to its 15th nearest neighbour, $d_{15}$,
+is 0.81 to 0.86, against 1.00 between random images: even near neighbours are not near. I compared 19 kernel rules
+on 15 real cells with label-free diagnostics: $1 - \lambda_1$ for $M$ (lower means a slower leading mode), the smallest SEBA set, and the participation number
+$1/\sum_i \psi(i)^4$ of a unit eigenvector ($N$ when all entries are equal in size, 2 when two carry everything).</p>
+
+<ul>
+<li><b>One $\kappa$ per cell fails in the middle layers, in two ways.</b> <em>kNN scale</em>, $\kappa = 1/d_{15}$
+(kernel $e^{-1}$ at the median 15th-neighbour distance), gives $\kappa \approx 1.2$: a nearly flat kernel with spread
+but weak modes (for $\kappa$ from 2 to 5, $1 - \lambda_1$ = 0.39 to 0.47 in b2, b5, b8), to first order the principal
+components. <em>Half-mass</em> picks $\kappa$ (26 to 43 there) so the 15 nearest neighbours carry half of the median
+image's kernel weight; then a few unusually close pairs outweigh everything, after Sinkhorn each such image sends
+nearly all its probability to its partner, and $\psi_1$ sits on one pair (participation 2 from $\kappa \approx 12$
+up in b5 and b8). No single $\kappa$ in between is both spread and slow.</li>
+<li><b>Rules that adapt to each image worked here.</b> A 15-nearest-neighbour graph (weight 1 if either image is among
+the other's 15 nearest, else almost 0) and t-SNE-style affinities with a per-image $\kappa_i$ giving each image an
+effective 100 or 300 neighbours ("perplexity") give every image a comparable neighbourhood, so a single pair is much less likely
+to take over. In every final cell tested $\psi_1$ is spread (participation 890 to 1,450) and no SEBA set has fewer than 86 images;
+in the middle layers $1 - \lambda_1$ is 0.05 to 0.17.</li>
+</ul>
+
+<p>So the default is the kNN graph; perplexity 100 and 300 are offered too, and kNN scale and half-mass stay
+selectable so you can watch them fail. (Per-image rules are not immune: perplexity 15 and 30 still produced
+2-image sets in some tested cells.) At pool and logits, where images are far more clustered, every rule gives
+spread modes. Labels played no part in the choice; checked afterwards, the per-image rules' sets also agree best with
+the classes in the middle layers (<a href="#method/sweep">Method</a>). This is a finding about this construction on
+this network, not a general law.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/rules.png" alt="Participation number of the leading eigenvector, one minus its eigenvalue, and the smallest SEBA set, against a single global kappa for five sites, with the per-image rules shown at the right of each panel.">
+  <figcaption><b>How to read.</b> One line per site, last checkpoint. In each panel the wide part varies a single
+  $\kappa$ for the whole cell (red crosses: the half-mass rule's $\kappa$); the narrow grey part shows the three
+  per-image rules. Left: participation number of $\psi_1$ (log; 2 means a single pair). Middle: $1 - \lambda_1$
+  (lower is slower). Right: smallest of 8 SEBA sets (log). <b>What it shows.</b> In b2, b5 and b8 (lighter lines),
+  raising one $\kappa$ trades weak, spread modes for pair-sized ones, with no good setting in between; the per-image
+  rules are both spread and slow, with no tiny sets. Pool and logits (darker lines) are fine everywhere. Data:
+  <code>data/r20s0b/sweep.json</code>.</figcaption>
+</figure>
+
+<figure class="fig live" data-live="kernel" data-t="7" data-s="5" data-m="3">
+  <figcaption>Drag $\kappa$: larger values make the weight $\exp(-\kappa d)$ fall faster with cosine distance $d$.
+  Marked: the median 15th-neighbour distance $d_{15}$ at b5, last checkpoint (implied by the kNN-scale rule, $\kappa = 1/d_{15}$), and $d = 1$, the distance between orthogonal activations.</figcaption>
+</figure>
+
+<h2 id="reading">Reading the plots</h2>
+
+<p><b>The 2-d pictures are UMAP</b> layouts of each cell's activations. Within a checkpoint the twelve sites are
+embedded jointly (AlignedUMAP, which shapes the layouts); across checkpoints they are only centred, scaled, rotated
+or reflected and rescaled. Nothing is computed from them; a set that looks scattered can be compact in the
+operator, or the reverse.</p>
+
+<p>Colours are computed from the <em>selected block only</em> and painted on every cell, so you can see where that
+block's groups sit in other layers and at other times.</p>
+
+<ul>
+<li><b>Eigenfunction</b> $\psi_k$: blue negative, grey near zero, red positive, scaled by $\max_i |\psi_k(i)|$. The
+sign is a convention (largest-magnitude entry positive). <b>Nodal domains</b>: the sign of $\psi_k$ alone.</li>
+<li><b>SEBA sets</b> (Froyland, Rock and Sakellariou 2019). SEBA seeks $r$ sparse vectors that approximate the span
+of $\psi_0, \dots, \psi_{r-1}$, each concentrated on a group: it rotates the span and soft-thresholds the rotated
+vectors at $0.99/\sqrt{N}$, the size of an evenly spread unit vector, and repeats (the thresholded vectors are close
+to, but generally not in, the span) (<a href="#method/seba">details</a>). The vectors are scaled
+to a maximum of 1 and numbered by reliability; each image takes the colour of the vector that is largest there, set
+$j$ the $j$-th set colour (<span class="swatch" style="--sw: var(--c-set-0)"></span> set 1,
+<span class="swatch" style="--sw: var(--c-set-1)"></span> set 2, ...), and images where all $r$ are zero are grey,
+"unassigned". The sets depend on $r$; within a group of nearly equal eigenvalues only the span, which SEBA uses, is
+robust.</li>
+</ul>
+
+<figure class="fig wide">
+  <img src="assets/fig/seba.png" alt="How SEBA turns eigenvectors into coloured sets: images at their eigenvector coordinates with threshold lines, the sparse vectors, and the resulting colours on a UMAP cell.">
+  <figcaption><b>How to read.</b> Left: each image at its $(\psi_1, \psi_2)$ for one block, $r = 3$. Before
+  thresholding, each rotated SEBA coordinate is a fixed combination of $\psi_0$ (a constant), $\psi_1$ and $\psi_2$,
+  so the place where it reaches the threshold is a straight line here; beyond the dashed line of a set's colour,
+  that set's thresholded vector is non-zero. Middle: the three SEBA vectors, images sorted by set. Right: the
+  resulting colours. <b>What it shows.</b> Block b7 to pool, last checkpoint, default rule. The images form a triangle with a set near each corner: 1,105 images (mostly animals), 398 (automobile and truck) and 424 (ship and airplane), by class make-up as a check; the 73 between the thresholds are unassigned.</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img class="gif" src="assets/fig/howto.gif" data-still="assets/fig/howto_still.png" alt="A slow, annotated walk through the explorer: the grid, a block, its eigenfunction and SEBA colourings, the spectrum and retention strip, and a time block.">
+  <figcaption><b>How to read the explorer</b>, slowly, in ten steps of five to eight seconds each. Rows are
+  checkpoints, columns are sites, every cell holds the same 2,000 images.</figcaption>
+</figure>
+
+<p><b>Extras.</b> "Layout from" can place the points by a second ResNet-20 (same recipe, another seed; only its
+UMAP layouts exist) while colours still come from the first: a set that stays in one piece there hints, without
+showing, that the grouping is not seed-specific. Two more colourings, for curiosity: each image's input-Jacobian norm
+and the cosine between its loss gradient and the average gradient. None of these enters the kernel or the sets.</p>
+
+<h2 id="panels">Loadings and questions</h2>
+
+<p><b>Channel loadings</b> tie a selected function back to the network's channels and class logits
+(<a href="#method/loadings">details</a>). The <a href="#questions">Questions</a> tab groups the other plots by
+question: when sets settle, whether they carry over between layers, how they relate to per-image gradients, and where
+class is linearly decodable, the supervised yardstick.</p>
+
+<h2 id="limits">What this does not show</h2>
+
+<ul>
+<li>One model, one seed, one probe sample; no resampling check of the sets.</li>
+<li>Cosine on centred activations discards activation norms, and the kernel rule, chosen on this network, changes
+the answer.</li>
+<li>The block operator is an average, not the theory's product; high rank does not mean "present in every layer".
+Sets that match classes are an observation, not something the method was told.</li>
+</ul>

@@ -1,0 +1,340 @@
+<p class="lede">Exact definitions and settings for everything on this site. Exploratory side study: one model, one seed,
+not a stage of the project's experiment plan.</p>
+
+<h2 id="data">Model, probe, sites</h2>
+
+<ul>
+<li><b>Model.</b> ResNet-20 (ReLU), the ModelZoo <code>resnet20/relu-seed0</code> recipe retrained on Modal; 64,000
+steps, validation accuracy 0.9156 at the last step. 73 checkpoints saved; the explorer uses eight: steps 0, 64, 256,
+1,024, 2,560, 6,400, 25,600, 64,000. Eval mode (BatchNorm running statistics), no augmentation.</li>
+<li><b>Probe.</b> $N = 2{,}000$ CIFAR-10 test images, 200 per class, drawn with <code>numpy.RandomState(0)</code>.
+The same images at every checkpoint and site.</li>
+<li><b>Sites</b> ($S = 12$): stem $=\mathrm{ReLU}(\mathrm{BN}(\mathrm{conv}_1(x)))$; b1 to b9, the post-ReLU outputs of
+the nine residual blocks; pool, the global average of b9 over space (64 dims); logits (10). Convolutional sites are
+flattened ($C \times H \times W$: 16,384 dims for stem to b3, 8,192 for b4 to b6, 4,096 for b7 to b9).</li>
+<li>A <b>cell</b> is a (checkpoint, site) pair.</li>
+</ul>
+
+<h2 id="operator">Per-cell operator</h2>
+
+<p>For cell $c$ with activations $h_i \in \mathbb{R}^D$:</p>
+
+$$ \hat h_i = \frac{h_i - \bar h}{\lVert h_i - \bar h\rVert}, \quad \bar h = \tfrac1N \textstyle\sum_i h_i, \qquad
+C_{ij} = \langle \hat h_i, \hat h_j \rangle, \qquad d_{ij} = 1 - C_{ij}. $$
+
+<p>(A zero centred vector would stay zero, giving that image cosine 0 with every other; it does not occur here.)</p>
+
+<p>$K$ is a symmetric non-negative kernel with $K_{ii} = 0$, given by one of five <a href="#method/kappa">kernel
+rules</a>, e.g. $K_{ij} = \exp(-\kappa\, d_{ij})$ for the single-temperature rules.</p>
+
+<p><b>Sinkhorn.</b> Find $u$ with $\sum_j \exp(\log K_{ij} + u_i + u_j) = 1$ for all $i$ (symmetric scaling,
+$v = e^u$), in the log domain in float64: ten fixed-point steps $u \leftarrow u - \tfrac12 \log(\text{row sums})$,
+then line-searched Newton steps on the convex objective $\tfrac12\sum_{ij} e^{\log K_{ij} + u_i + u_j} - \sum_i
+u_i$. A cell counts only if $\max_i |\text{row sum}_i - 1| < 2 \times 10^{-12}$; otherwise the measurement fails.
+(<code>coherent.symmetric_balance</code>; up to ten fixed-point warm-ups, Newton only if needed.) Then set</p>
+
+$$ P = \mathrm{diag}(v)\, K\, \mathrm{diag}(v), \qquad M = \tfrac12 (I + P). $$
+
+<p>$P$ is symmetric, non-negative, zero on the diagonal, with unit row and column sums. For any $f$,
+$f^\top (I - P) f = \tfrac12 \sum_{ij} P_{ij} (f_i - f_j)^2$, and $M$ has eigenvalues $\tfrac12(1 + \lambda_P) \in
+[0, 1]$ with the eigenvectors of $P$.</p>
+
+<details class="more"><summary>Why Sinkhorn, why a zero diagonal, why $(I + P)/2$</summary>
+<ul>
+<li><b>Sinkhorn instead of degree normalisation.</b> With per-cell degree normalisation
+($D^{-1/2} K D^{-1/2}$, with or without Coifman-Lafon $\alpha = 1$), each cell has its own stationary vector
+$\propto \sqrt{\text{degree}}$, so an average over cells has no exact trivial mode and differences in density leak
+into the spectrum. A doubly stochastic $P$ has the uniform measure in every cell: $\psi_0 = \mathbf 1/\sqrt N$ with
+eigenvalue exactly 1 for every block. (Doubly stochastic normalisation for spectral clustering: Zass and Shashua
+2006; robustness to heteroskedastic noise: Landa, Coifman and Kluger 2021.)</li>
+<li><b>Zero diagonal.</b> This is a stated variant of the project's theory (THEORY.md, Section 3.1, keeps
+$K_{ii} = 1$). With the diagonal kept, the median self-weight $M_{ii}$ of the Sinkhorn operator is
+1.0000 to four decimals in b1 to b8 at step 64,000 under the calibrated half-mass rule (0.0016 to 0.0017 under kNN scale; <code>meta.json</code> <code>self_weight</code>) in the trained
+middle layers under the half-mass rules: those operators are within about $10^{-8}$ of the identity, and a block
+average is dominated by its least lazy cells.</li>
+<li><b>$(I + P)/2$.</b> Fixes every cell's self-mass at exactly one half, and shifts the spectrum into $[0, 1]$ so that
+an eigenvalue of $P$ near $-1$ (alternation across a nearly bipartite graph) is not read as a slow mode. It
+equalises laziness only; gaps and mixing rates still differ between cells and are part of what is measured.</li>
+<li><b>How much the change mattered</b> (<code>normalisation_compare.json</code>, step 64,000, all 78 layer blocks,
+mean $\cos^2$ of principal angles between leading spans with the constant projected out; computed for the two
+single-temperature rules only). Under kNN scale the normalisation barely matters: median 1.000 against both the old
+$\alpha = 1$ operator and diagonal-retained Sinkhorn (lowest 0.43 and 0.997 for $r = 3$). Under calibrated half-mass the
+versions share almost nothing: median 0.001 ($r = 3$) and 0.007 ($r = 6$) against $\alpha = 1$, and 0.001 and 0.008
+against diagonal-retained Sinkhorn, as expected when every version's leading vectors sit on (different) close
+pairs.</li>
+</ul>
+</details>
+
+<h2 id="kappa">Kernel rules</h2>
+
+<p>$d_{ij} = 1 - C_{ij}$, $k = 15$, all kernels with $K_{ii} = 0$. $d_k$ = median over images of the distance to the
+$k$-th nearest other image. Five rules, chosen on 2026-11-12 from the sweep below using label-free diagnostics only
+(participation number of $\psi_1$, $1 - \lambda_1$, smallest SEBA set, Sinkhorn stability):</p>
+
+<table class="data">
+<tr><th>#</th><th>rule</th><th>kernel ($i \ne j$)</th></tr>
+<tr><td>0</td><td><b>kNN graph, $k = 15$</b> (default)</td><td>$K_{ij} = 1$ if $j \in \mathrm{NN}_{15}(i)$ or
+$i \in \mathrm{NN}_{15}(j)$, else $10^{-6}$ (a floor so the scaling exists). Rank-based; the same neighbourhood size
+as the UMAP layouts.</td></tr>
+<tr><td>1, 2</td><td><b>per-image perplexity 100, 300</b></td><td>For each $i$, $\kappa_i$ by bisection so that
+$p(j \mid i) \propto \exp(-\kappa_i d_{ij})$, $j \ne i$, has perplexity $\exp(H_i)$ = 100 (or 300);
+$K_{ij} = \tfrac12\big(p(j \mid i) + p(i \mid j)\big)$, the t-SNE affinity.</td></tr>
+<tr><td>3</td><td><b>kNN scale</b> (flat reference)</td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa = 1/d_k$ per
+cell (kernel $e^{-1}$ at $d_k$).</td></tr>
+<tr><td>4</td><td><b>half-mass, calibrated</b> (cautionary)</td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa$ per cell
+by bisection so that $\mathrm{median}_i \sum_{j \in \mathrm{NN}_k(i)} K_{ij} \big/ \sum_{j \ne i} K_{ij} =
+\tfrac12$.</td></tr>
+</table>
+
+<p><code>meta.json</code> stores per cell: $\kappa$ for rules 3 and 4; the median $\kappa_i$ (with 10th and 90th
+percentiles) for rules 1 and 2; nothing for rule 0; and the achieved median 15-NN share of kernel mass for every rule.
+</p>
+
+<table class="data">
+<tr><th>site</th><th class="num">kNN graph, k = 15</th><th class="num">per-point perplexity 100</th><th class="num">per-point perplexity 300</th><th class="num">kNN scale</th><th class="num">half-mass, calibrated</th></tr>
+<tr><td>stem</td><td class="num">– / 0.79</td><td class="num">22.4 / 0.38</td><td class="num">15.5 / 0.20</td><td class="num">1.5 / 0.01</td><td class="num">22.7 / 0.50</td></tr>
+<tr><td>b1</td><td class="num">– / 0.79</td><td class="num">40.8 / 0.41</td><td class="num">31.1 / 0.23</td><td class="num">1.2 / 0.01</td><td class="num">39.6 / 0.50</td></tr>
+<tr><td>b2</td><td class="num">– / 0.75</td><td class="num">44.0 / 0.41</td><td class="num">33.8 / 0.24</td><td class="num">1.2 / 0.01</td><td class="num">43.2 / 0.50</td></tr>
+<tr><td>b3</td><td class="num">– / 0.75</td><td class="num">35.8 / 0.43</td><td class="num">27.4 / 0.25</td><td class="num">1.2 / 0.01</td><td class="num">34.8 / 0.50</td></tr>
+<tr><td>b4</td><td class="num">– / 0.75</td><td class="num">33.6 / 0.45</td><td class="num">25.8 / 0.26</td><td class="num">1.2 / 0.01</td><td class="num">32.5 / 0.50</td></tr>
+<tr><td>b5</td><td class="num">– / 0.75</td><td class="num">33.9 / 0.46</td><td class="num">26.4 / 0.27</td><td class="num">1.2 / 0.01</td><td class="num">32.6 / 0.50</td></tr>
+<tr><td>b6</td><td class="num">– / 0.75</td><td class="num">33.0 / 0.46</td><td class="num">25.9 / 0.28</td><td class="num">1.2 / 0.01</td><td class="num">31.6 / 0.50</td></tr>
+<tr><td>b7</td><td class="num">– / 0.79</td><td class="num">28.7 / 0.48</td><td class="num">22.8 / 0.30</td><td class="num">1.2 / 0.01</td><td class="num">27.4 / 0.50</td></tr>
+<tr><td>b8</td><td class="num">– / 0.75</td><td class="num">27.4 / 0.48</td><td class="num">22.2 / 0.31</td><td class="num">1.2 / 0.01</td><td class="num">25.9 / 0.50</td></tr>
+<tr><td>b9</td><td class="num">– / 0.75</td><td class="num">15.1 / 0.38</td><td class="num">10.0 / 0.21</td><td class="num">1.9 / 0.02</td><td class="num">16.7 / 0.50</td></tr>
+<tr><td>pool</td><td class="num">– / 0.71</td><td class="num">15.8 / 0.33</td><td class="num">6.5 / 0.15</td><td class="num">6.2 / 0.14</td><td class="num">20.5 / 0.50</td></tr>
+<tr><td>logits</td><td class="num">– / 0.75</td><td class="num">20.7 / 0.33</td><td class="num">6.9 / 0.12</td><td class="num">13.4 / 0.24</td><td class="num">29.2 / 0.50</td></tr>
+</table>
+<p class="byline">κ (median κ<sub>i</sub> for the perplexity rules; none for the kNN graph) / median 15-NN share of kernel mass, step 64,000; source data/r20s0b/meta.json.</p>
+
+<p>The first version of this explorer used, as its default, a two-distance heuristic $\kappa = \log(N/k)/(d_\text{pair}
+- d_k)$ (aiming at half the mass on the $k$ nearest from two median distances) with the diagonal kept; rule 4 is its
+cleaned-up form.</p>
+
+<h3 id="sweep">The sweep: why one temperature fails in the middle layers</h3>
+
+<p>Candidates (<code>data/r20s0b/sweep.json</code>, produced by <code>sweep_math.py</code>): one global $\kappa \in
+\{2, 3, 5, 8, 12, 16, 20, 25, 30\}$; $\kappa$ calibrated to a median 15-NN mass share of 0.05, 0.1, 0.2, 0.5;
+per-image perplexity 15, 30, 100, 300; kNN graphs with $k$ = 15, 50. Cells: b2, b5, b8, pool, logits at steps 256,
+6,400, 64,000. Each cell's operator is computed alone ($M = \tfrac12(I + P)$, Sinkhorn with Newton refinement to row
+residual $< 2 \times 10^{-12}$), with the participation number $\mathrm{PN}(\psi) = 1/\sum_i \psi_i^4$ of
+$\psi_1..\psi_8$, $1 - \lambda_1..\lambda_8$, and SEBA sets for $r = 4, 8$ (sizes, and Hungarian-matched Jaccard
+with the classes, computed after the fact as validation).</p>
+
+<p>In the trained middle layers the images are nearly equidistant (b1 to b8 at step 64,000: median 15-NN distance
+0.81 to 0.86, median pairwise distance 1.00; <code>data/r20s0/stats_64000.json</code>). A kernel flat enough to
+connect images broadly is nearly linear in $C$, and to first order in $\kappa$ its modes are principal components of
+$\hat h$. A kernel sharp enough to put half the mass on 15 neighbours lets a few close pairs take most of their rows
+after Sinkhorn scaling, and the leading eigenvectors localise on those pairs. At step 64,000, in b2, b5 and b8:
+global $\kappa \in \{2, 3, 5\}$ gives $1 - \lambda_1$ = 0.39 to 0.47; from $\kappa = 12$ upward, $\mathrm{PN}(\psi_1)$ is 2.0 to
+2.1 in b5 and b8; half-mass calibrated has $\kappa$ = 26 to 43, median PN 2.0 to 2.1, and SEBA-8 sets of 1 or 2
+images. At the tested cells and settings the per-image rules give $\mathrm{PN}(\psi_1)$ = 890 to 1,450 in all five
+final cells, smallest SEBA-8 set
+$\ge 86$, and $1 - \lambda_1$ = 0.05 to 0.07 (kNN graph), 0.10 to 0.12 (perplexity 100), 0.13 to 0.17 (perplexity
+300) in the middle layers; perplexity 15 and 30 still give a 2-image SEBA set in some cell. Pool and logits give
+spread modes under every rule.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/sweep.png" alt="Participation number, one minus the leading eigenvalue, and class agreement of SEBA sets for every candidate kernel rule and five sites at the final checkpoint.">
+  <figcaption><b>How to read.</b> x: candidate rules grouped by family. Top: median participation number of
+  $\psi_1..\psi_8$ (dotted: minimum), log scale; 2 = a pair. Middle: $1 - \lambda_1$. Bottom: matched Jaccard of 8 SEBA
+  sets with the classes, a validation computed after the choice. <b>What it shows.</b> The single-$\kappa$ and
+  mass-target families collapse to pairs in b2 to b8 as they sharpen, while the per-image families stay spread and
+  slow; they also agree best with the classes in the middle layers (b8: 0.43 to 0.44 against 0.34 to 0.35 for global
+  $\kappa$ = 2 to 5).</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img src="assets/fig/kappa.png" alt="Kernel weight against neighbour rank, cumulative kernel mass against rank, and achieved 15-neighbour mass by site, for five single-kappa rules.">
+  <figcaption><b>How to read.</b> For single-$\kappa$ kernels at step 64,000. Left: weight of the $m$-th nearest
+  neighbour relative to the nearest, using the median distance at each rank (b5). Middle: share of an image's kernel
+  weight (self excluded) in its $m$ nearest neighbours, median over images; dotted lines at $m = 15$ and one half.
+  Right: that share at $m = 15$ per site. <b>What it shows.</b> Under kNN scale the 1,000th neighbour at b5 still gets
+  about three quarters of the nearest one's weight; the two-distance heuristic misses one half; calibration meets it
+  by construction. Recomputed locally (<code>site/figdata.py</code>) from the same checkpoint and probe.</figcaption>
+</figure>
+
+<h2 id="blocks">Blocks</h2>
+
+<ul>
+<li><b>Layer blocks</b>: sites $a..b$ at one checkpoint, all $0 \le a \le b < 12$ (78 per checkpoint).
+<b>Time blocks</b>: checkpoints $c..d$ of the eight at one site (36 per site), equal weight per listed checkpoint
+(the checkpoints are roughly geometrically spaced in steps, so early training is weighted heavily per step).</li>
+<li>Block operator $\bar M = \frac{1}{|B|} \sum_{c \in B} M_c$. Eigenpairs by a dense float64 symmetric
+eigensolver, descending; $\lambda_0 = 1$, $\psi_0 = \mathbf 1/\sqrt N$ (not stored); $\psi_1..\psi_8$ stored with
+unit norm, sign fixed so the largest-magnitude entry is positive, quantised to int16 relative to $\max_i |\psi_k(i)|$.</li>
+<li><b>Retention</b> of a function $f$ in cell $c'$: $\rho_{c'}(f) = f^\top M_{c'} f / f^\top f$, stored for
+$\psi_1..\psi_8$ and every SEBA vector, for every cell of the checkpoint (layer blocks) or every checkpoint of the
+site (time blocks), inside and outside the block. Identity: $\lambda_k = \frac{1}{|B|}\sum_{c \in B}
+\rho_c(\psi_k)$.</li>
+<li>Single-cell blocks ($a = b$ or $c = d$) are ordinary spectral clustering / diffusion maps of that cell
+("static"). The averaging follows Froyland's dynamic Laplacian (Froyland 2015; Froyland and Junge 2018) and
+Banisch and Koltai's space-time diffusion maps (2017), here with Sinkhorn-normalised kernels and uniform weight on
+each image's trajectory.</li>
+</ul>
+
+<h2 id="seba">SEBA sets</h2>
+
+<p>Sparse Eigenbasis Approximation (Froyland, Rock and Sakellariou 2019, Algorithm 3.1), ported from the authors'
+reference code (<a href="https://github.com/gfroyland/SEBA">github.com/gfroyland/SEBA</a>) and cross-checked against
+it in the tests. Input $V = [\psi_0, \psi_1, \dots, \psi_{r-1}]$ (constant included), $r \in \{2, 3, 4, 6, 8\}$,
+$\mu = 0.99/\sqrt N$. Orthonormalise $V$ (QR); starting from $R = I$, repeat until $\lVert R_\text{new} - R \rVert \le
+10^{-14}$ (at most 5,000 iterations):</p>
+
+$$ Z = VR, \quad S_{:j} = \frac{\operatorname{sign}(Z_{:j}) \odot (|Z_{:j}| - \mu)_+}{\lVert \operatorname{sign}(Z_{:j}) \odot (|Z_{:j}| - \mu)_+ \rVert}, \quad R_\text{new} = \operatorname{polar}(V^\top S) = U W^\top \ \text{where}\ V^\top S = U \Sigma W^\top . $$
+
+<p>The rotated vectors $VR$ lie in the span; the returned thresholded vectors $S$ generally do not, and are sparse
+approximations to it. Then flip each column of $S$ so its sum is positive, divide by its maximum, order columns by decreasing minimum
+entry ("reliability"), and clip negative entries to 0. Hard label of image $i$: $\arg\max_j S_{ij}$ if
+$\max_j S_{ij} > 0$, else unassigned. Colour: set $j$ (1-based, reliability order) takes the $j$-th set colour;
+unassigned is grey. The rotation and permutation are stored, so the full vectors (not just the labels) are
+reconstructed in the browser for loadings and retention.</p>
+
+<h2 id="canonical">What is and is not canonical</h2>
+
+<ul>
+<li>Given the cell choices, $\kappa$ and the normalisation, $\bar M$ and its spectrum are well defined.</li>
+<li>An individual $\psi_k$ is defined only up to sign, and only when $\lambda_k$ is separated from its neighbours;
+inside a group of close eigenvalues only the span is meaningful. SEBA uses the span of the leading $r$, so it
+depends on where $r$ cuts the spectrum.</li>
+<li>Sign convention, set numbering (reliability order) and colours are conventions.</li>
+<li>Not canonical: the choice of sites, centring over this probe set, cosine (drops the norm), the kernel rule, and
+the equal weights within a block.</li>
+</ul>
+
+<h2 id="avgprod">Average versus product</h2>
+
+<p id="hankel-detail">The title's "cross-Hankel" is an analogy. For a time series $y$, a Hankel matrix has entries $H_{ij} = y_{i+j}$:
+rows are windows of the past, columns windows of the future; for linear systems its leading singular vectors give a
+small state through which the past influences the future. For a layer block $a < b$, the chronological product
+$Q = M_b \cdots M_a$ (functions are column vectors; layer $a$ applied first) is the nearest cross-layer object and the
+one the project's theory builds on: its right singular vectors are functions at layer $a$, its left singular vectors
+their normalised images at layer $b$ (Froyland's coherent pairs). The
+explorer uses $\bar M$. To first order in the step size the two agree: if $M_c = I - \varepsilon L_c$, then
+$Q^\top Q = I - 2\varepsilon \sum_c L_c + O(\varepsilon^2)$ and $\bar M = I - \tfrac{\varepsilon}{|B|}\sum_c L_c$,
+so they share leading vectors up to $O(\varepsilon)$ when the relevant eigenvalues of $\sum_c L_c$ are simple.
+Beyond first order they differ ($(\tfrac12(M_a + M_b))^2$ contains $\tfrac14(M_aM_b + M_bM_a)$, while $Q^\top Q$
+does not average). <code>avgprod.json</code> reports, separately for the kNN-graph and perplexity-100 rules, with the constant
+projected out of both sides, the mean $\cos^2$ of principal angles between $\mathrm{span}(\psi_1..\psi_r)$ of $\bar M$ and the top-$r$ non-trivial right and left
+singular vectors of $Q$ and of the two-end product $M_b M_a$, $r \in \{3, 6\}$.
+At step 64,000, $r = 3$, over the 66 layer pairs: kNN graph, median 0.989 (lowest 0.836) for the right and 0.991 (0.881) for the left singular vectors of $Q$, and 0.973 (0.632) and 0.975 (0.641) for the two-end product; perplexity 100, 0.993 (0.645) and 0.995 (0.649), and 0.979 (0.664) and 0.981 (0.661). With $r = 6$ the medians are 0.96 to 0.99.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/avgprod.png" alt="Heatmaps of agreement between the averaged operator's leading span and the product operator's singular vectors, for every pair of first and last site.">
+  <figcaption><b>How to read.</b> Row: first site $a$; column: last site $b$; colour: mean $\cos^2$ of principal
+  angles (1 = same span). <b>What it shows.</b> Agreement is close to 1 for most pairs. It is lowest for blocks that start early and end at b9, pool or logits, especially for the two-end product $M_b M_a$, which skips the layers in between.</figcaption>
+</figure>
+
+<h2 id="umap">Layouts (display only)</h2>
+
+<ul>
+<li>Per checkpoint: <code>umap.AlignedUMAP</code> across the 12 sites (identity relations between consecutive
+sites), <code>n_neighbors=15</code>, <code>min_dist=0.1</code>, <code>alignment_regularisation=0.02</code>,
+<code>random_state=0</code>, on the top 50 principal components ($u_k\sqrt{\lambda_k}$ from the eigendecomposition of
+$C$) of each cell.</li>
+<li>Across checkpoints, per site: centre, scale to unit RMS, orthogonal Procrustes (reflections allowed) onto the
+previous checkpoint, then rescaled to the 0.5 and 99.5 percentiles for drawing. The within-checkpoint alignment is
+part of the UMAP objective and shapes the layouts; across checkpoints, Procrustes removes rotation and reflection
+after centring and unit-RMS scaling, and percentile rescaling then sets the display coordinates.</li>
+<li>No quantity is computed from the 2-d coordinates. Distances in a layout are not distances in the operator.</li>
+<li><b>Seed 1.</b> A second ResNet-20, identical recipe, training seed 1; only its activations' top-50 PCs and its
+own AlignedUMAP and Procrustes layouts are computed, for the same probe images and steps. Colours always come from
+seed 0's blocks. Seed 1's layouts are aligned along its own checkpoints, not onto seed 0's.</li>
+</ul>
+
+<h2 id="perimage">Per-image diagnostics</h2>
+
+<p>At each checkpoint, eval mode: cross-entropy loss, prediction, correctness; $\lVert \partial z / \partial x
+\rVert_F$, the Frobenius norm of the $10 \times 3072$ Jacobian of the logits $z$ with respect to the normalised input
+pixels; per-sample loss gradients $g_i$ with respect to all trainable parameters, $\bar g = \frac1N \sum_i g_i$ over
+the probe, and $g_i \cdot \bar g$, $\cos(g_i, \bar g)$, $\lVert g_i \rVert$. These use labels through the loss and
+never enter an operator.</p>
+
+<h2 id="loadings">Channel loadings</h2>
+
+<p>Target $f$: the selected $\psi_k$, or a full SEBA vector (not winner-masked). For a cell with channel matrix
+$X \in \mathbb R^{N \times C}$ (spatial mean of each channel, columns centred; pool = b9's channel means; logits = the
+10 logits): Pearson $\mathrm{corr}(f, X_{:c})$ per channel; $R^2$ of in-sample ordinary least squares of centred $f$
+on $X$ (descriptive, not held out; chance about $C/N$, at most $64/2000 = 3.2\%$). Alignment with the classifier:
+$\mathrm{corr}(f,\ z_c - \tfrac1{10}\sum_{c'} z_{c'})$ for each class $c$. Spatial means discard where a channel
+fired; the operators use the full maps.</p>
+
+<h2 id="questions">Questions-tab statistics</h2>
+
+<ul>
+<li><b>Set overlap.</b> Hard SEBA sets $\{A_i\}$, $\{B_j\}$ (unassigned in no set); $J_{ij} = |A_i \cap B_j| / |A_i
+\cup B_j|$; Hungarian matching maximising total $J$; score = mean matched $J$ over $\min(r_A, r_B)$ pairs. Null:
+permute the labels of $A$ (keeps set sizes and the unassigned count), 200 permutations, mean and 2.5/97.5
+percentiles.</li>
+<li><b>Gradient coherence.</b> From the cosine Gram of per-sample gradients: mean cosine over pairs in the same set
+minus mean over pairs in different sets (assigned images only), for a block's sets, for the classes, and for
+size-matched random sets (100 permutations; pairs sharing an image are not independent, so the band is the
+measured spread of this null, not a standard error).</li>
+<li><b>Decodability</b> (validation fit, not part of the construction): 10,000 CIFAR training images (1,000 per class)
+fit, all 10,000 test images evaluated (they include the 2,000 probe images); features centred by the fit mean and L2-normalised; flattened maps and spatial
+channel means ("GAP") for convolutional sites. Closed-form ridge on one-hot targets, no intercept, $\lambda$ by
+generalised cross-validation on the fit set; weighted cosine $k$-NN, $k = 20$, votes $\exp(\cos/0.07)$.</li>
+</ul>
+<p>Exact definitions and the JSON layout are in the docstring of <code>site/analysis.py</code>.</p>
+
+<h2 id="limits">Limitations</h2>
+
+<ul>
+<li>One model, one seed for everything measured; one probe sample of 2,000 test images; no resampling check of the
+sets.</li>
+<li>Cosine on centred activations; norm discarded; centring depends on the probe.</li>
+<li>The kernel rule was chosen on this network (label-free diagnostics); in the middle layers no single $\kappa$ gave
+spread, slow modes.</li>
+<li>$\bar M$ is an average over cells, not a product; high $\lambda$ does not mean present in every cell.</li>
+<li>Eigenvectors inside near-degenerate groups are not individually meaningful; SEBA depends on $r$.</li>
+<li>Labels are used to draw a class-balanced probe; after that, classes, losses and gradients only colour and
+validate, and never define a kernel or a basis.</li>
+</ul>
+
+<h2 id="reproduce">Reproduce</h2>
+
+<p>From <code>explore/cifar_coherent/</code> in <a href="https://github.com/CharlesR-W/CoherentModes">the repo</a>
+(Modal account needed for the measurement; the VPS only orchestrates):</p>
+
+<p>The SEBA code (<code>seba.py</code>) is a port of the authors' reference implementation and is licensed
+GPL-3.0-or-later accordingly. Every launch below is detached: wait for it to complete successfully, using the corresponding
+<code>status</code> command, before starting the next command.</p>
+
+<pre><code>export TMPDIR=/var/tmp/cm-pipeline; mkdir -p "$TMPDIR"
+uv run --with torch --with numpy python test_coherent.py
+uv run --with modal python modal_train.py deploy
+uv run --with modal python modal_train.py launch            # seed 0; wait until its record reports complete
+uv run --with modal python modal_train.py launch --seed 1   # seed 1 (layouts only); same wait
+uv run --with modal python measure_v2.py deploy
+uv run --with modal python measure_v2.py launch all         # poll with: measure_v2.py status all
+uv run --with modal python measure_v2.py launch derivatives
+uv run --with modal python measure_v2.py launch validate
+uv run --with modal python measure_v2.py fetch r20s0b
+uv run --with modal python measure_v2.py launch layouts     # after seed-1 training completes
+uv run --with modal python measure_v2.py fetch r20s1b
+uv run --no-project --with numpy --with torch --with modal \
+    --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+    python site/figdata.py r20s0b
+uv run --with numpy --with matplotlib --with pillow python site/make_figures.py r20s0b
+uv run --with numpy --with scipy --with matplotlib python site/analysis.py r20s0b
+python3 site/build_site.py r20s0b</code></pre>
+
+<h2 id="refs">References</h2>
+
+<ul>
+<li>G. Froyland. Dynamic isoperimetry and the geometry of Lagrangian coherent structures. <i>Nonlinearity</i> 28
+(2015).</li>
+<li>G. Froyland, O. Junge. Robust FEM-based extraction of finite-time coherent sets using scattered, sparse, and
+incomplete trajectories. <i>SIAM J. Appl. Dyn. Syst.</i> 17 (2018).</li>
+<li>R. Banisch, P. Koltai. Understanding the geometry of transport: diffusion maps for Lagrangian trajectory data
+unravel coherent sets. <i>Chaos</i> 27 (2017).</li>
+<li>G. Froyland, C. P. Rock, K. Sakellariou. Sparse eigenbasis approximation: multiple feature extraction across
+spatiotemporal scales with application to coherent set identification. <i>Commun. Nonlinear Sci. Numer. Simul.</i>
+77 (2019).</li>
+<li>G. Froyland. An analytic framework for identification of finite-time coherent sets in time-dependent dynamical
+systems. <i>Physica D</i> 250 (2013).</li>
+<li>R. Zass, A. Shashua. Doubly stochastic normalization for spectral clustering. <i>NeurIPS</i> (2006).</li>
+<li>B. Landa, R. R. Coifman, Y. Kluger. Doubly stochastic normalization of the Gaussian kernel is robust to
+heteroskedastic noise. <i>SIAM J. Math. Data Sci.</i> 3 (2021).</li>
+<li>L. McInnes, J. Healy, J. Melville. UMAP: Uniform Manifold Approximation and Projection (2018).</li>
+</ul>

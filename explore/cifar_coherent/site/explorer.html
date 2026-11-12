@@ -1,0 +1,122 @@
+<div class="ex" id="ex">
+  <div class="ex-bar" id="ex-bar">
+    <div class="ctl">
+      <span class="ctl-label">Block</span>
+      <div class="seg" id="ex-fam" role="radiogroup" aria-label="Block family">
+        <button type="button" data-v="layer" title="A block is a run of consecutive sites at one checkpoint">across layers</button>
+        <button type="button" data-v="time" title="A block is a run of consecutive checkpoints at one site">through training</button>
+      </div>
+      <label class="ctl-sub" for="ex-anchor" id="ex-anchor-label">at</label>
+      <select id="ex-anchor"></select>
+      <label class="ctl-sub" for="ex-a" id="ex-range-label">sites</label>
+      <select id="ex-a" aria-label="Block start"></select><span class="ctl-sub">to</span><select id="ex-b" aria-label="Block end"></select>
+    </div>
+    <div class="ctl">
+      <label class="ctl-label" for="ex-mode">Kernel</label>
+      <select id="ex-mode"></select>
+      <button type="button" class="info-btn" id="ex-kappa-btn" aria-expanded="false" aria-controls="ex-kappa-help" title="What are the kernel rules?">?</button>
+    </div>
+    <div class="ctl">
+      <label class="ctl-label" for="ex-color">Colour by</label>
+      <select id="ex-color">
+        <optgroup label="Block structure (from the selected block)">
+          <option value="seba">coherent sets (SEBA)</option>
+          <option value="nodal">nodal domains (sign of &psi;)</option>
+          <option value="eig">eigenfunction &psi;</option>
+        </optgroup>
+        <optgroup label="Labels (validation only)">
+          <option value="class">CIFAR class</option>
+        </optgroup>
+        <optgroup label="Per-image diagnostics">
+          <option value="loss">loss</option>
+          <option value="correct">correct / wrong</option>
+          <option value="jac">input-Jacobian norm (log)</option>
+          <option value="gcos">gradient alignment (cosine)</option>
+          <option value="gdot">gradient alignment (dot product)</option>
+        </optgroup>
+      </select>
+      <span class="ctl-sub" id="ex-k-label" hidden title="The side panel (spectrum, images, retention, loadings) describes this selection">side panel</span>
+      <select id="ex-k" aria-label="Eigenfunction or number of sets"></select>
+      <div class="seg" id="ex-at" role="radiogroup" aria-label="Diagnostics measured at">
+        <button type="button" data-v="own" title="Each row shows the diagnostic at that row's checkpoint">each row's checkpoint</button>
+        <button type="button" data-v="final" title="Every row shows the diagnostic at the final checkpoint">final</button>
+      </div>
+    </div>
+    <div class="ctl" id="ex-lay-ctl">
+      <span class="ctl-label">Layout</span>
+      <div class="seg" id="ex-lay" role="radiogroup" aria-label="Which network's UMAP lays out the points">
+        <button type="button" data-v="0" title="UMAP of the network whose sets are shown">seed 0</button>
+        <button type="button" data-v="1" title="UMAP of a second network (seed 1); colours still come from seed 0">seed 1</button>
+      </div>
+    </div>
+    <span class="status" id="ex-status" aria-live="polite"></span>
+    <div class="ex-help" id="ex-kappa-help" hidden>
+      <p>The <b>kernel rule</b> decides which images count as neighbours in each cell before the operator is built. With cosine similarity $C$ and distance $d = 1 - C$, a temperature rule uses $K_{ij} = e^{-\kappa d_{ij}}$; $\kappa$ is the inverse temperature. The answer depends on the rule, so it is exposed here rather than hidden.</p>
+      <ul>
+        <li><b>kNN graph, k = 15</b> (default): link $i$ and $j$ if either is among the other's 15 nearest neighbours. Rank-based, no $\kappa$; the same neighbourhood size as the UMAP layouts.</li>
+        <li><b>per-point perplexity 100 / 300</b>: each image gets its own $\kappa_i$ so that its neighbour distribution has perplexity 100 (or 300, coarser); the t-SNE affinity. Expect results close to the kNN graph.</li>
+        <li><b>kNN scale</b> (flat reference): one $\kappa = 1/d_{15}$ per cell, about 1.2 in the trained middle layers. A nearly flat kernel: spread, PCA-like modes with weak eigenvalues.</li>
+        <li><b>half-mass, calibrated</b> (cautionary): one $\kappa$ per cell chosen so the 15 nearest neighbours carry half the kernel mass; $\kappa$ 26 to 43 in the middle layers. Leading modes sit on near-duplicate pairs of images (watch the PN row under the spectrum).</li>
+      </ul>
+      <p class="mute">In the trained middle layers the cosine geometry is nearly equidistant, so one temperature per cell is either too flat or too sharp; the last two rules fail in those opposite ways and are kept so you can see it. The side panel gives $\kappa$ and the median 15-NN kernel mass over the block's cells. More in <a href="#method">Method</a>.</p>
+    </div>
+  </div>
+  <div class="ex-body" id="ex-body">
+    <div class="ex-main" id="ex-main">
+      <div class="ex-head">
+        <ol class="ex-steps" id="ex-hint">
+          <li><b>Pick a block.</b> <span class="mouse-only">Click a cell to end the block there; shift-click or drag along the row (or column) to set its start.</span><span class="touch-only">Tap a cell to set the block's
+            <span class="seg" id="ex-tap" role="radiogroup" aria-label="What a tap sets"><button type="button" data-v="end">end</button><button type="button" data-v="start">start</button></span></span></li>
+          <li><b>Hover a point.</b> <span class="mouse-only">The same image is ringed in every cell.</span><span class="touch-only">Tap a point: the same image is ringed in every cell.</span></li>
+          <li><b>Read the panel.</b> Spectrum, sets and their images, retention, loadings.</li>
+        </ol>
+        <label class="ex-ps"><span>dot size</span><input type="range" id="ex-ps" min="0.8" max="3.2" step="0.2" value="1.6"></label>
+      </div>
+      <div class="ex-key" id="ex-key" aria-label="Colour key"></div>
+      <div class="ex-gridwrap" id="ex-gridwrap">
+        <div class="ex-grid" id="ex-grid"></div>
+      </div>
+      <p class="ex-caption" id="ex-caption"></p>
+    </div>
+    <aside class="ex-side" id="ex-side" aria-label="Selection details">
+      <section class="card" id="card-block">
+        <h3 class="card-title" id="blk-title">Block</h3>
+        <div class="card-sub" id="blk-sub"></div>
+        <div id="blk-spec" class="chart"></div>
+        <div class="card-note" id="blk-spec-note"></div>
+        <details class="card-more" id="blk-map-wrap">
+          <summary>All blocks at this <span id="blk-map-anchor">checkpoint</span></summary>
+          <div id="blk-map" class="chart"></div>
+          <div class="card-note" id="blk-map-note"></div>
+        </details>
+      </section>
+      <section class="card" id="card-legend">
+        <h3 class="card-title" id="leg-title">Legend</h3>
+        <div id="leg-body"></div>
+        <div id="leg-jac" class="jac"></div>
+      </section>
+      <section class="card" id="card-images">
+        <h3 class="card-title" id="img-title">Representative images</h3>
+        <div id="img-body"></div>
+      </section>
+      <section class="card" id="card-ret">
+        <h3 class="card-title">Retention in every cell</h3>
+        <div id="ret-body" class="chart"></div>
+        <div class="card-note" id="ret-note"></div>
+      </section>
+      <section class="card" id="card-lens">
+        <h3 class="card-title" id="lens-title">Cell</h3>
+        <div class="lens-wrap"><canvas id="lens"></canvas></div>
+        <div class="card-note">Hovered cell, enlarged (or the last clicked one).</div>
+      </section>
+      <section class="card" id="card-load">
+        <h3 class="card-title" id="load-title">Channel loadings</h3>
+        <div id="load-body"></div>
+      </section>
+      <section class="card" id="card-stats">
+        <h3 class="card-title" id="stats-title">Sites at this checkpoint</h3>
+        <div id="stats-body"></div>
+      </section>
+    </aside>
+  </div>
+</div>
