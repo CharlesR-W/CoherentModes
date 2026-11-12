@@ -1,10 +1,10 @@
 <p class="lede">I gave a ResNet-20 the same {{fact:n_images}} CIFAR-10 test images at {{fact:n_checkpoints}} checkpoints
 of its training and recorded its activations at {{fact:n_sites}} sites, from the first convolution to the logits.
-Then I asked which groups of images it treats alike, where in the network, and since when, without telling the
-method anything about labels. On this network, the last layers end up sorting the images into four groups that line
-up with unions of classes, site b9 already splits vehicle-like from animal-like images by step
-{{fact:q.va.b9.half_step}}, and the grouping changes most between b2 and b3. This page gives the procedure, Neural
-Coherent Sets, and a small vocabulary for such statements; the <a href="#explorer">explorer</a> is where you check
+Then I asked <b>which groups of images it treats alike, where in the network, and since when</b>, without telling
+the method anything about labels. On this network, <b>the last layers sort the images into four groups that line up
+with unions of classes</b>, site b9 already splits vehicle-like from animal-like images by step
+{{fact:q.va.b9.half_step}}, and the grouping changes most between b2 and b3. This page gives the procedure,
+<b><em>Neural Coherent Sets</em></b>, and a small vocabulary for such statements; the <a href="#explorer">explorer</a> is where you check
 them.</p>
 
 <figure class="fig wide">
@@ -28,22 +28,23 @@ them.</p>
 
 <h2 id="motivation">Why coherent sets</h2>
 
-<p>This grew out of an observation by Stefan Heimersheim and collaborators about <a href="#method/glossary-activation-cell"><em>activation cells</em></a>: interpolate between three real activations of a
+<p>This grew out of an observation by Stefan Heimersheim and collaborators about <a href="#method/glossary-activation-cell"><b><em>activation cells</em></b></a>: interpolate between three real activations of a
 layer, and the network's response jumps sharply rather than blending, as if activation space were tiled into
-Voronoi-like cells. I spent a long time trying to decompile language models with cells, but they
-resist direct analysis: the space is huge, the data only sample it, and nothing measures a cell's boundary
+Voronoi-like cells. I spent a long time trying to decompile language models with cells, but
+<b>cells resist direct analysis</b>: the space is huge, the data only sample it, and nothing measures a cell's boundary
 cheaply.</p>
 
-<p>My collaborator Brianna Grado-White and I make them tractable with a hypothesis: within a cell, the network propagates
-the labels of the training points that fall inside it to every other point of the cell, a limited form of label
-propagation. A cell is then a cluster of points the network treats the same, which is the same notion as a group
-that few neighbourhood links leave, and that is what spectral clustering finds; those that persist across layers or training are <em>coherent sets</em>, and SEBA reads them off.
-I call the construction <em>Neural Coherent Sets</em>.</p>
+<p>My collaborator Brianna Grado-White and I make them tractable with a hypothesis: <b>within a cell, the network
+propagates the labels of the training points inside it to the rest of the cell</b>, a limited form of label
+propagation. A cell is then a cluster of points the network treats the same: a group that few neighbourhood links
+leave, <b>which is what spectral clustering finds</b>. Cells that persist across layers or training are
+<b><em>coherent sets</em></b>, and SEBA reads them off. I call the construction <b><em>Neural Coherent
+Sets</em></b>.</p>
 
-<p>It also sits in a lineage. Inferring weighted word or tree automata from Hankel matrices, which pair prefixes with
-continuations, is program reconstruction, and the ambition is to reach richer programs, up to Turing machines.
+<p><b>It also sits in a lineage of program reconstruction.</b> Inferring weighted word or tree automata from Hankel
+matrices, which pair prefixes with continuations, is a form of program reconstruction, and the ambition is to reach richer programs, up to Turing machines.
 Dynamical systems have their own Hankel and Koopman methods, and Pughe-Sanford et al. (2025) suggest that coherent
-sets of a Koopman operator are a good lens on what neurons compute. Here depth or training plays the part of time,
+sets of a Koopman operator are <b>a good lens on what neurons compute</b>. Here depth or training plays the part of time,
 and the site averages the layers' walks rather than forming a Hankel-like product
 (<a href="#method/avgprod">the two agree closely</a>).</p>
 
@@ -104,8 +105,8 @@ layouts are aligned for display only).</li>
 
 <h2 id="procedure">The procedure in five steps</h2>
 
-<p>Pictures from one example (layer block b7 to pool, step {{fact:final_step}}); exact versions in
-<a href="#method/operator">Method</a>.</p>
+<p><b>Five fixed computations, from activations to sets.</b> Pictures from one example (layer block b7 to pool, step
+{{fact:final_step}}); exact versions in <a href="#method/operator">Method</a>.</p>
 
 <div class="step">
 <h3 id="step-1">1. Compare images within one snapshot</h3>
