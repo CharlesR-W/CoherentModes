@@ -1,0 +1,1926 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Towards Characterizing a Neural Network&#x27;s Native Ontology: Coherent Sets of Data Through Layers and Over Training</title>
+<meta name="description" content="A label-free procedure, and a language, for finding which images a neural network treats alike, layer by layer and over training: coherent sets in a ResNet-20 on CIFAR-10, with an interactive explorer.">
+<link rel="preload" href="vendor/fonts/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="vendor/fonts/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="css/tokens.css?v=00a9dd9888">
+<link rel="stylesheet" href="css/site.css?v=00a9dd9888">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='5' cy='6' r='3.2' fill='%232a78d6'/%3E%3Ccircle cx='11' cy='6' r='3.2' fill='%23eb6834'/%3E%3Ccircle cx='8' cy='11' r='3.2' fill='%231baf7a'/%3E%3C/svg%3E">
+</head>
+<body data-tab="overview">
+<a class="skip" href="#main">Skip to content</a>
+<div class="banner" role="note">
+  <span class="banner-tag">Exploratory report</span>
+  <span>One network: ResNet-20 on CIFAR-10, one seed.</span>
+  <a href="https://github.com/CharlesR-W/CoherentModes">Repository</a>
+</div>
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="title">Towards Characterizing a Neural Network&#x27;s Native Ontology: Coherent Sets of Data Through Layers and Over Training</h1>
+    <p class="subtitle">or, Sparse Eigenbases of the Tempered Cross-Hankel Operator for Spectral Identification of the Kantian Categories by Neural Coherent Sets</p>
+    <p class="byline"><span>Charles R-W</span><span class="dot">·</span><time datetime="2026-11-12">12 November 2026</time><span class="dot">·</span><a href="https://github.com/CharlesR-W/CoherentModes/tree/main/explore/cifar_coherent">code and data</a></p>
+    <p class="cta"><a class="explore-link big" href="#explorer">Open the explorer</a></p>
+  </div>
+</header>
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-inner">
+    <a class="tabs-home" href="#overview" title="Towards Characterizing a Neural Network&#x27;s Native Ontology: Coherent Sets of Data Through Layers and Over Training">Neural Coherent Sets</a>
+    <div class="tablist" role="tablist">
+      <a role="tab" href="#overview" data-tab="overview">Overview</a>
+      <a role="tab" href="#explorer" data-tab="explorer" class="tab-ex">Explorer</a>
+      <a role="tab" href="#findings" data-tab="findings">Findings</a>
+      <a role="tab" href="#measurements" data-tab="measurements">Measurements</a>
+      <a role="tab" href="#method" data-tab="method">Method</a>
+    </div>
+  </div>
+</nav>
+<main id="main">
+  <section class="tab-panel" id="tab-overview" data-tab="overview">
+    <article class="prose">
+<p class="lede">Which inputs does a network treat the same, at which layer, and since when in training? I put that
+question to a ResNet-20, using 2,000 CIFAR-10 test images at 8 checkpoints of its
+training and recording its activations at 12 sites, from the first convolution to the logits. The answer
+comes from a label-free spectral construction I call <em>Neural Coherent Sets</em>. On this network, the last layers
+sort the images into four groups that line up with unions of classes; site b9 already splits vehicle-like from
+animal-like images by step 64; and the grouping changes most between b2 and b3. Below, in
+order: where the question comes from, how the construction answers it, what it might be used for, and an
+<a href="#explorer">explorer</a> in which to check every statement.</p>
+
+<figure class="fig wide">
+  <a href="#explorer?tour=b9-late"><img src="assets/fig/hero.png" loading="eager" alt="Site b9 of a ResNet-20 at eight training checkpoints, each panel a 2-d layout of the same 2,000 images, coloured by the four coherent sets of the time block steps 2,560 to 64,000."></a>
+  <figcaption><b>Plotted:</b> site b9 at each of the 8 checkpoints (UMAP layouts, one dot per
+  probe image). Colour: the image's coherent set from the time block b9, steps 2,560 to 64,000 (outlined
+  panels), kNN graph, k = 15, $r = 4$; grey: unassigned.
+  <details class="more"><summary>Values</summary> $\lambda_1, \lambda_2, \lambda_3$ =
+  0.977, 0.952,
+  0.937; gap $\lambda_3 - \lambda_4$ =
+  0.005; retention of the four SEBA vectors
+  0.92 to 0.97
+  inside the block and 0.62 to
+  0.66 at step 0; sets of
+  760, 380,
+  392 and 318 images,
+  150 unassigned. (Terms are defined <a href="#overview/procedure">below</a>.)</details></figcaption>
+</figure>
+
+<p class="cta"><a class="explore-link big" href="#explorer?tour=b9-late">Open the explorer at this view</a></p>
+
+<h2 id="motivation">Where this comes from</h2>
+
+<p>In short, this is a continuation of work on <em>activation cells</em>, carried on with completely different
+tools. Its core intuition is to find what the network treats the same, and to find it at a cost that grows with the
+amount of data rather than with the size of the network, at a resolution the method makes explicit. It also connects
+the question to established work on inferring programs and dynamical systems, and on what neurons compute.</p>
+
+<h3 id="motivation-cells">1. Activation cells suggest a discrete code</h3>
+
+<p>Stefan Heimersheim and collaborators observed what they call <a href="#method/glossary-activation-cell">activation
+cells</a>. Take three real activations at some layer, interpolate between them, and run the rest of the network: its
+response does not blend smoothly but jumps sharply, as if the layer's activation space were tiled into Voronoi-like
+cells. If the rest of the network computes nearly the same thing everywhere in a cell, then at that layer the
+network behaves like a machine with discrete states, and which cell an input lands in carries most of what
+the rest of the network uses. A discrete code like that could in principle be decompiled, by reading off the states
+and the transitions between them the way one reads a finite automaton. I spent a long time trying to do this for
+language models.</p>
+
+<h3 id="motivation-cost">2. Cells are too expensive to find directly</h3>
+
+<p>Finding a cell means finding its boundary, and a boundary is where the downstream computation changes. Measuring
+that directly means measuring Jacobians of the rest of the network, or running interpolations, in many directions
+around every data point, at every layer. In the dimensions and at the data sizes where the question matters, that
+does not scale. The data also only sample the space, so most of any boundary is never seen.</p>
+
+<h3 id="motivation-reframe">3. A cell is a group of inputs the network treats the same</h3>
+
+<p>The question can be asked about groups of inputs instead of boundaries: which inputs does the rest of the
+network treat as interchangeable? My collaborator Brianna Grado-White and I take as a working hypothesis that
+inside a cell the network does a limited form of <em>harmonic label propagation</em>: the downstream output at an
+input is close to the average over its nearby inputs in the same cell, and changes only across boundaries. If
+that holds, links between neighbours inside a cell connect inputs with the same downstream output, and the output
+changes only along links that cross a boundary. A cell is then a group of inputs that few neighbourhood links leave. Finding groups like that is
+exactly what spectral clustering does, from one similarity matrix per layer and with no Jacobians. The network
+enters only through one forward pass per probe input and checkpoint; after that, the eigenproblems grow with the number of probe
+inputs, not with the size of the network. Two explicit choices set the scale of the grouping: the neighbourhood
+size, and the number of groups, chosen with the help of gaps in the eigenvalue spectrum. A first
+labelled test of the hypothesis has been designed but not yet run; until it has, this is motivation, not a result.</p>
+
+<h3 id="motivation-coherent">4. Groups that persist are coherent sets</h3>
+
+<p>A layer is one snapshot. A cell that matters should persist across neighbouring layers or across training, and
+a group of inputs that stays together under an evolving dynamics is what dynamical systems call a <em>coherent
+set</em> (Froyland and collaborators). The construction therefore averages the neighbourhood walks over a run of
+layers or checkpoints, with depth or training time in the role of time, and reads the sets off with SEBA, their
+tool for turning eigenvectors into sets. I call the result <em>Neural Coherent Sets</em>.</p>
+
+<h3 id="motivation-analogies">5. The same question in program inference, dynamics and neuroscience</h3>
+
+<p>"Which inputs does the rest of the computation treat the same?" also underlies three established bodies of work,
+and they share a spectral core.</p>
+<ul>
+<li><b>Program inference.</b> Weighted automata are reconstructed from Hankel matrices, which pair every prefix of an
+input with every continuation. For languages, prefixes that every continuation treats alike form one state of the
+minimal automaton (the Myhill–Nerode theorem); for weighted automata, a low-rank factorization of the Hankel matrix
+plays that role and recovers the program up to a change of basis. Reading a layer as the end of a prefix and
+the rest of the network as its continuation turns cells into states, and the spectral clustering here into a loose
+cousin of that factorization. The longer-term ambition is reconstructing richer programs this way.</li>
+<li><b>Dynamical systems.</b> Hankel matrices of time series pair windows of the past with windows of the future,
+and Koopman (transfer) operators carry functions of the present state forward in time. The leading singular vectors
+of either give a small state, or coherent sets, through which the past shapes the future.</li>
+<li><b>Neuroscience.</b> Pughe-Sanford et al. (2025) propose that sensory neurons learn membership of the coherent
+sets of their inputs' dynamics, so that coherent sets are a natural lens on what neurons compute.</li>
+</ul>
+<p>Hankel reconstruction, spectral clustering and coherent sets are close relatives, and each gives a principled
+reading of "treated the same". The analogies are loose, and the dropdown below says where each one stops. One
+concrete difference: a block here averages the walks of its layers rather than forming a Hankel-like product
+(<a href="#method/avgprod">the two agree closely</a>).</p>
+
+<details class="more"><summary>The precise statements, and where each analogy stops</summary>
+<ul>
+<li><b>The hypothesis, stated precisely.</b> Call a cell a region of a layer's activation space where the rest of
+the network computes nearly the same thing. If most neighbourhood edges of the walk $P$ stay inside cells, any
+downstream function $F$ that is nearly constant within cells satisfies $F \approx P F$ (harmonic, as in label propagation; Zhu, Ghahramani and Lafferty
+2003) except at images with edges across a boundary, so its penalty $\tfrac12 \sum_{ij} P_{ij} \lVert F_i - F_j
+\rVert^2$ comes only from boundary-crossing edges. Cells are then low-cut sets, and the slowest eigenvectors
+approximately span their indicators; persistence across a block makes them coherent sets. This is a motivating
+hypothesis, not a result.</li>
+<li><b>Hankel matrices.</b> For a function $f$ on strings, $H_f[u, v] = f(uv)$, with prefixes $u$ as rows and
+suffixes $v$ as columns. Over the reals, $f$ is computed by a weighted finite automaton exactly when $H_f$ has finite
+rank, and $\operatorname{rank} H_f$ is the smallest linear state dimension of such an automaton. Reconstruction
+factors a rank-complete prefix–suffix block of $H_f$, together with its symbol-shifted blocks and boundary vectors,
+and yields a minimal realization up to a change of basis, not privileged hidden states (Balle et al. 2014). For a
+language, the distinct rows of its 0/1 Hankel matrix are the states of its minimal deterministic automaton
+(Myhill–Nerode). Hankel rank does not in general give the minimal number of hidden states of an HMM (positivity
+constraints apply); related spectral methods, under rank and nondegeneracy assumptions, learn observable
+representations of hidden Markov models (Hsu, Kakade and Zhang 2012).</li>
+<li><b>The analogy.</b> Read layer $a$ as the end of a prefix and layers $a$ to $b$ as its continuation. In the
+product $Q = M_b \cdots M_a$, image $j$'s column is where its layer-$a$ neighbourhood spreads as it diffuses through
+the later layers' neighbourhoods; images with similar columns are treated alike downstream, and $Q$'s leading
+singular vectors play the part of a small state. This is an analogy only: they inherit none of the Hankel
+reconstruction guarantees, the network is not an automaton, there is one fixed continuation rather than all
+suffixes, the walks measure neighbourhoods rather than outputs, and no rank here counts states.</li>
+<li><b>The variational meaning.</b> For one walk $P$ and the indicator of a set $A$, the penalty
+$\tfrac12 \sum_{ij} P_{ij} (f_i - f_j)^2$ equals $\operatorname{cut}(A, \bar A) = \sum_{i \in A,\, j \notin A}
+P_{ij}$, the total transition weight crossing between $A$ and its complement. Sinkhorn makes every image's degree 1,
+so normalised cut equals ratio cut. Relaxing the balanced two-valued indicator to a real function gives
+$\min_{f \perp \mathbf 1,\, \lVert f \rVert = 1} f^\top (I - P) f$, solved by the leading non-constant eigenvector of
+$P$ (equivalently of $M$) (von Luxburg 2007). The penalty is linear in the walk, so for a block the cut is averaged
+over its snapshots. The multiway relaxation takes orthonormal columns $\psi_1, \dots, \psi_{r-1}$; SEBA turns that
+relaxed span into candidate hard sets and does not solve the discrete multiway cut exactly.</li>
+<li><b>Pughe-Sanford et al.</b> They propose that sensory neurons learn membership of finite-time coherent sets of
+their input's dynamics. A balanced coherent pair is a present region and a future region that trajectories move
+between with high probability over a horizon $\tau$; relaxing the indicators gives singular-function pairs of the
+stochastic Koopman operator, and a neuron computes one of them, thresholded or rectified. For stable
+Ornstein–Uhlenbeck dynamics the leading non-constant singular-function pair is linear (higher ones are polynomial),
+and the linear-feature Galerkin estimator on lag vectors reduces to past–future canonical correlation. Their operator
+is the stochastic Koopman operator of real input dynamics, not an average of constructed smoothers, and they model
+biological sensory computation without claiming that trained artificial units do this.</li>
+</ul>
+</details>
+
+<h2 id="why">What is unusual about this approach</h2>
+
+<ul>
+<li><b>Label-free.</b> Nothing semantic defines the kernel or the basis; labels balance the probe, and after that they only colour and check.</li>
+<li><b>Each layer in its own geometry.</b> The construction fits no map between layers or checkpoints (the 2-d
+layouts are aligned for display only).</li>
+<li><b>Depth and training time are one object.</b> A block is a run of snapshots along either axis.</li>
+<li><b>Groups of images, not directions.</b> The sparsity is over images; nothing assumes sparse activations.</li>
+<li><b>Nothing trained on top.</b> Only fixed computations and eigenproblems.</li>
+<li><b>Architecture-agnostic.</b> It needs only activations on a fixed probe set.</li>
+</ul>
+
+<h2 id="procedure">The procedure in five steps</h2>
+
+<p><b>Five fixed computations, from activations to sets.</b> Pictures from one example (layer block b7 to pool, step
+64,000); exact versions in <a href="#method/operator">Method</a>.</p>
+
+<div class="step">
+<h3 id="step-1">1. Compare images within one snapshot</h3>
+<a class="step-fig" style="--w: 32%; max-width: 62%" href="assets/fig/step1.png" target="_blank" rel="noopener"><img src="assets/fig/step1.png" loading="eager" alt="Cosine Gram matrix of one snapshot, images ordered by their final set."></a>
+<p>For one snapshot (one site at one checkpoint), centre the activations over the probe images, scale each image's
+vector to unit length, and take the cosine between every pair of images.</p>
+<details class="more"><summary>The maths</summary>
+<p>With $h_i$ the activation of image $i$ in snapshot $c$ and $\bar h$ its mean over the probe,
+$$ \hat h_i = \frac{h_i - \bar h}{\lVert h_i - \bar h \rVert}, \qquad C_{ij} = \langle \hat h_i, \hat h_j \rangle,
+\qquad d_{ij} = 1 - C_{ij}. $$
+The dot product on each snapshot is the only geometric assumption. Cosine drops the activation norm.</p>
+</details>
+</div>
+
+<div class="step">
+<h3 id="step-2">2. Turn similarity into a walk</h3>
+<a class="step-fig" style="--w: 50%" href="assets/fig/step2.png" target="_blank" rel="noopener"><img src="assets/fig/step2.png" loading="eager" alt="The kernel of one snapshot and its Sinkhorn-scaled walk."></a>
+<p>A <a href="#method/glossary-kernel-rule">kernel rule</a> turns the cosines into neighbourhood weights $K_c$
+(default: the kNN graph, k = 15), and Sinkhorn scaling makes them a symmetric random walk $P_c$ between similar
+images. Symmetric scaling gives every image the same stationary weight, so differences between snapshots' stationary
+measures do not enter the block comparison. The lazy walk $M_c = \tfrac12(I + P_c)$ stays put half the time.</p>
+<details class="more"><summary>The maths</summary>
+<p>Sinkhorn finds $v > 0$ with $P_c = \mathrm{diag}(v)\, K_c\, \mathrm{diag}(v)$ having every row and column sum
+equal to 1. For a function $f$ on the images (entry $f_i$ for image $i$), the walk defines a penalty</p>
+<div class="eq" id="eq-penalty" data-num="1">$$ f^\top (I - P_c)\, f \;=\; \tfrac12 \sum_{i,j} (P_c)_{ij}\,(f_i - f_j)^2 , $$</div>
+<p>which is small when $f$ is nearly constant on images the snapshot treats as neighbours. $M_c$ has the eigenvectors of
+$P_c$, with eigenvalues $\tfrac12(1 + \lambda) \in [0, 1]$. The kernel rule mattered more than anything else here;
+<a href="#method/kernel">choosing the kernel</a> explains why the default adapts to each image.</p>
+</details>
+</div>
+
+<div class="step">
+<h3 id="step-3">3. Average over a block</h3>
+<a class="step-fig" style="--w: 52%" href="assets/fig/step3.png" target="_blank" rel="noopener"><img src="assets/fig/step3.png" loading="eager" alt="The lazy walks of sites b7, b8, b9 and pool, and their average."></a>
+<p>A block is a run of snapshots: consecutive sites at one checkpoint (a <em>layer block</em>) or consecutive
+checkpoints at one site (a <em>time block</em>). Its operator $\bar M$ is the plain average of the snapshots' lazy walks.</p>
+<details class="more"><summary>The maths</summary>
+<p>$\bar M = \frac{1}{|B|} \sum_{c \in B} M_c = \tfrac12(I + \bar P)$, with $\bar P$ the mean walk. The penalty is
+linear in the walk, so</p>
+<div class="eq" id="eq-block" data-num="2">$$ f^\top (I - \bar P)\, f \;=\; \frac{1}{|B|} \sum_{c \in B} f^\top (I - P_c)\, f . $$</div>
+<p>This is Froyland's dynamic Laplacian, and Banisch and Koltai's space-time diffusion maps, with depth or training
+in place of time. The product $M_b \cdots M_a$ is the theory's natural object; the average is what I use, and the
+two agree closely here (<a href="#method/avgprod">average versus product</a>). Checkpoints count equally, and they
+are roughly geometric in steps.</p>
+</details>
+</div>
+
+<div class="step">
+<h3 id="step-4">4. Take its eigenfunctions, with their retention in every snapshot</h3>
+<a class="step-fig" style="--w: 39%; max-width: 72%" href="assets/fig/step4.png" target="_blank" rel="noopener"><img src="assets/fig/step4.png" loading="eager" alt="The leading eigenvectors of the block operator, and a table of their retention in each snapshot."></a>
+<p>The leading eigenvectors $\psi_1, \psi_2, \dots$ of $\bar M$ are the functions on the images with the smallest
+<em>average</em> variation across the block's walks. An average is not "in every snapshot": a function can rank high
+while varying a lot in one snapshot. So I always show, next to each eigenfunction, its <em>retention</em>
+$\rho_c(\psi_k)$ in each snapshot, which marks the snapshots where that candidate distinction is weaker. Retention 1 means
+the function is constant on every neighbourhood of the snapshot; a random function gets about
+0.5. Retention near 1 means a step of the walk changes the function's value little relative to its overall size;
+lower retention means larger changes.</p>
+<details class="more"><summary>The maths</summary>
+<p>Among unit functions orthogonal to the constant $\psi_0$ and to each other, the eigenvectors of $\bar M$ in
+decreasing order of eigenvalue minimise the block-average penalty <a href="#overview/eq-block">(2)</a>. Retention
+in any snapshot $c$, inside or outside the block, is
+$$ \rho_c(f) = \frac{f^\top M_c f}{f^\top f} \in [0, 1], \qquad \lambda_k = \frac{1}{|B|} \sum_{c \in B}
+\rho_c(\psi_k). $$
+An individual $\psi_k$ is meaningful only when $\lambda_k$ is separated from its neighbours; otherwise only the
+span is.</p>
+</details>
+</div>
+
+<div class="step">
+<h3 id="step-5">5. Turn the span into sets with SEBA</h3>
+<a class="step-fig" style="--w: 53%" href="assets/fig/step5.png" target="_blank" rel="noopener"><img src="assets/fig/step5.png" loading="eager" alt="The four SEBA vectors over the images, and the resulting coherent sets on a layout of the pool snapshot."></a>
+<p>$r$ is the number of groups you ask for. SEBA takes the constant $\psi_0$ and the leading $r - 1$ non-constant
+eigenfunctions, and returns $r$ sparse vectors that approximate their span. When the retained eigenvalues are near 1, functions in
+that span vary little on average across the block's walks; a sparse one is large on some images and zero on the rest, which is what a group looks like. Giving each image to the vector that is largest there yields $r$
+<em>candidate coherent sets</em>; images where all $r$ vectors are zero are <em>unassigned</em>.</p>
+<details class="more"><summary>The maths</summary>
+<p>SEBA (Froyland, Rock and Sakellariou 2019) alternates two moves on $V = [\psi_0, \dots, \psi_{r-1}]$: rotate
+inside the span, $Z = VR$, then soft-threshold each column of $Z$ at $\mu = 0.99/\sqrt N$ and renormalise, giving
+$S$; the next rotation $R$ is the orthogonal polar factor of $V^\top S$. The thresholded $S$ generally leaves the
+span, so the SEBA vectors are sparse approximations to it, not elements of it. Each column is then sign-fixed, scaled
+to a maximum of 1, ordered by decreasing minimum entry ("reliability", which numbers the sets) and clipped at 0.
+Image $i$ goes to $\arg\max_j S_{ij}$ if that maximum is positive, and is unassigned otherwise. How sharply $r$ cuts
+the spectrum is the gap $\lambda_{r-1} - \lambda_r$. Details in <a href="#method/seba">Method</a>.</p>
+</details>
+</div>
+
+<p id="vocabulary"><b>Vocabulary</b> (<a href="#method/glossary">glossary</a>):
+<a href="#method/glossary-probe-image">probe image</a>, <a href="#method/glossary-site">site</a>,
+<a href="#method/glossary-checkpoint">checkpoint</a>, <a href="#method/glossary-snapshot">snapshot</a> (a site at a
+checkpoint), <a href="#method/glossary-block">block</a> (a run of snapshots along depth or training),
+<a href="#method/glossary-single-snapshot-block">single-snapshot block</a>,
+<a href="#method/glossary-eigenfunction">eigenfunction</a> $\psi_k$ of the
+<a href="#method/glossary-block-operator">block operator</a>, <a href="#method/glossary-retention">retention</a>
+$\rho_c$, <a href="#method/glossary-coherent-set">coherent set</a>,
+<a href="#method/glossary-unassigned">unassigned</a>.</p>
+
+<h2 id="look">Three things to look at</h2>
+
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0"
+        data-r="4" data-j="1" data-n="21">
+  <figcaption><b>The sets at the end of training.</b> Plotted: the 21 images with the largest SEBA value in set 2 of
+  layer block b7 to pool, step 64,000, $r = 4$.<br>
+  <a href="#findings/f-end-sets">Finding 1</a> · <a class="explore-link" href="#explorer?tour=late-layers">explorer</a></figcaption>
+</figure>
+<figure class="fig live" data-live="cells" data-cells="0:9,1:9,3:9,7:9" data-size="70"
+        data-fam="time" data-t="9" data-a="4" data-b="7" data-m="0" data-c="seba" data-r="2">
+  <figcaption><b>Late sets, painted back through training.</b> Plotted: site b9 at steps 0, 64, 1,024 and
+  64,000, coloured by the fixed $r = 2$ sets of the time block b9, steps 2,560 to 64,000.
+  Finding 2 instead recomputes b9's own sets at each checkpoint.<br>
+  <a href="#findings/f-looking-back">Finding 2</a> · <a class="explore-link" href="#explorer?tour=b9-two-sets">explorer</a></figcaption>
+</figure>
+<figure class="fig">
+  <a href="#findings/f-depth"><img src="assets/fig/q_carry.png" loading="eager" alt="Matched Jaccard between the single-snapshot sets of every pair of sites at the last checkpoint, and between adjacent sites at every checkpoint."></a>
+  <figcaption><b>Agreement between sites.</b> Plotted: matched Jaccard between the $r = 4$ sets of single-snapshot
+  blocks, site against site (left: step 64,000; right: adjacent sites at every checkpoint).<br>
+  <a href="#findings/f-depth">Finding 3</a> · <a class="explore-link" href="#explorer?tour=b2-b3">explorer</a></figcaption>
+</figure>
+</div>
+
+<h2 id="uses">Where this could go</h2>
+
+<p>These are sketches. None of them has been run.</p>
+
+<ul>
+<li><b>Where good and bad runs part ways.</b> Record a model's activations on trajectories that went well and ones
+that went badly (an agent's successful and failed episodes, say). Find the layer, or the point in the trajectory,
+at which the two stop falling into the same coherent sets. That would point to where the network first treats them
+differently, without anyone having to say in advance what the difference is.</li>
+<li><b>How behaviour-relevant data move through training.</b> Hold fixed a probe of, for example, aligned and
+misaligned examples, and follow it across checkpoints. Time blocks show whether the two move together or split
+apart, and when. Each set's trajectory can then be compared with whatever else is measured over training (loss,
+gradients, scores on behavioural assays), and the eigenfunctions can be broken down into their loadings on those
+assays.</li>
+<li><b>From activation space back to weight space.</b> An eigenfunction $\psi$ of a block is a function on the probe
+inputs, so it can be paired with anything else defined on them. For a weight matrix $W$ that reads inputs $U$ and
+receives backpropagated errors $\Delta$ (one row per probe input), the loss gradient on the probe is exactly
+$\nabla_W \mathcal L = \Delta^\top U = \sum_k (\Delta^\top \psi_k)(U^\top \psi_k)^\top$ for any complete orthonormal
+basis $\psi_k$ of functions on the probe. Taking the block's leading eigenfunctions as the first members of that basis
+splits the training signal on $W$ into one piece per mode: $U^\top \psi_k$ is the input direction the mode reads, and
+$\Delta^\top \psi_k$ is the output direction the training signal pushes along it. For a convolution, these terms are
+summed over positions. That would give a candidate account of which weights carry each coherent set and how training reshapes them, using
+only the network's own loss, with nothing fitted on top. It is <code>THEORY.md</code>'s mode decomposition of the
+gradient (section 7.2), applied to these eigenfunctions.</li>
+</ul>
+
+    </article>
+  </section>
+  <section class="tab-panel" id="tab-explorer" data-tab="explorer" hidden>
+<div class="ex" id="ex">
+  <div class="ex-bar" id="ex-bar">
+    <div class="ctl">
+      <span class="ctl-label">Block</span>
+      <div class="seg" id="ex-fam" role="radiogroup" aria-label="Block family">
+        <button type="button" data-v="layer" title="Layer block: a run of consecutive sites at one checkpoint (one row of the grid)">layer block</button>
+        <button type="button" data-v="time" title="Time block: a run of consecutive checkpoints at one site (one column of the grid)">time block</button>
+      </div>
+      <label class="ctl-sub" for="ex-anchor" id="ex-anchor-label">at</label>
+      <select id="ex-anchor"></select>
+      <label class="ctl-sub" for="ex-a" id="ex-range-label">sites</label>
+      <select id="ex-a" aria-label="Block start"></select><span class="ctl-sub">to</span><select id="ex-b" aria-label="Block end"></select>
+    </div>
+    <div class="ctl">
+      <label class="ctl-label" for="ex-mode">Kernel rule</label>
+      <select id="ex-mode"></select>
+      <button type="button" class="info-btn" id="ex-kappa-btn" aria-expanded="false" aria-controls="ex-kappa-help" title="What are the kernel rules?">?</button>
+    </div>
+    <div class="ctl">
+      <label class="ctl-label" for="ex-color">Colour by</label>
+      <select id="ex-color">
+        <optgroup label="From the selected block">
+          <option value="seba">coherent sets (SEBA)</option>
+          <option value="eig">eigenfunction &psi;&#8342;</option>
+          <option value="nodal">sign of &psi;&#8342; (nodal domains)</option>
+        </optgroup>
+        <optgroup label="Labels (validation only)">
+          <option value="class">CIFAR class</option>
+        </optgroup>
+        <optgroup label="Per-image diagnostics">
+          <option value="loss">loss</option>
+          <option value="correct">correct / wrong</option>
+          <option value="jac">input-Jacobian norm (log)</option>
+          <option value="gcos">gradient alignment (cosine)</option>
+          <option value="gdot">gradient alignment (dot product)</option>
+        </optgroup>
+      </select>
+      <span class="ctl-sub" id="ex-k-label" hidden title="The side panel (spectrum, images, retention) describes this selection">side panel</span>
+      <select id="ex-k" aria-label="Eigenfunction k, or number of coherent sets r"></select>
+      <div class="seg" id="ex-at" role="radiogroup" aria-label="Diagnostics measured at">
+        <button type="button" data-v="own" title="Each row shows the diagnostic at that row's checkpoint">each row's checkpoint</button>
+        <button type="button" data-v="final" title="Every row shows the diagnostic at the final checkpoint">final</button>
+      </div>
+    </div>
+    <div class="ctl" id="ex-lay-ctl">
+      <span class="ctl-label">Layout</span>
+      <div class="seg" id="ex-lay" role="radiogroup" aria-label="Which network's UMAP lays out the points">
+        <button type="button" data-v="0" title="UMAP of the network whose sets are shown">seed 0</button>
+        <button type="button" data-v="1" title="UMAP of a second network (seed 1); colours still come from seed 0">seed 1</button>
+      </div>
+    </div>
+    <div class="ctl ctl-end ctl-guide">
+      <label class="ctl-label" for="ex-tour-sel">Tours</label>
+      <select id="ex-tour-sel"><option value="">choose a view…</option></select>
+      <button type="button" class="guide-btn" id="ex-howto-btn" aria-controls="ex-howto" aria-expanded="false">How to use</button>
+    </div>
+    <span class="status" id="ex-status" aria-live="polite"></span>
+    <div class="ex-help" id="ex-kappa-help" hidden>
+      <p>The <b>kernel rule</b> decides which probe images count as neighbours in each snapshot before the walk $P_c$ is built. With cosine similarity $C$ and distance $d = 1 - C$, a temperature rule uses $K_{ij} = e^{-\kappa d_{ij}}$; $\kappa$ is the inverse temperature. The answer depends on the rule, so it is exposed here rather than hidden.</p>
+      <ul>
+        <li><b>kNN graph, k = 15</b> (default): link $i$ and $j$ if either is among the other's 15 nearest neighbours. Rank-based, no $\kappa$; the same neighbourhood size as the UMAP layouts.</li>
+        <li><b>per-point perplexity 100 / 300</b>: each image gets its own $\kappa_i$ so that its neighbour distribution has perplexity 100 (or 300, coarser); the t-SNE affinity. Expect results close to the kNN graph.</li>
+        <li><b>kNN scale</b> (flat reference): one $\kappa = 1/d_{15}$ per snapshot, about 1.2 in the trained middle layers. A nearly flat kernel: spread, PCA-like modes with weak eigenvalues.</li>
+        <li><b>half-mass, calibrated</b> (cautionary): one $\kappa$ per snapshot chosen so the 15 nearest neighbours carry half the kernel mass; $\kappa$ 26 to 43 in the middle layers. Leading modes sit on near-duplicate pairs of images (watch the PN row under the spectrum).</li>
+      </ul>
+      <p class="mute">In the trained middle layers the cosine geometry is nearly equidistant, so one temperature per snapshot is either too flat or too sharp; the last two rules fail in those opposite ways and are kept so you can see it. The side panel gives $\kappa$ and the median 15-NN kernel mass over the block's snapshots. More in <a href="#method">Method</a>.</p>
+    </div>
+  </div>
+  <div class="ex-body" id="ex-body">
+    <div class="ex-main" id="ex-main">
+      <div class="ex-tour" id="ex-tour" hidden role="note" aria-live="polite">
+        <div class="ex-tour-head"><span class="ex-tour-tag">Tour</span><b id="ex-tour-label"></b>
+          <button type="button" class="link-btn" id="ex-tour-reset" hidden>back to this tour's view</button>
+          <button type="button" class="ex-tour-close" id="ex-tour-close" aria-label="Close the tour note">&times;</button></div>
+        <div class="ex-tour-note" id="ex-tour-note"></div>
+      </div>
+      <details class="ex-howto" id="ex-howto">
+        <summary>How to use the explorer</summary>
+        <div class="ex-howto-body">
+          <figure class="ex-howto-fig">
+            <img class="gif" loading="lazy" decoding="async" src="assets/fig/howto.gif" data-still="assets/fig/howto_still.png" alt="A slow, annotated walk through the explorer: the grid, a block, its eigenfunction and coherent-set colourings, the spectrum and retention strip, and a time block.">
+          </figure>
+          <div class="ex-howto-text">
+            <p><b>The grid.</b> Rows are checkpoints (training step and validation accuracy), columns are sites, from the stem to the logits. Each panel shows the same probe images at one snapshot (a checkpoint and a site), placed by a 2-d UMAP of that snapshot's activations. Positions are for display only; no number on this page is computed from them.</p>
+            <p><b>The block</b> (outlined) is a run of snapshots along one row (a <i>layer block</i>) or one column (a <i>time block</i>); one snapshot alone is a <i>single-snapshot block</i>. Its block operator $\bar M$ averages the lazy walks $M_c$ of its snapshots. The colouring comes from that block only and is painted on every panel, so you can follow the same images to other layers and checkpoints.</p>
+            <p><b>The side panel</b> describes the selection: the spectrum of $\bar M$, representative images, retention $\rho_c$ in every snapshot of the row or column, the panel under the pointer enlarged, and per-snapshot numbers.</p>
+            <p><b>Extras.</b> <i>Layout: seed 1</i> places the points by a second network's UMAP while colours still come from the first. The per-image diagnostics (loss, input-Jacobian norm, gradient alignment) and CIFAR class only colour; none enters the kernel or the sets. Definitions: <a href="#method/glossary">glossary</a>.</p>
+          </div>
+        </div>
+      </details>
+      <div class="ex-head">
+        <ol class="ex-steps" id="ex-hint">
+          <li><b>Pick a block.</b> <span class="mouse-only">Click a panel to end the block there; shift-click or drag along the row (or column) to set its start.</span><span class="touch-only">Tap a panel to set the block's
+            <span class="seg" id="ex-tap" role="radiogroup" aria-label="What a tap sets"><button type="button" data-v="end">end</button><button type="button" data-v="start">start</button></span></span></li>
+          <li><b>Hover a point.</b> <span class="mouse-only">The same image is ringed in every panel.</span><span class="touch-only">Tap a point: the same image is ringed in every panel.</span></li>
+          <li><b>Read the panel.</b> Spectrum, sets and their images, retention.</li>
+        </ol>
+        <label class="ex-ps"><span>dot size</span><input type="range" id="ex-ps" min="0.8" max="3.2" step="0.2" value="1.6"></label>
+      </div>
+      <div class="ex-key" id="ex-key" aria-label="Colour key"></div>
+      <div class="ex-gridwrap" id="ex-gridwrap">
+        <div class="ex-grid" id="ex-grid"></div>
+      </div>
+      <p class="ex-caption" id="ex-caption"></p>
+    </div>
+    <aside class="ex-side" id="ex-side" aria-label="Selection details">
+      <section class="card card-sets" id="card-images">
+        <h3 class="card-title" id="img-title">Representative images</h3>
+        <div class="card-sub" id="img-sub"></div>
+        <div id="img-body"></div>
+      </section>
+      <section class="card" id="card-block">
+        <h3 class="card-title" id="blk-title">Block</h3>
+        <div class="card-sub" id="blk-sub"></div>
+        <div id="blk-spec" class="chart"></div>
+        <div class="card-note" id="blk-spec-note"></div>
+        <details class="card-more" id="blk-map-wrap">
+          <summary>All blocks at this <span id="blk-map-anchor">checkpoint</span></summary>
+          <div id="blk-map" class="chart"></div>
+          <div class="card-note" id="blk-map-note"></div>
+        </details>
+      </section>
+      <section class="card" id="card-legend">
+        <h3 class="card-title" id="leg-title">Legend</h3>
+        <div id="leg-body"></div>
+        <div id="leg-jac" class="jac"></div>
+      </section>
+      <section class="card" id="card-ret">
+        <h3 class="card-title" id="ret-title">Retention &rho;<sub>c</sub> in every snapshot</h3>
+        <div id="ret-body" class="chart"></div>
+        <div class="card-note" id="ret-note"></div>
+      </section>
+      <section class="card" id="card-lens">
+        <h3 class="card-title" id="lens-title">Panel</h3>
+        <div class="lens-wrap"><canvas id="lens"></canvas></div>
+        <div class="card-note">Hovered panel, enlarged (or the last clicked one).</div>
+      </section>
+      <section class="card" id="card-stats">
+        <h3 class="card-title" id="stats-title">Sites at this checkpoint</h3>
+        <div id="stats-body"></div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+  </section>
+  <section class="tab-panel" id="tab-findings" data-tab="findings" hidden>
+    <header class="page-head"><h1>Findings</h1></header>
+    <article class="prose">
+<p class="lede" id="read-a-finding">These are readings of one network (ResNet-20, CIFAR-10, one seed) made with the
+procedure in the <a href="#overview/procedure">Overview</a>. They are also worked examples of how to think with
+the tool. Each finding opens with a claim and a tag: <em>observed</em> is a direct reading of a measured quantity,
+<em>reading</em> is an interpretation I would defend, and <em>speculation</em> is a guess worth checking. Then come the
+evidence, with captions that only say what is plotted; how I read it, and what else it could be; and what to change
+in the explorer to test it yourself. Class names appear here, in the prose, to describe sets that the method found
+without them.</p>
+
+<nav class="callout" id="findings-toc"><p class="callout-title">Contents</p><ol>
+<li><a href="#findings/f-end-sets">Four sets at the end of training, and what is in them</a></li>
+<li><a href="#findings/f-looking-back">Looking back: when the two-set split becomes vehicles against animals</a></li>
+<li><a href="#findings/f-depth">Where depth redraws the grouping</a></li>
+<li><a href="#findings/f-block-vs-cell">One snapshot's split against a block's</a></li>
+<li><a href="#findings/f-gradients">The sets and the training signal</a></li>
+<li><a href="#findings/qualitative">Readings from the images themselves (coming)</a></li>
+<li><a href="#findings/next-checks">Checks I'd like to run</a></li>
+</ol></nav>
+
+
+<!-- ============================================================ 1 -->
+<h2 id="f-end-sets">1. Four sets at the end of training, and what is in them</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 4$) of the <b>layer block b7 to pool</b> (four snapshots) at the <b>last checkpoint</b>, step 64,000, kernel rule kNN graph, k = 15.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=late-layers"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_late-layers.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed).</em> At the last checkpoint, the layer block b7 to pool splits the probe into four
+coherent sets of 726, 396,
+424 and 316 images, with
+138 unassigned, and every set's SEBA vector keeps a retention between
+0.87 and 0.98 in each of the
+block's four snapshots. Here they are, from the top of each set.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="0" data-n="22">
+  <figcaption><b>Plotted:</b> set 1 of layer block b7 to pool, step 64,000, kNN graph, k = 15,
+  $r = 4$: the 22 members with the largest SEBA value. <b>Values:</b> 726
+  images; retention 0.88 to
+  0.96.</figcaption>
+</figure>
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="1" data-n="22">
+  <figcaption><b>Plotted:</b> set 2, same block and settings. <b>Values:</b>
+  396 images; retention 0.91 to
+  0.98.</figcaption>
+</figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="2" data-n="22">
+  <figcaption><b>Plotted:</b> set 3, same block and settings. <b>Values:</b>
+  424 images; retention 0.89 to
+  0.96.</figcaption>
+</figure>
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="3" data-n="22">
+  <figcaption><b>Plotted:</b> set 4, same block and settings. <b>Values:</b>
+  316 images; retention 0.87 to
+  0.95.</figcaption>
+</figure>
+</div>
+
+<p><b>What is in them</b> <em>(reading).</em> Counting classes (200 images each), set 1 holds
+frog 197, cat 172, dog 155, bird 154; set 2, automobile 200, truck 190, cat 2, ship 2; set 3,
+ship 196, airplane 192, bird 15, deer 7; set 4, horse 194, deer 84, dog 29, bird 6. So at the
+end of training the late layers group the ten classes into four unions: small animals, road vehicles, the vehicles of
+sky and water, and horses with the largest share of the deer. Every class but deer has most of its images in a single set. The matched Jaccard of the sets
+against the ten classes is 0.46, against
+0.47 for the best that four sets of these sizes could do: it nearly reaches the
+size ceiling of the matched Jaccard. The class counts below are the stronger evidence. That is the network's own coarse ontology at this depth, found without labels, and
+it is a plausible one; a person sorting these pictures into four piles might well do the same.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.layer_t7_b7-pool_r4">
+  <figcaption><b>Plotted:</b> the number of probe images in each SEBA set (rows, reliability order, then unassigned)
+  of each CIFAR class (columns), for layer block b7 to pool, step 64,000, kNN graph, k = 15,
+  $r = 4$. Colour from 0 to 200, the images per class.</figcaption>
+</figure>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>Four is my choice.</b> The gaps where $r = 2, 3, 4$ cut the spectrum are
+0.031, 0.011 and
+0.023; none dominates. At $r = 3$, horse and deer join the small animals
+(that set's largest classes: horse 198, dog 196, frog 188, deer 185), so set 4 is the least canonical of
+the four.</li>
+<li><b>The readout seen from below.</b> The block includes pool, which is one linear map away from the logits, so the
+sets could be the classifier's geometry propagated back. Against this, the sets agree more with b9's own late-training
+sets (time block steps 2,560 to 64,000: matched Jaccard 0.90)
+than with b9 alone, its single-snapshot block (0.76).</li>
+<li><b>The kernel rule.</b> The same block under perplexity 100, perplexity 300 and kNN scale gives sets matching
+these at 0.91, 0.82 and
+0.76; half-mass, the rule that fails in the middle layers
+(<a href="#method/kernel">Method</a>), gives 0.18.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=late-layers">this block in the explorer</a>.
+Switch the colouring to class to see the make-up on the layouts; set $r$ to 3, then 6, and watch which sets merge or
+split; move the block's start from b7 down to b4.</p>
+
+<!-- ============================================================ 2 -->
+<h2 id="f-looking-back">2. Looking back: when the two-set split becomes vehicles against animals</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The two coherent sets ($r = 2$) of the <b>single-snapshot block at site b9</b>, recomputed <b>at each checkpoint</b> in turn. The screenshot shows step 64; change the checkpoint in the explorer to see the others.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=1&a=9&b=9&m=0&c=seba&r=2"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b9-step64.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p>Now fix one site, b9, and ask what its own two-set split (the single-snapshot block, $r = 2$) looks like at each
+checkpoint. I score it against the class grouping {airplane, automobile, ship, truck} versus the other six, with the
+matched Jaccard, its permutation null, and the ceiling that the set sizes allow
+(<a href="#measurements/va">Measurements</a>).</p>
+
+<p><b>Claim</b> <em>(observed).</em> By step 64, when validation accuracy is 0.31, b9's
+two-set split is already the best match to vehicles against animals among all 511 ways of splitting the ten classes
+in two, and it has half of the alignment its sizes allow. By step 1,024 it has 80% of its final excess over the null
+and keeps it, ending at 0.89 against a ceiling of 0.91. Over the
+same stretch, airplanes leave the vehicle set.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.2.b9">
+  <figcaption><b>Plotted:</b> the number of probe images in each SEBA set (rows: sets 1 and 2 in reliability order,
+  then unassigned) of each CIFAR class (columns), for the single-snapshot block b9, kNN graph, k = 15, $r = 2$; the
+  slider selects the checkpoint. Colour from 0 to 200, the images per class.</figcaption>
+</figure>
+
+<p>Step through the slider:</p>
+<ul>
+<li><b>Step 0.</b> The split beats its null (score 0.40 against a null maximum of
+0.32), but vehicles against animals ranks only 10 of 511, and
+a split of the same sizes by a single pixel statistic does better (0.46, by mean blue).
+In this probe, vehicles are 0.78 standard deviations bluer than animals, and a
+linear fit on twelve pixel statistics explains $R^2$ = 0.76 of b9's $\psi_1$ at step
+0. Beating the null
+happens at step 0 at every site, so it cannot date anything; I use the effect size instead.</li>
+<li><b>Step 64.</b> Vehicles against animals is the best-matching class split (rank
+1); normalised excess 0.63, and it stays above one half
+from here on; 0.85 of the airplanes are in the vehicle set.</li>
+<li><b>Step 1,024.</b> Score 0.85, with agreement 0.96 on the
+assigned images. Airplanes in the vehicle set: 0.69.</li>
+<li><b>Later.</b> Airplanes in the vehicle set fall to 0.27 at step
+6,400 and 0.34 at the end, with
+0.64 unassigned, while every other class has at least
+0.91 of its images in its own side's set.</li>
+</ul>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.by_mode.0.lines_norm_excess">
+  <figcaption><b>Plotted:</b> for each site (one line, light for the stem to dark for the logits) and checkpoint
+  ($x$, symlog in steps), the normalised excess $(s - \mu_0)/(s_{\max} - \mu_0)$, where $s$ is the matched Jaccard
+  between the $r = 2$ sets of that single-snapshot block and the grouping {airplane, automobile, ship, truck} against the
+  other six classes, $\mu_0$ its mean over 200 permutations of the set labels, and $s_{\max}$ the largest value two
+  sets of these sizes can reach. kNN graph, k = 15. 0 is the null mean; 1 is as aligned as the sizes
+  allow.</figcaption>
+</figure>
+
+<p><b>Across depth</b> <em>(observed).</em> b7 to logits pass one half at step 64 and stay
+there, b6 at step 1,024, b3 to b5 at step 2,560, and the stem, b1 and b2
+never do. Yet at the end, vehicles against animals is the best-matching class split even at the stem (rank
+1; score 0.53, agreement 0.77 on
+the assigned images).</p>
+
+<p><b>How I read it</b> <em>(reading).</em> The deep layers draw a vehicle-like split from step 64, well before the
+network is any good at the task, and it is mostly in place by step 1,024. The early layers lean the same way but stay
+weak. The precise end-of-training split at b9 is animals against automobile, truck and ship, with airplanes left in
+between. My guess <em>(speculation)</em>: airplanes start out grouped with the other vehicles by colour (sky and water
+are blue), and as the network learns what an airplane is, it stops treating airplanes like cars, while still pairing
+them with ships when given four sets (finding 1).</p>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>Colour or background carries the early split.</b> The single-statistic baseline beats b9's split at step 0
+(0.46 against 0.40) but not from step
+64 on (0.45 against 0.64
+at step 64; it reaches 0.49 at the end, against
+0.89).</li>
+<li><b>Matched Jaccard depends on set sizes and on the unassigned count.</b> That is why I read the normalised excess
+and the agreement on assigned images alongside it.</li>
+<li><b>Eight checkpoints are coarse.</b> They cannot place an onset inside steps 0 to 64 or 256 to 1,024; 73
+checkpoints were saved. The perplexity-100 rule gives the same milestones at b9.</li>
+<li><b>Airplanes may be unassigned because they sit between the two sets</b> rather than because they are pushed out
+of one; the SEBA values of airplane images would tell.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> Open b9 alone at <a class="explore-link" href="#explorer?fam=layer&amp;t=0&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=2">step 0</a>,
+<a class="explore-link" href="#explorer?fam=layer&amp;t=1&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=2">step 64</a>,
+<a class="explore-link" href="#explorer?fam=layer&amp;t=3&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=2">step 1,024</a> and
+<a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=2">the end</a>, and
+switch to the class colouring at each. Or take <a class="explore-link" href="#explorer?tour=b9-two-sets">b9's
+late-training sets</a> and look up the column to see where they sat earlier.</p>
+
+<!-- ============================================================ 3 -->
+<h2 id="f-depth">3. Where depth redraws the grouping</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 4$) of the <b>single-snapshot block at each site</b>, compared between sites at the same checkpoint. The screenshot shows site b2 alone at step 64,000, its sets painted on every site.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b2-b3"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b2-b3.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed).</em> At the last checkpoint, the $r = 4$ sets of single-snapshot blocks at adjacent sites
+agree with matched Jaccard 0.43 to 0.88 (the
+permutation null for adjacent pairs at this checkpoint is at most 0.15). The grouping changes most at
+b2→b3 (0.43), then stem to b1
+(0.57), b6 to b7 (0.61) and b8 to b9
+(0.64), and least at b9→pool. But training does not
+create this agreement: the mean over adjacent pairs is 0.76 at step 0 and
+0.71 at the end.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_carry.0_4.matrix">
+  <figcaption><b>Plotted:</b> matched Jaccard between the hard sets of the single-snapshot blocks at the row site and the
+  column site, kNN graph, k = 15, $r = 4$, unassigned images in no set; the slider selects the checkpoint.
+  <b>Values</b> (step 64,000): stem against logits 0.24, b9 against
+  logits 0.87; permutation null for adjacent pairs at step 64,000 at
+  most 0.15.</figcaption>
+</figure>
+
+<p><b>How I read it</b> <em>(reading).</em> At step 0 the leading eigenfunctions share a strong image-statistics
+component, with luminance prominent. A linear fit on twelve pixel statistics explains $R^2$ =
+0.81 of $\psi_1$ at the stem and 0.76 at b9; luminance alone
+gives a squared correlation of 0.72 at the stem and
+0.37 at pool; and the stem's step-0 $\psi_1$ has |cos|
+0.716 with b9's, 0.581 with pool's and
+0.639 with the logits'. So at step 0 neighbouring sites agree largely because
+the untrained network carries the same image statistics through. Training changes <em>what</em> is carried and <em>where</em> it
+is redrawn. By the end the stem and the logits share little, b9 and the logits share nearly everything, and the
+largest breaks cut the network into five stretches: stem; b1 and b2; b3 to b6; b7 and b8; b9 to logits.</p>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>Residual shortcuts copy their input</b>, so some adjacent agreement is architecture, not learning. The stage
+boundaries, where the shortcut subsamples with stride 2 and zero-pads the new channels, are sharper tests: b6 to b7 is a low point, b3 to b4
+(0.68) is not. The lowest point, b2 to b3, lies inside the first stage, and I have no
+account of it yet.</li>
+<li><b>The stretches depend on where I cut.</b> The five above come from the four lowest adjacent values; "where the
+grouping changes most" is the robust statement.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> <a class="explore-link" href="#explorer?tour=b2-b3">Colour every site by b2's own sets</a> and
+compare the b2 and b3 columns; then select <a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=3&amp;b=3&amp;m=0&amp;c=seba&amp;r=4">b3
+alone</a>. For contrast, look at <a class="explore-link" href="#explorer?fam=layer&amp;t=0&amp;a=5&amp;b=5&amp;m=0&amp;c=seba&amp;r=4">b5
+at step 0</a>.</p>
+
+<!-- ============================================================ 4 -->
+<h2 id="f-block-vs-cell">4. One snapshot's split against a block's</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The leading eigenfunction $\psi_1$ (not the sets) of the <b>layer block b1 to logits</b> at step 64,000, compared with $\psi_1$ of the single-snapshot block at b1.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b1-block-psi1"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b1-block-psi1.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed).</em> At the end of training, the leading eigenfunction of the layer block b1 to
+logits is not b1's own (|cos| 0.70 between the two $\psi_1$); it is
+closest to the single-snapshot $\psi_1$ of b6 (|cos|
+0.96). Averaging trades retention at b1 for retention
+in the later layers.</p>
+
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/static_dynamic.png" alt="The leading eigenfunction of the single-snapshot block b1 and of the layer block b1 to logits, each painted on five sites, with their retention at every site.">
+  <figcaption><b>Plotted:</b> step 64,000, kNN graph, k = 15. Top row: $\psi_1$ of the single-snapshot
+  block b1; bottom row: $\psi_1$ of the layer block b1 to logits; each painted on the UMAP layouts of b1, b3, b6, b9
+  and logits (red positive, blue negative, scaled by $\max_i |\psi_1(i)|$). Right: retention $\rho_c(\psi_1)$ of each
+  at every site, block shaded; dashed lines are the means over the block. <b>Values:</b> single-snapshot $\psi_1$:
+  0.94 at b1, 0.71 at b9,
+  mean 0.81; block $\psi_1$: $\lambda_1$ =
+  0.91, retention 0.83 at
+  b1 and 0.96 at pool.</figcaption>
+</figure>
+
+<p><b>How I read it</b> <em>(reading).</em> Half of this holds by construction. The block's $\psi_1$ maximises mean
+retention over the block and b1's own $\psi_1$ maximises retention at b1, so the block's must retain less at b1; it
+does at 11 of 11 start sites. The
+informative half is <em>which</em> split the average picks: not a compromise blurred across the layers, but the split
+that b6 draws on its own and that b6 to pool keep. A split that only early layers draw loses. That is what a block is
+for: asked "what does the network treat alike from b1 to the logits?", the average answers with b6's split. The
+agreement with the start site's own $\psi_1$ rises as the block starts later (b5:
+0.82, b7: 0.97; median
+0.82).</p>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>$\psi_1$ may not be canonical.</b> If $\lambda_1$ and $\lambda_2$ are close, the single direction is arbitrary
+within their span. The leading three-dimensional spans also differ (mean $\cos^2$
+0.30), so this is not only a rotation within a span.</li>
+<li><b>Average against product.</b> The theory's object is the product of the walks, which weights snapshots differently;
+the comparison is in <a href="#method/avgprod">Method</a>.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=b1-block-psi1">the block's $\psi_1$</a>, then
+<a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=1&amp;b=1&amp;m=0&amp;c=eig&amp;r=4&amp;k=1">b1's own</a>
+and <a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=6&amp;b=6&amp;m=0&amp;c=eig&amp;r=4&amp;k=1">b6's
+own</a>, and compare the retention strips.</p>
+
+<!-- ============================================================ 5 -->
+<h2 id="f-gradients">5. The sets and the training signal</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 2$ and $r = 4$) of the <b>time block at site b9 over all 8 checkpoints</b>, set against per-image loss gradients at each checkpoint. The screenshot shows $r = 4$.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b9-all-training"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b9-all-training.png" alt="The explorer set to this finding's view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed).</em> On the images the sets assign, the within-minus-between gradient cosine of b9's
+label-free sets at the last checkpoint is 1.17 times that of
+the matching class-union grouping with two sets, and 0.46
+times with four (0.64 for the late-training block).</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_grad.0_4_9_all.lines">
+  <figcaption><b>Plotted:</b> at each checkpoint ($x$, symlog in steps), the mean cosine between per-image
+  cross-entropy loss gradients (all parameters) for pairs of images in the same group, minus the mean for pairs in
+  different groups. Groups: the $r = 4$ coherent sets of the time block b9, all 8 checkpoints,
+  kNN graph, k = 15; the ten CIFAR classes; and 100 size-preserving random relabellings of the sets (band, 2.5 to
+  97.5 percentiles).</figcaption>
+</figure>
+
+<p>Against the ten classes the sets score low: their within-minus-between cosine goes from
+0.270 at step 0 to 0.014 at the end, against
+0.953 to 0.172 for the classes; at the last checkpoint
+the sets reach at most 0.09 of the classes' value at any site. But the
+classes are the wrong yardstick for a grouping that merges classes. In logit space the negative cross-entropy
+gradient of image $i$ is $e_{y_i} - p_i$, so two images of different classes push their own logits in opposite
+directions however alike they are otherwise. That is the reason to compare the sets with the <em>class-union</em>
+grouping, which gives each class wholly to the set holding most of it and so merges the same classes. The plotted
+gradients are with respect to all parameters, $g_i = J_\theta z_i^\top (p_i - e_{y_i})$, so the logit-space fact
+motivates the reference; the measurement below does the rest.</p>
+
+<figure class="fig">
+<table class="data">
+<thead><tr><th>time block b9</th><th class="num">class union</th><th class="num">sets</th><th class="num">sets / union</th><th class="num">sets / union, late block</th></tr></thead>
+<tbody>
+<tr><td>$r = 2$</td><td class="num">0.006</td><td class="num">0.007</td><td class="num">1.17</td><td class="num">1.17</td></tr>
+<tr><td>$r = 4$</td><td class="num">0.030</td><td class="num">0.014</td><td class="num">0.46</td><td class="num">0.64</td></tr>
+</tbody>
+</table>
+  <figcaption><b>Plotted:</b> within-minus-between cosine of per-image loss gradients at step 64,000,
+  computed on the images the sets assign (1,795 at $r = 2$,
+  1,867 at $r = 4$), for the coherent sets of the time block b9 over all checkpoints
+  (kNN graph, k = 15) and for their class-union groupings on the same images ($r = 2$:
+  bird, cat, deer, dog, frog, horse | airplane, automobile, ship, truck; $r = 4$: airplane, ship | dog, horse | automobile, truck | bird, cat, deer, frog). Last column:
+  the ratio for the time block b9, steps 2,560 to 64,000.</figcaption>
+</figure>
+
+<p><b>How I read it</b> <em>(reading).</em> Measured on the same images against the grouping that merges the same
+classes, the sets are about as gradient-coherent as that grouping with two sets, and about half as coherent with
+four. The low ratio to the ten classes mostly reflects that the sets merge classes. What the network treats alike in
+its activations, it also, to a good extent, trains alike.</p>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>One site.</b> The class-union reference is computed at b9 only so far.</li>
+<li><b>The loss itself.</b> Any label-based loss builds the label into the gradient. Gradients of a label-free loss
+on the same images would show how much of this coherence remains without the label term.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=b9-all-training">b9's sets over all of
+training</a> and switch the colouring to the gradient cosine with the mean gradient, checkpoint by checkpoint.</p>
+
+<!-- ============================================================ stub -->
+<h2 id="qualitative">Readings from the images themselves (coming)</h2>
+
+<p>The findings above read sets through their class make-up. Some of the more interesting readings come from looking
+at the images: whether a set follows colour, background, texture or pose, within a class as well as across classes.
+Those readings are coming, written up separately. The tools for them are the image grids above (any set or either end
+of any $\psi_k$, in the explorer's representative-images panel), the image-statistics colourings in the
+<a href="#explorer">explorer</a>, and the image-statistics charts in <a href="#measurements/imgstats">Measurements</a>.</p>
+
+<!-- ============================================================ checks -->
+<h2 id="next-checks">Checks I'd like to run</h2>
+
+<p>Longer-range directions (diverging trajectories, behaviour-relevant data over training, and the route from
+eigenfunctions back to weights) are sketched in the <a href="#overview/uses">Overview</a>.</p>
+
+<ul>
+<li>Split-half resampling of the probe, to see which sets survive.</li>
+<li>A second seed's sets (only its layouts exist now), and other probes.</li>
+<li>Denser checkpoints (73 were saved) to place the onsets in finding 2.</li>
+<li>The product operator in place of the average, for findings 3 and 4.</li>
+<li>The class-union gradient reference at every site, a within-class null, and a label-free loss.</li>
+<li>Whether airplanes at b9 are unassigned because they sit between the two sets.</li>
+<li>From the method side: a kernel on centred but unnormalised activations (which sets depend on dropping the norm), and a probe drawn without labels (removing the one label use before the sets exist).</li>
+</ul>
+
+    </article>
+  </section>
+  <section class="tab-panel" id="tab-measurements" data-tab="measurements" hidden>
+    <header class="page-head"><h1>Measurements</h1></header>
+    <article class="prose">
+<p class="lede">Systematic charts of the comparison statistics defined in
+<a href="#method/questions">Method</a>, computed on the 2,000 probe images at 8
+checkpoints (steps 0, 64, 256, 1,024, 2,560, 6,400, 25,600, 64,000) and 12 sites. Captions state what is plotted; readings of these charts
+are argued in <a href="#findings">Findings</a>. CIFAR class labels, losses, gradients and probe pixels enter only as
+comparisons; none of them enters a walk, a block operator or a SEBA rotation.</p>
+
+<p>Defaults unless a caption says otherwise: kernel rule kNN graph, k = 15; single-snapshot blocks; $r = 4$ SEBA
+sets, i.e. SEBA applied to $\psi_0..\psi_3$ of the block operator $\bar M$; hard sets by largest SEBA value, with
+<a href="#method/glossary-unassigned">unassigned</a> images in no set. "Final" is step 64,000.</p>
+
+<nav class="callout" id="measurements-toc"><p class="callout-title">Contents</p><ol>
+<li><a href="#measurements/when">Agreement with the final checkpoint's sets, and with the classes</a></li>
+<li><a href="#measurements/carry">Agreement between sites at one checkpoint</a></li>
+<li><a href="#measurements/classmix">Class make-up of coherent sets</a></li>
+<li><a href="#measurements/va">The $r = 2$ sets against the vehicle/animal partition</a></li>
+<li><a href="#measurements/imgstats">Image statistics against eigenfunctions and SEBA vectors</a></li>
+<li><a href="#measurements/gradients">Per-image loss gradients within and between sets</a></li>
+<li><a href="#measurements/decodability">Linear and nearest-neighbour decodability of class</a></li>
+</ol></nav>
+
+<aside class="callout">
+<p class="callout-title">Matched Jaccard</p>
+<p>For two hard labelings $A$ ($r_A$ sets) and $B$ ($r_B$ sets), with unassigned images in no set: $J_{ij} = |A_i \cap
+B_j| / |A_i \cup B_j|$; a Hungarian matching of $\min(r_A, r_B)$ pairs maximises the total $J$; the score is the mean
+matched $J$, in $[0, 1]$. <b>Null:</b> the label vector of $A$, unassigned entries included, is permuted uniformly (set
+sizes and unassigned count kept); 200 permutations from one seeded bank; bands are the 2.5 to 97.5 percentiles, $\mu_0$
+is the null mean. <b>Size ceiling</b> (against a fixed reference labeling): the largest score any sets of $A$'s sizes
+could reach. <b>Normalised excess</b> $= (\text{score} - \mu_0) / (\text{ceiling} - \mu_0)$. Full definitions:
+<a href="#method/stat-jaccard">Method</a>.</p>
+</aside>
+
+<h2 id="when">Agreement with the final checkpoint's sets, and with the classes</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Each chart compares the <b>$r = 4$ sets of one single-snapshot block</b> (one site, one checkpoint) with the same site's sets at the final checkpoint, or with the classes. The screenshot shows one such block, <b>site b9 at step 64,000</b>; its sets are painted on every panel, so the rows above show where these images sat earlier.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=7&a=9&b=9&m=0&c=seba&r=4"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b9-final-r4.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_when.0_4.vs_final">
+  <figcaption><b>Plotted:</b> rows: sites; columns: checkpoints. Colour: matched Jaccard between the SEBA sets of the
+  single-snapshot block (checkpoint, site) and those of the single-snapshot block (final checkpoint, same site); the final
+  column is a self-comparison. Default kernel rule, $r = 4$. No null in this panel (see the next chart).
+  <b>Values:</b> step 0: 0.18 to 0.31.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_when.0_4.lines_vs_final">
+  <figcaption><b>Plotted:</b> the quantity of the heatmap above as lines: x: training step (symlog); one line per
+  site (ordinal colour, stem light to logits dark); band: permutation null of each site, 2.5 to 97.5 percentiles.
+  Default kernel rule, $r = 4$. <b>Values:</b> first checkpoint with matched Jaccard above 0.5 and above the null's
+  97.5th percentile: stem 1,024, b1 1,024, b2 1,024, b3 2,560, b4 2,560, b5 1,024, b6 1,024, b7 1,024, b8 1,024, b9 1,024, pool 1,024, logits 1,024 (pool: at every later checkpoint from 25,600);
+  step 0: 0.18 to 0.31; null 97.5th percentile
+  at most 0.16 before the last checkpoint.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_when.0_4.lines_vs_class"
+        data-ceiling-src="assets/questions.json#q_when.0_4.vs_class_ceiling" data-ceiling-label="size ceiling (mean over sites)">
+  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site: matched Jaccard between the $r = 4$ SEBA
+  sets of the single-snapshot block (checkpoint, site) and the 10 CIFAR classes (4 matched pairs, so each set is matched
+  to one class); band: permutation null of each site, 2.5 to 97.5 percentiles; dashed grey: size ceiling against the
+  classes, averaged over sites at each checkpoint. Default kernel rule. <b>Values:</b> last checkpoint: stem
+  0.17, b5 0.32, b9 0.42, pool 0.44, logits 0.43; size ceilings
+  0.43 to 0.52; null 97.5th
+  percentile at most 0.10.</figcaption>
+</figure>
+
+<details class="static-version"><summary>Static version (PNG)</summary>
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/q_when.png" alt="Static version: heatmap of matched Jaccard with the final checkpoint's sets by site and step, and matched Jaccard with the classes over training.">
+  <figcaption>Static version of the charts above. The dashed size ceiling is the mean over sites; a single site's
+  score can exceed it at a checkpoint where that site's set sizes differ from the average.</figcaption>
+</figure>
+</details>
+
+<h2 id="carry">Agreement between sites at one checkpoint</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The <b>$r = 4$ sets of the single-snapshot blocks of two sites</b> at the same checkpoint, compared. The screenshot shows <b>site b2 alone at step 64,000</b>, its sets painted on every site; reading along the bottom row shows how far they survive in the other sites.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b2-b3"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b2-b3.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_carry.0_4.matrix">
+  <figcaption><b>Plotted:</b> rows and columns: sites; slider: checkpoint (default: final). Colour: matched Jaccard
+  between the SEBA sets of the single-snapshot blocks of the two sites at that checkpoint; symmetric; diagonal = 1.
+  Default kernel rule, $r = 4$. No null (see the next chart).</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_carry.0_4.adjacent">
+  <figcaption><b>Plotted:</b> x: adjacent site pair (site $a \to a{+}1$); y: matched Jaccard between the two sites'
+  single-snapshot SEBA sets; one line per checkpoint (ordinal colour, step 0 light to final dark). Default kernel rule,
+  $r = 4$. Null (per pair and checkpoint, stored as <code>q_carry.0_4.adjacent_null</code>): permutation of the first
+  site's labels. <b>Values:</b> final checkpoint, adjacent pairs 0.43
+  (b2→b3) to 0.88
+  (b9→pool), null mean 0.14, null 97.5th
+  percentile at most 0.15; mean over adjacent pairs ranges from
+  0.62 (step 6,400) to
+  0.80 (step 64).</figcaption>
+</figure>
+
+<details class="static-version"><summary>Static version (PNG)</summary>
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/q_carry.png" alt="Static version: site-by-site matched Jaccard matrix at the final checkpoint and adjacent-site matched Jaccard over training.">
+  <figcaption>Static version. Comparisons between adjacent layer blocks (sites $a..a{+}1$ against $a{+}2..a{+}3$, and
+  blocks of width three) are in <code>questions.json</code> under <code>q_carry.*.w2</code> and <code>w3</code>.</figcaption>
+</figure>
+</details>
+
+<h2 id="classmix">Class make-up of coherent sets</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Each table is the class make-up of the <b>$r = 4$ sets of one single-snapshot block</b>; the explorer shows the same make-up as bars beside each set's images. The screenshot shows <b>site b9 at step 64,000</b>.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=7&a=9&b=9&m=0&c=seba&r=4"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b9-final-r4.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p>Each table counts $n_{jc}$, the images of CIFAR class $c$ in SEBA set $j$ (rows in the explorer's set order), with a
+last row for the unassigned images. Each class has 200 probe images, so the colour range is 0 to 200. Definition:
+<a href="#method/stat-makeup">Method</a>.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.4.stem">
+  <figcaption><b>Plotted:</b> $n_{jc}$ for the single-snapshot block at site stem; slider: checkpoint (default: final).
+  Default kernel rule, $r = 4$.</figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.4.b5">
+  <figcaption><b>Plotted:</b> as left, site b5.</figcaption>
+</figure>
+</div>
+
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.4.b9">
+  <figcaption><b>Plotted:</b> as in the row above, site b9, $r = 4$.</figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.2.b9">
+  <figcaption><b>Plotted:</b> as left, site b9, $r = 2$ (two sets and the unassigned row).</figcaption>
+</figure>
+</div>
+
+
+<p>Tables for other sites and $r \in \{2, 3, 4\}$ are in <code>q_classmix.cells.&lt;r&gt;.&lt;site&gt;</code>; every
+stored layer and time block is in <code>q_classmix.by_mode.0</code>. Three multi-snapshot blocks:</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.layer_t7_b7-pool_r4">
+  <figcaption><b>Plotted:</b> $n_{jc}$ for the layer block b7..pool (sites b7, b8, b9, pool) at the final checkpoint;
+  default kernel rule, $r = 4$. <b>Values:</b> $\lambda_1, \lambda_2, \lambda_3$ = 0.958,
+  0.927, 0.916, gap $\lambda_3 - \lambda_4$ =
+  0.023; retention $\rho_c$ of the SEBA vectors over the block's snapshots
+  0.87 to 0.98; set sizes
+  726, 396,
+  424, 316;
+  138 unassigned.
+  <a class="explore-link" href="#explorer?fam=layer&t=7&a=7&b=10&m=0&c=seba&r=4">this block in the explorer</a></figcaption>
+</figure>
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.time_b9_0-7_r4">
+  <figcaption><b>Plotted:</b> $n_{jc}$ for the time block at site b9 over all checkpoints (steps 0 to
+  64,000); default kernel rule, $r = 4$. <b>Values:</b> $\lambda_1..\lambda_3$ =
+  0.907, 0.858,
+  0.830, gap $\lambda_3 - \lambda_4$ =
+  0.013; retention 0.62
+  to 0.95; set sizes 412,
+  405, 404,
+  646; 133 unassigned.
+  <a class="explore-link" href="#explorer?fam=time&t=9&a=0&b=7&m=0&c=seba&r=4">explorer</a></figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.time_b9_4-7_r4">
+  <figcaption><b>Plotted:</b> as left, time block at b9 over the later half of the 8 checkpoints (the last four). <b>Values:</b> $\lambda_1..\lambda_3$ = 0.977,
+  0.952, 0.937, gap
+  0.005; retention
+  0.92 to 0.97;
+  set sizes 760, 380,
+  392, 318;
+  150 unassigned.
+  <a class="explore-link" href="#explorer?fam=time&t=9&a=4&b=7&m=0&c=seba&r=4">explorer</a></figcaption>
+</figure>
+</div>
+
+
+<h2 id="va">The $r = 2$ sets against the vehicle/animal partition</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The <b>two sets ($r = 2$) of each single-snapshot block</b>, scored against vehicles versus animals. The screenshot shows <b>site b9 at step 64</b>, where the split already matches vehicles against animals best.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=1&a=9&b=9&m=0&c=seba&r=2"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b9-step64.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p>$V$ = {airplane, automobile, ship, truck} (800 images) and $A$ = the other six classes (1,200 images) form a fixed
+2-set reference labeling. Each single-snapshot block's two $r = 2$ SEBA sets are scored against $(V, A)$ by matched
+Jaccard (for $2 \times 2$, the better of the two pairings), with null, size ceiling and normalised excess as in the
+callout above. Definitions, including the pixel baseline: <a href="#method/stat-va">Method</a>.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.by_mode.0.lines"
+        data-ceiling-src="assets/questions.json#q_va.by_mode.0.ceiling" data-ceiling-label="size ceiling (mean over sites)">
+  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site (ordinal colour): matched Jaccard between
+  the $r = 2$ SEBA sets of the single-snapshot block and $(V, A)$; band: permutation null, 2.5 to 97.5 percentiles; dashed
+  grey: size ceiling, mean over sites. Default kernel rule. <b>Values:</b> b9, final: score
+  0.89, $\mu_0$ 0.32, null maximum
+  0.35, ceiling 0.91, 162
+  unassigned; stem, final: score 0.53, $\mu_0$ 0.30, ceiling
+  0.86, 345 unassigned; largest null maximum over all
+  snapshots 0.36.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.by_mode.0.lines_norm_excess">
+  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site: normalised excess $(\text{score} -
+  \mu_0) / (\text{ceiling} - \mu_0)$ of the chart above (0 = null mean, 1 = size ceiling). Default kernel rule,
+  $r = 2$. <b>Values:</b> final: b9 0.98, stem
+  0.42.</figcaption>
+</figure>
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_va.class_placement.in_matched">
+  <figcaption><b>Plotted:</b> rows: sites; columns: CIFAR classes; slider: checkpoint (default: final). Colour: the
+  fraction of the class's 200 images that lie in the $r = 2$ SEBA set matched to the class's own group ($V$ or $A$)
+  in that single-snapshot block. Default kernel rule.</figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_va.class_placement.unassigned">
+  <figcaption><b>Plotted:</b> as left; colour: the fraction of the class's 200 images that are unassigned at
+  $r = 2$.</figcaption>
+</figure>
+</div>
+
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_va.pixel_baseline.score">
+  <figcaption><b>Plotted:</b> rows: sites; columns: checkpoints. Colour: pixel baseline, the largest matched Jaccard
+  with $(V, A)$ over 24 single-statistic splits (12 <a href="#method/stat-imgstats">image statistics</a> × 2 signs;
+  top $n_1$ images to set 1, bottom $n_2$ to set 2, with $n_1, n_2$ the snapshot's $r = 2$ SEBA set sizes). The best
+  split is chosen with the labels, so it is an upper reference for single-statistic splits of these sizes; the
+  maximising statistic is in <code>q_va.pixel_baseline.stat</code>.</figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_va.best_bipartition.va_rank">
+  <figcaption><b>Plotted:</b> rows: sites; columns: checkpoints. Colour: the rank of $(V, A)$ among all 511
+  two-group splits of the 10 classes, ordered by matched Jaccard with the snapshot's $r = 2$ SEBA sets (1 = $(V, A)$ is
+  the best-matching split; colour range 1 to 511). Default kernel rule.</figcaption>
+</figure>
+</div>
+
+<p>Also stored, as site × checkpoint heatmaps: <code>q_va.by_mode.0.score</code>, <code>.norm_excess</code>,
+<code>.agree</code> (the fraction of assigned images whose set is matched to their own group), and the same
+quantities for the other kernel rules (<code>q_va.by_mode.1</code> to <code>4</code>).</p>
+
+<h2 id="imgstats">Image statistics against eigenfunctions and SEBA vectors</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Here the eigenfunctions themselves, not the sets: <b>$\psi_1..\psi_8$ (and the SEBA vectors) of each block</b>, correlated with pixel statistics. The screenshot shows <b>$\psi_1$ of the single-snapshot block at the stem, step 64,000</b> (blue negative, red positive), with the images at its two ends in the side panel.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?fam=layer&t=7&a=0&b=0&m=0&c=eig&k=1"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_stem-psi1.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p>Twelve statistics of each probe image's pixels (channel means, luminance $Y$, RMS contrast, saturation,
+border-minus-centre differences, high-frequency share; definitions in <a href="#method/stat-imgstats">Method</a>) are
+correlated over the 2,000 images with $\psi_1..\psi_8$ and with the SEBA vectors for $r = 2, 3, 4$ of each
+block. Nulls permute the images (1,000 permutations, one bank shared by all blocks); within-class nulls permute images
+within each class. Thresholds: pointwise two-sided 5% level, median over single-snapshot blocks,
+0.04; familywise 5% level over a block's 17 × 12 correlations, median over single-snapshot
+blocks, 0.08 (within-class: 0.08); familywise over every
+block and entry, 0.10.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_maxabs_psi">
+  <figcaption><b>Plotted:</b> rows: image statistics; columns: sites (single-snapshot blocks); slider: checkpoint
+  (default: final). Colour: $\max_{k = 1..8} |\mathrm{corr}(\text{statistic}, \psi_k)|$, Pearson correlation over the
+  probe images. Default kernel rule. Null: thresholds above.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_maxabs_psi_wc">
+  <figcaption><b>Plotted:</b> as above, with the within-class correlation: the function and the statistic each have
+  their mean over the image's CIFAR class subtracted before correlating. Null: within-class permutations
+  (familywise median 0.08).</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_r2_psi">
+  <figcaption><b>Plotted:</b> rows: $\psi_1..\psi_8$; columns: sites (single-snapshot blocks); slider: checkpoint. Colour:
+  $R^2$ of a least-squares fit of $\psi_k$ on the 12 standardised statistics plus an intercept (a closed-form fit,
+  not part of the construction). Null: the same fit with the images permuted; 95th percentile pooled over $k$, at most
+  0.009 over all snapshots.</figcaption>
+</figure>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/questions.json#q_imgstats.lines_maxabs_psi.luminance">
+  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site (single-snapshot block, ordinal colour):
+  $\max_k |\mathrm{corr}(Y, \psi_k)|$, $Y$ = mean luminance; reference line: the familywise 5% null level for
+  this statistic over $k = 1..8$, the largest over all snapshots.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/questions.json#q_imgstats.lines_maxabs_psi.mean_b">
+  <figcaption><b>Plotted:</b> as left, for the mean of the blue channel.</figcaption>
+</figure>
+</div>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_imgstats.lines_maxabs_psi.hf_frac">
+  <figcaption><b>Plotted:</b> as above, for the high-frequency share of $Y$ (share of spectral energy above 8 cycles
+  per image). Lines for the other nine statistics are in <code>q_imgstats.lines_maxabs_psi.&lt;statistic&gt;</code>;
+  signed correlations per $\psi_k$, per SEBA vector and for multi-snapshot blocks in <code>q_imgstats.heat_psi</code>,
+  <code>heat_seba</code> and <code>heat_blocks_psi</code>.</figcaption>
+</figure>
+
+<h2 id="gradients">Per-image loss gradients within and between sets</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Groupings of the probe images (coherent sets, or class unions) compared with per-image loss gradients. The main chart uses the <b>sets of the time block at site b9 over all checkpoints</b>, shown in the screenshot with $r = 4$.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=b9-all-training"><img loading="lazy" decoding="async" style="width: 100%; height: auto" src="assets/fig/view_b9-all-training.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
+  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
+</figure></div>
+
+<p>For each probe image and checkpoint, $g_i$ is the gradient of its loss with respect to every parameter. For a
+labeling, the within-set mean is the mean of $\cos(g_i, g_j)$ over ordered pairs $i \ne j$ in the same set, the
+between-set mean the same over pairs in different sets (unassigned images excluded); the plotted quantity is
+within minus between. The loss uses the labels, so this compares the sets with the training signal; it is not part
+of how the sets are found. Definition: <a href="#method/stat-grad">Method</a>.</p>
+
+<p><b>Class-union reference</b> (no chart; values from the same computation): give each CIFAR class wholly to the
+set holding most of its images, which yields an $r$-group partition of the classes, evaluated on the same images
+the SEBA sets assign (unassigned images excluded from both). For the b9 time block over all
+checkpoints, within minus between at the first and final checkpoints: $r = 4$, class-union reference
+0.357 and 0.030, SEBA sets
+0.270 and 0.014 (final ratio, sets over
+reference, 0.46); $r = 2$, reference
+0.146 and 0.006, sets
+0.140 and 0.007 (ratio
+1.17); the 10 classes 0.953 and
+0.172.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_grad.0_4_9_all.lines">
+  <figcaption><b>Plotted:</b> x: training step (symlog); y: within-set minus between-set mean gradient cosine at
+  that checkpoint. Series: the $r = 4$ SEBA sets of the time block at b9 over all checkpoints (one labeling, fixed
+  across x); the 10 CIFAR classes; the null mean (dashed) with band, 2.5 to 97.5 percentiles over 100 permutations
+  of the set labels among the assigned images. Reference line at 0. Default kernel rule. <b>Values:</b> block
+  $\lambda_1..\lambda_3$ = 0.907, 0.858,
+  0.830, gap $\lambda_3 - \lambda_4$ =
+  0.013; retention 0.62
+  to 0.95; 133
+  unassigned; null 97.5th percentile at most 0.003.
+  <a class="explore-link" href="#explorer?fam=time&t=9&a=0&b=7&m=0&c=gcos&r=4">gradient alignment in the explorer</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_grad.0_4_9_all.setalign">
+  <figcaption><b>Plotted:</b> x: training step (symlog); one line per set of the same block (set colours, explorer
+  order): mean over the set's members of $\cos(g_i, \bar g)$, with $\bar g$ the mean gradient of all
+  2,000 probe images at that checkpoint; dashed: the same mean over all images.</figcaption>
+</figure>
+
+<details class="static-version"><summary>Static version (PNG)</summary>
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/q_grad.png" alt="Static version: within-minus-between gradient cosine for each site's time-block sets, against classes and random sets.">
+  <figcaption>Static version: the first chart above for the all-checkpoint time block at every site, one small
+  panel per site.</figcaption>
+</figure>
+</details>
+
+<h2 id="decodability">Linear and nearest-neighbour decodability of class</h2>
+
+<figure class="fig wide live" data-live="decod">
+  <figcaption><b>Plotted:</b> test accuracy (10 classes; chance 10%) of a closed-form ridge classifier or a weighted
+  cosine nearest-neighbour vote (toggle), fitted on 10,000 CIFAR training images and tested on the 10,000 test images
+  (which include the probe images), from the flattened activation map or its per-channel means (toggle). Left: x =
+  site, one line per checkpoint; right: x = training step (symlog), one line per site. A supervised fit, not part of
+  the construction. Definition: <a href="#method/stat-decod">Method</a>. <b>Values:</b> step 64,000, ridge, flattened map: stem 0.47, b5 0.73, b9 0.91, pool 0.91; ridge, channel means:
+  stem 0.32, b5 0.59, b9 0.91, pool 0.91; kNN, flattened map: stem 0.40, b5 0.71, b9 0.91, pool 0.92; kNN, channel means: stem 0.28, b5 0.54, b9 0.92, pool 0.92. Step 0, range over sites: ridge
+  0.23 to 0.46 (flattened), 0.23 to 0.34 (channel means); kNN 0.24 to 0.39 (flattened), 0.24 to 0.30 (channel means).</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="curves">
+  <figcaption><b>Plotted:</b> training and validation accuracy (left) and cross-entropy loss (right) at all saved
+  checkpoints, x = training step (symlog); dots: the 8 checkpoints used in the explorer.
+  <b>Values:</b> final validation accuracy 91.6%.</figcaption>
+</figure>
+
+<details class="static-version"><summary>Static version (PNG)</summary>
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/q_decod.png" alt="Static version: ridge and kNN accuracy by site, flattened and channel-mean features.">
+  <figcaption>Static version of the decodability charts.</figcaption>
+</figure>
+</details>
+
+    </article>
+  </section>
+  <section class="tab-panel" id="tab-method" data-tab="method" hidden>
+    <header class="page-head"><h1>Method</h1></header>
+    <article class="prose">
+<p class="lede">The reference tab for <b>Neural Coherent Sets</b>, my construction for finding the groups of inputs a
+neural network treats alike across layers and training: every definition and setting, in the order the pipeline runs. The
+<a href="#overview/procedure">Overview</a> gives the procedure in five steps; this tab gives the exact version of each
+step, how I chose the kernel, and how to rebuild everything.</p>
+
+<h2 id="glossary">Glossary</h2>
+
+<ul>
+<li id="glossary-probe-image"><b>Probe image.</b> One of the $N = 2,000$ CIFAR-10 test images fed to the
+network; the same images, indexed $i = 1..N$, are used at every checkpoint and site.</li>
+<li id="glossary-site"><b>Site.</b> A place in the network where activations are recorded: stem, the outputs of
+residual blocks b1 to b9, pool, or logits (12 in all).</li>
+<li id="glossary-checkpoint"><b>Checkpoint.</b> One of the 8 saved training steps used here:
+0, 64, 256, 1,024, 2,560, 6,400, 25,600, 64,000.</li>
+<li id="glossary-snapshot"><b>Snapshot.</b> A (checkpoint, site) pair. Its data are the $N$ activation vectors of the probe
+images at that site and checkpoint. In the explorer grid each snapshot is drawn as one <b>panel</b>.</li>
+<li id="glossary-activation-cell"><b>Activation cell.</b> A region of a layer's activation space on which the rest of
+the network computes nearly the same thing (after an observation by Stefan Heimersheim and collaborators); on
+this site "cell" means only this.</li>
+<li id="glossary-block"><b>Block.</b> A run of consecutive snapshots whose operators are averaged. A <b>layer block</b> is
+sites $a..b$ at one checkpoint; a <b>time block</b> is checkpoints $c..d$ at one site.</li>
+<li id="glossary-single-snapshot-block"><b>Single-snapshot block.</b> A block of one snapshot ($a = b$ or $c = d$). Its
+eigenfunctions are ordinary spectral clustering (diffusion maps) of that snapshot alone.</li>
+<li id="glossary-kernel-rule"><b>Kernel rule.</b> The recipe that turns a snapshot's cosine distances into a symmetric,
+non-negative weight matrix $K$ with zero diagonal. There are five (<a href="#method/kappa">table</a>); the default is
+the kNN graph, k = 15.</li>
+<li id="glossary-walk"><b>Walk $P_c$.</b> The Sinkhorn scaling $\mathrm{diag}(v)\,K\,\mathrm{diag}(v)$ of snapshot $c$'s
+kernel: symmetric, non-negative, zero on the diagonal, every row and column summing to 1.</li>
+<li id="glossary-lazy-walk"><b>Lazy walk $M_c$.</b> $M_c = \tfrac12(I + P_c)$: stay put with probability one half,
+otherwise take a step of $P_c$. Same eigenvectors as $P_c$, eigenvalues in $[0, 1]$.</li>
+<li id="glossary-block-operator"><b>Block operator $\bar M$.</b> The equal-weight average $\bar M = \frac{1}{|B|}
+\sum_{c \in B} M_c$ over the snapshots of block $B$.</li>
+<li id="glossary-eigenfunction"><b>Eigenfunction $\psi_k$.</b> The $k$-th unit eigenvector of $\bar M$ in decreasing
+order of eigenvalue, read as a function on the probe images ($\psi_k(i)$ for image $i$). $\psi_0 = \mathbf
+1/\sqrt N$ is the constant.</li>
+<li id="glossary-spectrum"><b>Spectrum.</b> The eigenvalues $1 = \lambda_0 \ge \lambda_1 \ge \lambda_2 \ge \dots$ of
+$\bar M$. For a unit eigenfunction, $1 - \lambda_k = \frac{1}{|B|}\sum_{c \in B} \psi_k^\top (I - M_c)\, \psi_k$, the average <em>lazy</em> penalty over the block's snapshots, which is half the average walk penalty $\psi_k^\top (I - P_c)\, \psi_k$ of <a href="#method/eq-m-penalty">(1)</a>. For SEBA with $r$ sets the
+relevant gap is $\lambda_{r-1} - \lambda_r$, between the last eigenvalue used and the first one left out.</li>
+<li id="glossary-retention"><b>Retention $\rho_c$.</b> For a function $f$ and any snapshot $c$, inside or outside the
+block, $\rho_c(f) = f^\top M_c f / f^\top f \in [0, 1]$. A block eigenvalue is the mean retention of its
+eigenfunction over the block: $\lambda_k = \frac{1}{|B|} \sum_{c \in B} \rho_c(\psi_k)$.</li>
+<li id="glossary-seba-vector"><b>SEBA vector.</b> One of the $r$ sparse vectors that SEBA returns from
+$\mathrm{span}(\psi_0, \dots, \psi_{r-1})$: soft-thresholded, sign-fixed, scaled to a maximum of 1, with negative
+entries clipped to 0. It approximates the span but generally does not lie in it.</li>
+<li id="glossary-coherent-set"><b>Coherent set.</b> The images at which SEBA vector $j$ is the largest of the $r$
+and positive (the hard assignment). These are candidates for groups the network treats alike across the block, and
+are numbered by reliability.</li>
+<li id="glossary-unassigned"><b>Unassigned.</b> An image at which all $r$ SEBA vectors are 0 after clipping; it
+belongs to no set and is drawn grey.</li>
+<li id="glossary-matched-jaccard"><b>Matched Jaccard.</b> For two collections of hard sets (unassigned images in no
+set): the Jaccard overlap $|A_i \cap B_j| / |A_i \cup B_j|$ of every pair, a one-to-one matching that maximises the
+total, and the mean over matched pairs. Its null band comes from permuting one side's labels
+(<a href="#method/questions">details</a>).</li>
+</ul>
+
+<h2 id="data">Model, probe, sites</h2>
+
+<ul>
+<li><b>Model.</b> ResNet-20 (ReLU), the ModelZoo <code>resnet20/relu-seed0</code> recipe retrained on Modal;
+64,000 steps, validation accuracy 91.6% at the last step. 73 checkpoints saved; the
+explorer uses 8: steps 0, 64, 256, 1,024, 2,560, 6,400, 25,600, 64,000. Eval mode (BatchNorm running statistics), no
+augmentation.</li>
+<li><b>Probe.</b> $N = 2,000$ CIFAR-10 test images, 200 per class, drawn with
+<code>numpy.RandomState(0)</code>. Drawing a class-balanced probe is the only use of labels before the sets exist;
+after that, classes, losses and gradients only colour plots and validate.</li>
+<li><b>Sites</b> ($S = 12$): stem $=\mathrm{ReLU}(\mathrm{BN}(\mathrm{conv}_1(x)))$; b1 to b9, the
+post-ReLU outputs of the nine residual blocks; pool, the global average of b9 over space (64 dims); logits (10).
+Convolutional sites are flattened ($C \times H \times W$: 16,384 dims for stem to b3, 8,192 for b4 to b6, 4,096 for
+b7 to b9).</li>
+</ul>
+
+<h2 id="operator">Per-snapshot operator</h2>
+
+<p>For snapshot $c$ with activations $h_i \in \mathbb{R}^D$:</p>
+
+$$ \hat h_i = \frac{h_i - \bar h}{\lVert h_i - \bar h\rVert}, \quad \bar h = \tfrac1N \textstyle\sum_i h_i, \qquad
+C_{ij} = \langle \hat h_i, \hat h_j \rangle, \qquad d_{ij} = 1 - C_{ij}. $$
+
+<p>(A zero centred vector would stay zero, giving that image cosine 0 with every other; it does not occur here.)
+$K$ is a symmetric non-negative kernel with $K_{ii} = 0$, given by one of five <a href="#method/kappa">kernel
+rules</a>, for example $K_{ij} = \exp(-\kappa\, d_{ij})$ for the single-temperature rules.</p>
+
+<p><b>Sinkhorn.</b> Find $u$ with $\sum_j \exp(\log K_{ij} + u_i + u_j) = 1$ for all $i$ (symmetric scaling,
+$v = e^u$), in the log domain in float64: up to ten fixed-point steps $u \leftarrow u - \tfrac12 \log(\text{row
+sums})$, then, if needed, line-searched Newton steps on the convex objective $\tfrac12\sum_{ij} e^{\log K_{ij} + u_i +
+u_j} - \sum_i u_i$. A snapshot counts only if $\max_i |\text{row sum}_i - 1| < 2 \times 10^{-12}$; otherwise the
+measurement fails (<code>coherent.symmetric_balance</code>). Then</p>
+
+$$ P = \mathrm{diag}(v)\, K\, \mathrm{diag}(v), \qquad M = \tfrac12 (I + P). $$
+
+<p>$P$ is symmetric, non-negative, zero on the diagonal, with unit row and column sums. For any $f$,</p>
+
+<div class="eq" id="eq-m-penalty" data-num="1">$$ f^\top (I - P)\, f \;=\; \tfrac12 \sum_{i,j} P_{ij}\,(f_i - f_j)^2 , $$</div>
+
+<p>small when $f$ is nearly constant on images the snapshot weights as similar, and $M$ has eigenvalues $\tfrac12(1 +
+\lambda_P) \in [0, 1]$ with the eigenvectors of $P$.</p>
+
+<details class="more"><summary>Why Sinkhorn, why a zero diagonal, why $(I + P)/2$</summary>
+<ul>
+<li><b>Sinkhorn instead of degree normalisation.</b> With per-snapshot degree normalisation
+($D^{-1/2} K D^{-1/2}$, with or without Coifman-Lafon $\alpha = 1$), each snapshot has its own stationary vector
+$\propto \sqrt{\text{degree}}$, so an average over snapshots has no exact trivial mode and differences in density leak
+into the spectrum. A doubly stochastic $P$ has the uniform measure in every snapshot: $\psi_0 = \mathbf 1/\sqrt N$ with
+eigenvalue exactly 1 for every block. (Doubly stochastic normalisation for spectral clustering: Zass and Shashua
+2006; robustness to heteroskedastic noise: Landa, Coifman and Kluger 2021.)</li>
+<li><b>Zero diagonal.</b> This is a stated variant of the project's theory (THEORY.md, Section 3.1, keeps
+$K_{ii} = 1$). With $K_{ii} = 1$ kept, the median diagonal entry of the Sinkhorn-scaled kernel over b1 to b8 at step
+64,000 is 1 (to the stored precision) under the calibrated
+half-mass rule, against 0.0017 under kNN scale (<code>meta.json</code>
+<code>self_weight</code>): those half-mass operators are within about $10^{-8}$ of the identity, and a block average
+would be dominated by its least lazy snapshots.</li>
+<li><b>$(I + P)/2$.</b> Fixes every snapshot's self-mass at exactly one half, and shifts the spectrum into $[0, 1]$ so that
+an eigenvalue of $P$ near $-1$ (alternation across a nearly bipartite graph) is not read as a slow mode. It
+equalises laziness only; gaps and mixing rates still differ between snapshots and are part of what is measured.</li>
+<li><b>How much the normalisation changes the result</b> (<code>normalisation_compare.json</code>, step
+64,000, all 78 layer blocks, mean $\cos^2$ of principal angles between leading spans with the constant
+projected out; computed for the two single-temperature rules only). Under kNN scale: median 1.000 against both the
+$\alpha = 1$ operator and diagonal-retained Sinkhorn (lowest 0.43 and 0.997 for $r = 3$). Under calibrated half-mass:
+median 0.001 ($r = 3$) and 0.007 ($r = 6$) against $\alpha = 1$, and 0.001 and 0.008 against diagonal-retained
+Sinkhorn.</li>
+</ul>
+</details>
+
+<h2 id="kernel">Choosing the kernel</h2>
+
+<p>Nothing in the network fixes the kernel, and on this network it changes the answer more than any other choice. In
+the trained middle layers the images are nearly equidistant: in b1 to b8 at step 64,000 the median
+cosine distance from an image to its 15th nearest neighbour, $d_{15}$, is 0.81 to 0.86, against a median pairwise
+distance of 1.00 (<code>data/r20s0/stats_64000.json</code>). Even near neighbours are not near.</p>
+
+<figure class="fig live" data-live="kernel" data-t="7" data-s="5" data-m="3">
+  <figcaption><b>Plotted:</b> kernel weight $\exp(-\kappa d)$ against cosine distance $d = 1 - \cos$, for the $\kappa$
+  set by the slider (buttons: each single-temperature rule's $\kappa$, or median $\kappa_i$ for the perplexity rules,
+  in this snapshot). Snapshot: b5, step 64,000. Vertical lines: $d_{15}$ of this snapshot (from the kNN-scale rule,
+  $\kappa = 1/d_{15}$) and $d = 1$.</figcaption>
+</figure>
+
+<p>One temperature fails in the middle layers, in two ways. A kernel flat enough to connect images broadly is nearly
+linear in $C$, and to first order in $\kappa$ its modes are principal components of $\hat h$: <em>kNN scale</em>,
+$\kappa = 1/d_{15}$, gives $\kappa \approx 1.2$ there, spread modes, and a weak
+leading one ($1 - \lambda_1$ = 0.39 to 0.47 in b2, b5 and b8 for global $\kappa$ from 2 to 5). A kernel sharp
+enough to put half the mass on 15 neighbours lets a few unusually close pairs outweigh everything else: after
+Sinkhorn scaling each such image sends nearly all its probability to its partner, and $\psi_1$ sits on one pair
+(participation number 2.0 to 2.1 from $\kappa = 12$ upward in b5 and b8; <em>half-mass</em> picks $\kappa$ = 26 to
+43 there). No single $\kappa$ in between gives modes that are both spread and slow.</p>
+
+<p>Rules that adapt to each image work here. A 15-nearest-neighbour graph and t-SNE-style affinities with a per-image
+$\kappa_i$ give every image a comparable neighbourhood, so a single close pair cannot take over its row. In every
+final snapshot tested, $\psi_1$ is spread (participation number 890 to 1,450) and no 8-set SEBA partition has a set
+smaller than 86 images; in the middle layers $1 - \lambda_1$ is 0.05 to 0.17. Per-image rules are not immune:
+perplexity 15 and 30 still give a 2-image set in some snapshot. At pool and logits, where the images are far more
+clustered, every rule gives spread modes.</p>
+
+<p>So the default is the kNN graph, k = 15. Perplexity 100 and 300 are offered too, and kNN scale and half-mass
+stay selectable as references for the two failure modes. The choice used label-free diagnostics only. Checked
+afterwards, the per-image rules' sets also agree best with the classes in the middle layers (b8: matched Jaccard 0.43
+to 0.44, against 0.34 to 0.35 for global $\kappa$ = 2 to 5).</p>
+
+<h3 id="kappa">The five kernel rules</h3>
+
+<p>$d_{ij} = 1 - C_{ij}$, $k = 15$, $K_{ii} = 0$ throughout. $d_k$ = median over images of the distance to the
+$k$-th nearest other image.</p>
+
+<table class="data">
+<tr><th>#</th><th>rule</th><th>kernel ($i \ne j$)</th></tr>
+<tr><td>0</td><td><b>kNN graph, $k = 15$</b> (default)</td><td>$K_{ij} = 1$ if $j \in \mathrm{NN}_{15}(i)$ or
+$i \in \mathrm{NN}_{15}(j)$, else $10^{-6}$ (a floor so the scaling exists). Rank-based; the same neighbourhood size
+as the UMAP layouts.</td></tr>
+<tr><td>1, 2</td><td><b>per-image perplexity 100, 300</b></td><td>For each $i$, $\kappa_i$ by bisection so that
+$p(j \mid i) \propto \exp(-\kappa_i d_{ij})$, $j \ne i$, has perplexity $\exp(H_i)$ = 100 (or 300);
+$K_{ij} = \tfrac12\big(p(j \mid i) + p(i \mid j)\big)$, the t-SNE affinity.</td></tr>
+<tr><td>3</td><td><b>kNN scale</b></td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa = 1/d_k$ per snapshot (kernel
+$e^{-1}$ at $d_k$).</td></tr>
+<tr><td>4</td><td><b>half-mass, calibrated</b></td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa$ per snapshot by
+bisection so that $\mathrm{median}_i \sum_{j \in \mathrm{NN}_k(i)} K_{ij} \big/ \sum_{j \ne i} K_{ij} =
+\tfrac12$.</td></tr>
+</table>
+
+<p>Median 15-NN share of kernel mass (before Sinkhorn) over b1 to b8 at step 64,000:
+75% (kNN graph), 45% (perplexity 100),
+26% (perplexity 300), 1% (kNN scale),
+50% (half-mass, by construction). <code>meta.json</code> stores per snapshot: $\kappa$
+for rules 3 and 4; the median $\kappa_i$ (with 10th and 90th percentiles) for rules 1 and 2; nothing for rule 0; and
+the achieved median 15-NN share of kernel mass for every rule. The half-mass rule calibrates what an earlier version's
+two-distance heuristic, $\kappa = \log(N/k)/(d_\text{pair} - d_k)$, aimed at; the heuristic appears only in the
+$\kappa$ figure below.</p>
+
+<table class="data">
+<tr><th>site</th><th class="num">kNN graph, k = 15</th><th class="num">per-point perplexity 100</th><th class="num">per-point perplexity 300</th><th class="num">kNN scale</th><th class="num">half-mass, calibrated</th></tr>
+<tr><td>stem</td><td class="num">– / 0.79</td><td class="num">22.4 / 0.38</td><td class="num">15.5 / 0.20</td><td class="num">1.5 / 0.01</td><td class="num">22.7 / 0.50</td></tr>
+<tr><td>b1</td><td class="num">– / 0.79</td><td class="num">40.8 / 0.41</td><td class="num">31.1 / 0.23</td><td class="num">1.2 / 0.01</td><td class="num">39.6 / 0.50</td></tr>
+<tr><td>b2</td><td class="num">– / 0.75</td><td class="num">44.0 / 0.41</td><td class="num">33.8 / 0.24</td><td class="num">1.2 / 0.01</td><td class="num">43.2 / 0.50</td></tr>
+<tr><td>b3</td><td class="num">– / 0.75</td><td class="num">35.8 / 0.43</td><td class="num">27.4 / 0.25</td><td class="num">1.2 / 0.01</td><td class="num">34.8 / 0.50</td></tr>
+<tr><td>b4</td><td class="num">– / 0.75</td><td class="num">33.6 / 0.45</td><td class="num">25.8 / 0.26</td><td class="num">1.2 / 0.01</td><td class="num">32.5 / 0.50</td></tr>
+<tr><td>b5</td><td class="num">– / 0.75</td><td class="num">33.9 / 0.46</td><td class="num">26.4 / 0.27</td><td class="num">1.2 / 0.01</td><td class="num">32.6 / 0.50</td></tr>
+<tr><td>b6</td><td class="num">– / 0.75</td><td class="num">33.0 / 0.46</td><td class="num">25.9 / 0.28</td><td class="num">1.2 / 0.01</td><td class="num">31.6 / 0.50</td></tr>
+<tr><td>b7</td><td class="num">– / 0.79</td><td class="num">28.7 / 0.48</td><td class="num">22.8 / 0.30</td><td class="num">1.2 / 0.01</td><td class="num">27.4 / 0.50</td></tr>
+<tr><td>b8</td><td class="num">– / 0.75</td><td class="num">27.4 / 0.48</td><td class="num">22.2 / 0.31</td><td class="num">1.2 / 0.01</td><td class="num">25.9 / 0.50</td></tr>
+<tr><td>b9</td><td class="num">– / 0.75</td><td class="num">15.1 / 0.38</td><td class="num">10.0 / 0.21</td><td class="num">1.9 / 0.02</td><td class="num">16.7 / 0.50</td></tr>
+<tr><td>pool</td><td class="num">– / 0.71</td><td class="num">15.8 / 0.33</td><td class="num">6.5 / 0.15</td><td class="num">6.2 / 0.14</td><td class="num">20.5 / 0.50</td></tr>
+<tr><td>logits</td><td class="num">– / 0.75</td><td class="num">20.7 / 0.33</td><td class="num">6.9 / 0.12</td><td class="num">13.4 / 0.24</td><td class="num">29.2 / 0.50</td></tr>
+</table>
+<p class="byline">Each entry: $\kappa$ (median $\kappa_i$ for the perplexity rules; none for the kNN graph) / median
+15-NN share of kernel mass, step 64,000; source <code>data/r20s0b/meta.json</code>.</p>
+
+<h3 id="sweep">The sweep</h3>
+
+<p>Candidates (<code>data/r20s0b/sweep.json</code>, produced by <code>sweep_math.py</code>), 19 in all: one global
+$\kappa \in \{2, 3, 5, 8, 12, 16, 20, 25, 30\}$; $\kappa$ calibrated to a median 15-NN mass share of 0.05, 0.1, 0.2,
+0.5; per-image perplexity 15, 30, 100, 300; kNN graphs with $k$ = 15, 50. Snapshots: b2, b5, b8, pool and logits at steps
+256, 6,400 and 64,000. Each snapshot's operator is computed alone ($M = \tfrac12(I + P)$, Sinkhorn as above). Label-free
+diagnostics: the participation number $\mathrm{PN}(\psi) = 1/\sum_i \psi_i^4$ of the unit vectors $\psi_1..\psi_8$
+($N$ when all entries have equal size, 2 when two images carry everything); $1 - \lambda_1..\lambda_8$; the sizes of
+the SEBA sets for $r = 4, 8$; and Sinkhorn stability. Matched Jaccard of the SEBA sets with the classes was computed
+after the choice, as validation.</p>
+
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/rules.png" alt="Participation number of the leading eigenvector, one minus its eigenvalue, and the smallest SEBA set, against a single global kappa for five sites, with the per-image rules shown at the right of each panel.">
+  <figcaption><b>Plotted:</b> single-snapshot operators at step 64,000, one line per site (b2, b5, b8, pool,
+  logits; light to dark). Wide part of each panel: one global $\kappa$ for the snapshot (log axis); red crosses: the
+  $\kappa$ the calibrated half-mass rule picks in that snapshot. Narrow grey part: the per-image rules (kNN graph $k$ =
+  15, perplexity 100, perplexity 300). Left: $\mathrm{PN}(\psi_1)$, log scale, dashed line at 2. Middle: $1 -
+  \lambda_1$. Right: size of the smallest of the $r = 8$ SEBA sets, log scale (a size of 0 is drawn at the floor).
+  Source: <code>sweep.json</code>.<br>
+  <b>Values:</b> $1 - \lambda_1$ in b2, b5, b8: 0.39 to 0.47 for global $\kappa \in \{2, 3, 5\}$; 0.05 to 0.17 under
+  the per-image rules.</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/sweep.png" alt="Participation number, one minus the leading eigenvalue, and class agreement of SEBA sets for every candidate kernel rule and five sites at the final checkpoint.">
+  <figcaption><b>Plotted:</b> all 19 candidate rules at step 64,000, single-snapshot operators, one line per
+  site (b2, b5, b8, pool, logits; light to dark). x: the rule's parameter, grouped by family (global $\kappa$; median
+  15-NN mass target; per-image perplexity; kNN graph $k$). Top: median $\mathrm{PN}$ of $\psi_1..\psi_8$ (solid) and
+  minimum (dotted), log scale, dashed line at 2. Middle: $1 - \lambda_1$ of $M$. Bottom: matched Jaccard of the $r =
+  8$ SEBA sets with the 10 classes (validation, computed after the choice). Source: <code>sweep.json</code>.</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/kappa.png" alt="Kernel weight against neighbour rank, cumulative kernel mass against rank, and achieved 15-neighbour mass by site, for five single-kappa rules.">
+  <figcaption><b>Plotted:</b> five single-$\kappa$ kernels $\exp(-\kappa d)$ at step 64,000: kNN scale,
+  the two-distance half-mass heuristic, calibrated half-mass, global $\kappa = 5$, global $\kappa = 30$ (legend: their
+  $\kappa$ at b5). Left: weight of the $m$-th nearest neighbour relative to the nearest, at the median distance over
+  images for each rank, b5; dotted line at $m = 15$. Middle: share of an image's kernel mass (self excluded, before
+  Sinkhorn) in its $m$ nearest neighbours, median over images, b5; dotted lines at $m = 15$ and one half. Right: that
+  share at $m = 15$, per site. Recomputed by <code>site/figdata.py</code> from the same checkpoint and probe.</figcaption>
+</figure>
+
+<h2 id="blocks">Blocks and retention</h2>
+
+<ul>
+<li><b>Layer blocks</b>: sites $a..b$ at one checkpoint, all $0 \le a \le b < 12$ (78 per checkpoint).
+<b>Time blocks</b>: checkpoints $c..d$ of the eight at one site (36 per site), equal weight per listed checkpoint
+(the checkpoints are roughly geometrically spaced in steps, so early training gets more weight per step).</li>
+<li>Block operator $\bar M = \frac{1}{|B|} \sum_{c \in B} M_c$, equivalently $\tfrac12(I + \bar P)$ with $\bar P$ the
+mean walk. The penalty is linear in the walk, so
+<div class="eq" id="eq-m-block" data-num="2">$$ f^\top (I - \bar P)\, f \;=\; \frac{1}{|B|} \sum_{c \in B} f^\top (I - P_c)\, f , $$</div>
+and the leading eigenfunctions of $\bar M$ are the unit functions orthogonal to the constant and to each other with the
+smallest <em>average</em> penalty over the block. Since $I - \bar M = \tfrac12 (I - \bar P)$, a unit eigenfunction has $1 - \lambda_k = \tfrac12\, \psi_k^\top (I - \bar P)\, \psi_k$. No map between layers or between checkpoints is used.</li>
+<li>Eigenpairs by a dense float64 symmetric eigensolver, descending; $\lambda_0 = 1$, $\psi_0 = \mathbf 1/\sqrt N$
+(not stored); $\psi_1..\psi_8$ stored with unit norm, sign fixed so the largest-magnitude entry is positive, quantised
+to int16 relative to $\max_i |\psi_k(i)|$.</li>
+<li><b>Retention</b> $\rho_{c'}(f) = f^\top M_{c'} f / f^\top f$ is stored for $\psi_1..\psi_8$ and every SEBA
+vector, for every snapshot of the checkpoint (layer blocks) or every checkpoint of the site (time blocks), inside and
+outside the block. Identity: $\lambda_k = \frac{1}{|B|}\sum_{c \in B} \rho_c(\psi_k)$. A high $\lambda_k$ is a high
+average, not high retention in every snapshot; the retention strip shows each snapshot's value.</li>
+<li><b>Single-snapshot blocks</b> ($a = b$ or $c = d$) are ordinary spectral clustering / diffusion maps of that snapshot. For longer
+blocks, Neural Coherent Sets builds on two constructions for flows: Froyland's dynamic Laplacian (Froyland 2015; Froyland and Junge 2018) and Banisch and
+Koltai's space-time diffusion maps (2017), here with Sinkhorn-normalised kernels and uniform weight on each image's
+trajectory; in those works averaging over time finds coherent sets of a flow, and here the "time" axis is depth or
+training.</li>
+</ul>
+
+<h2 id="seba">SEBA sets</h2>
+
+<p>Sparse Eigenbasis Approximation (Froyland, Rock and Sakellariou 2019, Algorithm 3.1), ported from the authors'
+reference code (<a href="https://github.com/gfroyland/SEBA">github.com/gfroyland/SEBA</a>) and cross-checked against
+it in the tests. Input $V = [\psi_0, \psi_1, \dots, \psi_{r-1}]$ (constant included), $r \in \{2, 3, 4, 6, 8\}$,
+$\mu = 0.99/\sqrt N$ (just under the entry size of an evenly spread unit vector). Orthonormalise $V$ (QR); starting
+from $R = I$, repeat until $\lVert R_\text{new} - R \rVert \le 10^{-14}$ (at most 5,000 iterations):</p>
+
+$$ Z = VR, \qquad S_{:j} = \frac{\operatorname{sign}(Z_{:j}) \odot (|Z_{:j}| - \mu)_+}{\lVert \operatorname{sign}(Z_{:j}) \odot (|Z_{:j}| - \mu)_+ \rVert}, $$
+$$ R_\text{new} = \operatorname{polar}(V^\top S) = U W^\top, \qquad \text{where } V^\top S = U \Sigma W^\top . $$
+
+<p>The rotated vectors $VR$ lie in the span; the returned thresholded vectors $S$ generally do not, and are sparse
+approximations to it. Then flip each column of $S$ so its sum is positive, divide it by its maximum, order the columns
+by decreasing minimum entry (<b>reliability</b>), and clip negative entries to 0. Hard label of image $i$:
+$\arg\max_j S_{ij}$ if $\max_j S_{ij} > 0$, else unassigned. Set $j$ (1-based, reliability order) takes the $j$-th set
+colour; unassigned is grey. The rotation and permutation are stored, so the browser reconstructs the full vectors
+(not just the labels) for retention.</p>
+
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/seba.png" alt="How SEBA turns eigenvectors into coloured sets: images at their eigenvector coordinates with threshold lines, the sparse vectors, and the resulting colours on a UMAP snapshot.">
+  <figcaption><b>Plotted:</b> layer block b7 to pool, step 64,000, kNN graph, k = 15, $r = 3$ (input
+  $\psi_0, \psi_1, \psi_2$). Left: each probe image at $(\sqrt N \psi_1(i), \sqrt N \psi_2(i))$, coloured by its hard
+  set (grey: unassigned). Each dashed line, in a set's colour, is where that set's rotated coordinate $(VR)_{ij}$
+  equals the threshold $\mu$; it is straight because $(VR)_{:j}$ is a fixed combination of $\psi_0$ (constant),
+  $\psi_1$ and $\psi_2$. Middle: the three SEBA vectors (scaled to maximum 1, negatives clipped), images sorted by set
+  and, within a set, by decreasing value. Right: the pool panel at the same step (UMAP layout), coloured by set.<br>
+  <b>Values:</b> $\lambda_1$ = 0.958, $\lambda_2$ = 0.927, gap $\lambda_2 - \lambda_3$ = 0.011; set sizes 1,105, 398 and 424; 73 unassigned.</figcaption>
+</figure>
+
+<h2 id="canonical">What is and is not canonical</h2>
+
+<ul>
+<li>Given the snapshots, the kernel rule and the normalisation, $\bar M$ and its spectrum are well defined.</li>
+<li>An individual $\psi_k$ is defined only up to sign, and only when $\lambda_k$ is separated from its neighbours;
+inside a group of close eigenvalues only the span is meaningful. SEBA uses the span of the leading $r$, so it
+depends on where $r$ cuts the spectrum: the gap $\lambda_{r-1} - \lambda_r$ says how sharp that cut is.</li>
+<li>Sign convention, set numbering (reliability order) and colours are conventions.</li>
+<li>Choices that could be made otherwise: the sites, centring over this probe set, cosine (which drops the norm),
+the kernel rule, and equal weights within a block.</li>
+</ul>
+
+<h2 id="avgprod">Average versus product</h2>
+
+<p id="hankel-detail">The project's theory builds on a product, not an average. For a layer block $a < b$, the
+chronological product $Q = M_b \cdots M_a$ (functions are column vectors; layer $a$ applied first) is the nearest
+cross-layer object: its right singular vectors are functions at layer $a$, its left singular vectors their
+normalised images at layer $b$ (Froyland's coherent pairs). The title's "cross-Hankel" is an analogy to this: for a
+time series $y$, a Hankel matrix $H_{ij} = y_{i+j}$ has windows of the past as rows and of the future as columns, and
+for linear systems its leading singular vectors give a small state through which the past influences the future;
+$Q$ plays that role between layer $a$ and layer $b$.</p>
+
+<p>The explorer uses $\bar M$. To first order in the step size the two agree: if $M_c = I - \varepsilon L_c$, then
+$Q^\top Q = I - 2\varepsilon \sum_c L_c + O(\varepsilon^2)$ and $\bar M = I - \tfrac{\varepsilon}{|B|}\sum_c L_c$,
+so they share leading vectors up to $O(\varepsilon)$ when the relevant eigenvalues of $\sum_c L_c$ are simple. Beyond
+first order they differ: $(\tfrac12(M_a + M_b))^2$ contains $\tfrac14(M_aM_b + M_bM_a)$, while $Q^\top Q$ does not
+average.</p>
+
+<p><code>avgprod.json</code> reports, for the kNN-graph and perplexity-100 rules, with the constant projected out of
+both sides, the mean $\cos^2$ of principal angles between $\mathrm{span}(\psi_1..\psi_r)$ of $\bar M$ and the top-$r$
+non-trivial right and left singular vectors of $Q$ and of the two-end product $M_b M_a$, $r \in \{3, 6\}$. At step
+64,000, $r = 3$, over the 66 layer pairs, median (lowest): kNN graph, 0.989 (0.836) for the right and
+0.991 (0.881) for the left singular vectors of $Q$, and 0.973 (0.632) and 0.975 (0.641) for the two-end product;
+perplexity 100, 0.993 (0.645) and 0.995 (0.649), and 0.979 (0.664) and 0.981 (0.661). With $r = 6$ the medians are
+0.96 to 0.99.</p>
+
+<figure class="fig wide">
+  <img loading="lazy" decoding="async" src="assets/fig/avgprod.png" alt="Heatmaps of agreement between the averaged operator's leading span and the product operator's singular vectors, for every pair of first and last site.">
+  <figcaption><b>Plotted:</b> step 64,000, $r = 3$, constant projected out. Row: first site $a$; column:
+  last site $b$ ($a < b$). Colour: mean $\cos^2$ of principal angles between $\mathrm{span}(\psi_1, \psi_2, \psi_3)$ of
+  $\bar M$ for block $a..b$ and, by column of panels, the top-3 non-trivial right singular vectors of $Q = M_b \cdots
+  M_a$, its left singular vectors, and the right and left singular vectors of $M_b M_a$. Top row of panels:
+  kNN graph, k = 15; bottom row: per-point perplexity 100. Source: <code>avgprod.json</code>.</figcaption>
+</figure>
+
+<h2 id="reading">Reading the layouts and colourings</h2>
+
+<p>The explorer grid has one row per checkpoint and one column per site; each panel is a 2-d layout of the $N$ probe
+images in one snapshot (<a href="#method/umap">UMAP</a>), and each image is one dot in every panel. The layouts are for
+display only: nothing is computed from them, and a set that looks scattered in a layout can be compact in the
+operator, or the reverse.</p>
+
+<p>A colouring is computed from the <em>selected block only</em> (outlined) and painted on every panel, inside and
+outside the block, so a block's functions and sets can be followed into other sites and checkpoints.</p>
+
+<ul>
+<li><b>Coherent sets</b> (SEBA, rank $r$): set $j$ in the $j$-th set colour
+(<span class="swatch" style="--sw: var(--c-set-0)"></span> set 1,
+<span class="swatch" style="--sw: var(--c-set-1)"></span> set 2, ...), unassigned grey. Clicking a set in the legend
+dims the others.</li>
+<li><b>Eigenfunction</b> $\psi_k$: diverging colour of $\psi_k(i) / \max_i |\psi_k(i)|$, blue negative, grey near
+zero, red positive. <b>Nodal domains</b>: the sign of $\psi_k$ alone. Signs follow the convention above.</li>
+<li><b>Validation colourings</b> (labels, losses or gradients; none enters an operator): CIFAR class; correct or
+wrong; cross-entropy loss and input-Jacobian norm (log scale, fixed across rows from the 1st to 99th percentile over
+all checkpoints); gradient alignment $\cos(g_i, \bar g)$ and $g_i \cdot \bar g$ (diverging; the dot product is scaled
+by the 99th percentile of its magnitude). Each is taken at the row's own checkpoint, or at the final checkpoint for
+every row (<a href="#method/perimage">definitions</a>).</li>
+</ul>
+
+<p>The side panels describe the selected function (one $\psi_k$, all sets, or one set):</p>
+
+<ul>
+<li><b>Spectrum</b>: $\lambda_1..\lambda_8$ of $\bar M$, with $\mathrm{PN}(\psi_k) = (\sum_i \psi_k(i)^2)^2 / \sum_i
+\psi_k(i)^4$ under each; a mode with $\mathrm{PN} < 0.01N$ is marked localised. With a SEBA colouring the
+eigenvalues of $\psi_1..\psi_{r-1}$ are drawn dark.</li>
+<li><b>Retention strip</b>: $\rho_c$ of the selected function in every snapshot of the block's checkpoint (layer block)
+or site (time block); the block's snapshots are shaded, and for $\psi_k$ a dashed line marks $\lambda_k$, their
+mean.</li>
+<li><b>Legend</b>: each set's size and its class make-up as a bar (validation). Matched Jaccard of the sets against
+the classes and against a second block of the same family, kernel rule and $r$, each with the mean of a 30-draw
+permutation null.</li>
+<li><b>Representative images</b>: for $\psi_k$, the 12 images with the most positive values, the 12 most negative,
+and the 12 nearest zero. For a set, its members by decreasing SEBA value ("highest membership"), and its members with
+the smallest lead of their own SEBA value over the largest of the other $r - 1$ ("boundary members").</li>
+</ul>
+
+<h2 id="umap">Layouts (display only)</h2>
+
+<ul>
+<li>Per checkpoint: <code>umap.AlignedUMAP</code> across the 12 sites (identity relations between consecutive
+sites), <code>n_neighbors=15</code>, <code>min_dist=0.1</code>, <code>alignment_regularisation=0.02</code>,
+<code>random_state=0</code>, on the top 50 principal components ($u_k\sqrt{\lambda_k}$ from the eigendecomposition of
+$C$) of each snapshot.</li>
+<li>Across checkpoints, per site: centre, scale to unit RMS, orthogonal Procrustes (reflections allowed) onto the
+previous checkpoint, then rescale to the 0.5 and 99.5 percentiles for drawing. The within-checkpoint alignment is part
+of the UMAP objective and shapes the layouts; across checkpoints only rotation, reflection, centring and scale
+change.</li>
+<li>No quantity is computed from the 2-d coordinates. Distances in a layout are not distances in the operator.</li>
+<li><b>Seed 1</b> ("layout from"). A second ResNet-20, identical recipe, training seed 1; only its activations' top-50
+PCs and its own AlignedUMAP and Procrustes layouts are computed, for the same probe images and steps. Colours always
+come from seed 0's blocks. Seed 1's layouts are aligned along its own checkpoints, not onto seed 0's.</li>
+</ul>
+
+<h2 id="perimage">Per-image diagnostics</h2>
+
+<p>At each checkpoint, eval mode: cross-entropy loss, prediction, correctness; $\lVert \partial z / \partial x
+\rVert_F$, the Frobenius norm of the $10 \times 3072$ Jacobian of the logits $z$ with respect to the normalised input
+pixels; per-sample loss gradients $g_i$ with respect to all trainable parameters, $\bar g = \frac1N \sum_i g_i$ over
+the probe, and $g_i \cdot \bar g$, $\cos(g_i, \bar g)$, $\lVert g_i \rVert$. These use labels through the loss and
+never enter an operator.</p>
+
+<h2 id="questions">Statistics behind the Measurements tab</h2>
+
+<p>Defaults unless a chart says otherwise: the kNN graph, k = 15 and $r = 4$. Class labels and probe pixels only
+describe and validate here; none of these statistics enters an operator. Exact definitions and the JSON layout are in
+the docstrings of <code>site/analysis.py</code> and <code>site/analysis_findings.py</code>.</p>
+
+<h3 id="stat-jaccard">Matched Jaccard, null and size ceiling</h3>
+
+<p>Hard labelings $A$ ($r_A$ sets) and $B$ ($r_B$ sets; 10 for the classes), unassigned images in no set: $J_{ij} =
+|A_i \cap B_j| / |A_i \cup B_j|$ (0 if the union is empty); Hungarian matching maximising total $J$ over $\min(r_A,
+r_B)$ pairs; score = mean matched $J$. <b>Null:</b> permute the label vector of $A$, unassigned entries included (keeps
+$A$'s set sizes and unassigned count), 200 permutations from one shared seeded bank; stored as the mean $\mu_0$, the
+2.5 / 97.5 percentiles and the maximum. <b>Size ceiling</b> (against a fixed reference labeling): the same Hungarian
+mean over $\min(|A_i|, |B_j|) / \max(|A_i|, |B_j|)$, the largest score any sets of these sizes could reach. The
+explorer's legend uses the same score with a 30-draw null.</p>
+
+<ul>
+<li><b>When</b> (<code>q_when</code>): for each site and checkpoint, matched Jaccard of that single-snapshot block's sets
+with the same site's sets at the final checkpoint, and with the classes.</li>
+<li><b>Carry-over</b> (<code>q_carry</code>): at each checkpoint, matched Jaccard between the single-snapshot sets of
+every pair of sites (no null), of adjacent sites (with null), and of adjacent layer blocks of width 2 and 3.</li>
+</ul>
+
+<h3 id="stat-makeup">Class make-up</h3>
+
+<p>For the default rule, every layer block and every time block, and $r \in \{2, 3, 4\}$: the $(r + 1) \times 10$
+table of counts $n_{jc} = \#\{\text{images in SEBA set } j \text{ with class } c\}$, rows in reliability order, with a
+last row for the unassigned images. The charts show it for single-snapshot blocks as a heatmap with a checkpoint slider
+(colour range 0 to 200, the images per class). <b>Per-class placement</b> (at $r = 2$): for each class $c$ and snapshot,
+the fraction of $c$'s 200 images in the set matched to $c$'s super-class (below), and the fraction unassigned.</p>
+
+<h3 id="stat-va">Vehicles against animals at $r = 2$</h3>
+
+<p>$V$ = {airplane, automobile, ship, truck} (800 images), $A$ = the other six classes (1,200). For every kernel rule
+and single-snapshot block (and, for the default rule, every time block), the two $r = 2$ SEBA sets are compared with the
+2-set labeling $(V, A)$:</p>
+
+<ul>
+<li><b>score</b>: their matched Jaccard (for $2 \times 2$, the better of the two pairings), with null mean $\mu_0$,
+null band and null maximum over the 200 permutations, and size ceiling as above;</li>
+<li><b>norm_excess</b> $= (\text{score} - \mu_0) / (\text{ceiling} - \mu_0)$: 0 at the null mean, 1 when the sets are
+as aligned with $(V, A)$ as their sizes allow;</li>
+<li><b>agree</b>: under the matching, the fraction of <em>assigned</em> images whose set is matched to their own
+super-class; <b>vehicle fraction</b> of set $j$: the share of $V$ among its members.</li>
+</ul>
+
+<p>Milestones per site, over the 8 checkpoints $t$, with $T$ the last:</p>
+<ul>
+<li><b>half_step</b>: the first $t$ such that $\text{norm\_excess}(t') \ge 0.5$ at every $t' \ge t$;</li>
+<li><b>most_step</b>: the first $t$ such that $\text{score}(t') - \mu_0(t') \ge 0.8\,(\text{score}(T) - \mu_0(T))$ at
+every $t' \ge t$ (80% of the final excess over the null mean, kept from then on); undefined if the final score does
+not exceed its null maximum.</li>
+<li>The permutation onset (the first $t$ whose score exceeds its null maximum at every later checkpoint, a one-sided
+Monte Carlo permutation $p$ of $1/201$, the smallest 200 draws can give) is step 0 at every site here, so the charts report half_step and most_step.</li>
+</ul>
+
+<p><b>Pixel baseline</b> (a closed-form comparison, not part of the method): for each snapshot, each of the 12 image
+statistics below and each sign, assign the top $n_1$ images by the signed statistic to set 1 and the bottom $n_2$ to
+set 2 ($n_j$ = that snapshot's SEBA set sizes; the rest unassigned), and score the split against $(V, A)$ the same way.
+pixel_best is the largest of these 24 scores. It is chosen using the labels, so it is an upper reference for
+single-statistic splits of these sizes. <b>Best class bipartition</b> (default rule): over all 511 splits of the 10
+classes into two groups, the one whose labeling has the largest matched Jaccard with the $r = 2$ sets, and the rank of
+$(V, A)$ among them (1 = best).</p>
+
+<h3 id="stat-imgstats">Image statistics</h3>
+
+<p>From the probe pixels ($32 \times 32 \times 3$, scaled to $[0, 1]$, no normalisation), twelve statistics per
+image, with $Y = 0.299R + 0.587G + 0.114B$ (Rec. 601 luma of the gamma-encoded values):</p>
+<ul>
+<li><b>mean_r, mean_g, mean_b</b>: channel means over the 1,024 pixels; <b>luminance</b>: mean of $Y$;
+<b>contrast</b>: standard deviation of $Y$ (RMS contrast); <b>saturation</b>: mean over pixels of $(\max - \min) /
+\max$ of $(R, G, B)$ (0 where $\max = 0$).</li>
+<li><b>bc_r, bc_g, bc_b, bc_lum</b>: mean over the border ring (the 448 pixels within 4 px of the edge) minus mean over
+the central $16 \times 16$ pixels, for $R$, $G$, $B$ and $Y$ (a background proxy); <b>bc_dist</b>: the Euclidean norm
+of (bc_r, bc_g, bc_b).</li>
+<li><b>hf_frac</b>: with $F$ the 2-D DFT of $Y - \bar Y$, the share of $\sum |F|^2$ at frequency radius above 8 cycles
+per image (half the Nyquist radius) among all non-zero frequencies.</li>
+</ul>
+
+<p>For each block (every single-snapshot block; layer blocks stem..logits, b1..logits, b5..pool and b7..pool at every
+checkpoint; time blocks over all checkpoints and over the later half at every site), 17 functions: $\psi_1..\psi_8$
+and the SEBA vectors for $r = 2, 3, 4$.</p>
+<ul>
+<li><b>Correlation</b>: Pearson correlation over the $N$ probe images between a function and a statistic. The sign
+for $\psi_k$ follows the stored sign convention; only $|\mathrm{corr}|$ is sign-free.</li>
+<li><b>Set contrast</b>: for hard set $j$ ($r = 2, 3, 4$), the mean of the standardised statistic over set $j$ minus
+its mean over all other images (unassigned included), in units of the statistic's SD over the $N$ images.</li>
+<li><b>Within-class correlation</b>: the Pearson correlation after subtracting, from both the function and the
+statistic, their mean over the image's class. Class make-up alone cannot produce it: it measures whether $f$ tracks
+the statistic among images of the same class.</li>
+<li><b>$R^2$ of the fit</b> (a closed-form least-squares fit): $R^2$ of $\psi_k$ regressed on the 12 standardised
+statistics plus an intercept. Its null permutes the images (same bank as below); stored per block as the 95th
+percentile pooled over $k = 1..8$ (expected null mean about $\text{rank}/N$, the 12 statistics having rank 10; largest over blocks
+0.009).</li>
+<li><b>Class contrasts</b> (labels describe the statistics only): mean standardised statistic over class $c$ minus
+over the other classes, and over $V$ minus over $A$.</li>
+</ul>
+
+<p><b>Thresholds.</b> One bank of 1,000 image permutations is applied to the statistics, the same draws for every
+block. Per block: <em>pointwise</em> = 95th percentile of $|\text{null corr}|$ pooled over the $17 \times 12$ entries
+(a two-sided 5% level for one entry); <em>familywise</em> = 95th percentile over draws of the largest $|\text{null
+corr}|$ among the block's $17 \times 12$ entries; <em>familywise for $\psi$</em>, per statistic = the same over
+$\psi_1..\psi_8$ only; the same pointwise and familywise pair for the set contrasts. <em>Global</em> = 95th percentile
+over draws of the largest $|\text{null corr}|$ over every block and entry (0.10 here). The
+within-class correlations have their own null, permuting images within each class (a second bank of 1,000), with
+familywise thresholds per block and per statistic over $\psi_1..\psi_8$.</p>
+
+<h3 id="stat-grad">Gradient coherence</h3>
+
+<p>$G_t$ is the cosine Gram of per-sample loss gradients at checkpoint $t$. For the sets of a time block at one site
+(all checkpoints, or the later half), at each $t$: mean of $G_t$ over ordered pairs $i \ne j$ in the same set, minus
+the mean over assigned pairs in different sets (pair-weighted, unassigned excluded). The same for the 10 classes.
+<b>Null:</b> permute set labels among the assigned images, 100 permutations; the band is the measured 2.5 / 97.5
+percentile range (pairs sharing an image are not independent, so it is not a standard error). <b>Set alignment:</b>
+mean $\cos(g_i, \bar g)$ over each set's members.</p>
+
+<p><b>Class-union reference</b> (b9; $r = 2$ and 4; both time blocks). Give each class wholly to the set that
+holds most of its assigned images. This labels images by unions of classes, merging classes as the sets do but cutting
+none. The <b>primary</b> reference computes the same within-minus-between statistic for these union labels on the
+images the sets assign, so its population is the same as the sets' own statistic (unassigned images excluded). The
+reported quantity is the ratio of the sets' statistic to this reference at the final checkpoint. Comparing the two
+separates "the sets merge classes" from "the sets cut across classes"; the reference is needed because the gradients
+carry the one-hot label. A <b>secondary</b> version applies the union labels to all $N$ images, a different
+population from the sets'.</p>
+
+<h3 id="stat-decod">Decodability</h3>
+
+<p>A validation fit, not part of the construction: 10,000 CIFAR training images (1,000 per class) fit, all 10,000 test
+images evaluated (they include the 2,000 probe images); features centred by the fit mean and
+L2-normalised; flattened maps and spatial channel means ("GAP") for convolutional sites. Closed-form ridge on one-hot
+targets, no intercept, $\lambda$ by generalised cross-validation on the fit set; weighted cosine $k$-NN, $k = 20$,
+votes $\exp(\cos/0.07)$.</p>
+
+<h2 id="checks">Checks I'd like to run</h2>
+
+<p>The list is on the Findings tab: <a href="#findings/next-checks">checks I'd like to run</a>.</p>
+
+<h2 id="reproduce">Reproduce</h2>
+
+<p>From <code>explore/cifar_coherent/</code> in <a href="https://github.com/CharlesR-W/CoherentModes">the repo</a>.
+The measurement files under <code>data/</code> are not in git. They live on the Modal volume
+<code>cm-cifar-coherent</code>, so either path below needs a Modal account, and the remote images also need the
+ModelZoo source at <code>~/code/ModelZoo</code>. The SEBA code (<code>seba.py</code>) is a port of the authors'
+reference implementation and is licensed GPL-3.0-or-later accordingly.</p>
+
+<p><b>Rebuild the site from existing measurements</b> (with access to the volume as it stands):</p>
+
+<pre><code>uv run --with modal python measure_v2.py fetch r20s0b   # seed 0, incl. sweep.json
+uv run --with modal python measure_v2.py fetch r20s1b   # seed-1 layouts
+uv run --with modal python measure.py fetch r20s0       # legacy run: stats_*.json
+uv run --no-project --with numpy --with torch --with modal \
+    --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+    python site/figdata.py r20s0b   # reads checkpoints from the volume
+uv run --with numpy --with matplotlib --with pillow python site/make_figures.py r20s0b
+uv run --with numpy --with scipy --with matplotlib python -I site/analysis.py r20s0b
+uv run --with numpy --with pillow python site/build_site.py r20s0b</code></pre>
+
+<p><b>Regenerate everything on a fresh volume.</b> Every launch is detached: wait for it to complete successfully,
+using the matching <code>status</code> command, before starting the next. <code>measure_v2.py launch all</code> copies
+the seed-0 layouts and probe from the legacy run's <code>/out/analysis/r20s0/</code>, so the legacy measurement at the
+eight explorer checkpoints must run first. The kernel sweep is its own stage.</p>
+
+<pre><code>export TMPDIR=/var/tmp/cm-pipeline; mkdir -p "$TMPDIR"
+uv run --with torch --with numpy python test_coherent.py
+uv run --with modal python modal_train.py deploy
+uv run --with modal python modal_train.py launch            # seed 0
+uv run --with modal python modal_train.py launch --seed 1   # seed 1 (layouts only)
+uv run --with modal python measure.py deploy
+uv run --with modal python measure.py launch resnet20-relu-seed0 r20s0 \
+    0,64,256,1024,2560,6400,25600,64000   # layouts, probe, stats
+uv run --with modal python measure_v2.py deploy
+uv run --with modal python measure_v2.py launch all         # status: measure_v2.py status all
+uv run --with modal python measure_v2.py launch derivatives
+uv run --with modal python measure_v2.py launch validate
+uv run --with modal python measure_v2.py launch sweep       # 19 rules x 15 snapshots
+uv run --with modal python measure_v2.py launch layouts     # seed 1, after its training
+# then the seven commands of the rebuild path above</code></pre>
+
+<h2 id="refs">References</h2>
+
+<ul>
+<li>G. Froyland. Dynamic isoperimetry and the geometry of Lagrangian coherent structures. <i>Nonlinearity</i> 28
+(2015).</li>
+<li>G. Froyland, O. Junge. Robust FEM-based extraction of finite-time coherent sets using scattered, sparse, and
+incomplete trajectories. <i>SIAM J. Appl. Dyn. Syst.</i> 17 (2018).</li>
+<li>R. Banisch, P. Koltai. Understanding the geometry of transport: diffusion maps for Lagrangian trajectory data
+unravel coherent sets. <i>Chaos</i> 27 (2017).</li>
+<li>G. Froyland, C. P. Rock, K. Sakellariou. Sparse eigenbasis approximation: multiple feature extraction across
+spatiotemporal scales with application to coherent set identification. <i>Commun. Nonlinear Sci. Numer. Simul.</i>
+77 (2019).</li>
+<li>G. Froyland. An analytic framework for identification of finite-time coherent sets in time-dependent dynamical
+systems. <i>Physica D</i> 250 (2013).</li>
+<li>R. Zass, A. Shashua. Doubly stochastic normalization for spectral clustering. <i>NeurIPS</i> (2006).</li>
+<li>B. Landa, R. R. Coifman, Y. Kluger. Doubly stochastic normalization of the Gaussian kernel is robust to
+heteroskedastic noise. <i>SIAM J. Math. Data Sci.</i> 3 (2021).</li>
+<li>X. Zhu, Z. Ghahramani, J. Lafferty. Semi-supervised learning using Gaussian fields and harmonic functions.
+<i>ICML</i> (2003).</li>
+<li>L. McInnes, J. Healy, J. Melville. UMAP: Uniform Manifold Approximation and Projection (2018).</li>
+<li>J. L. Pughe-Sanford, X. Ding, J. J. Moore, A. M. Sengupta, C. Epstein, P. Greengard, D. B. Chklovskii. Neurons as
+detectors of coherent sets in sensory dynamics. <i>NeurIPS</i> (2025), arXiv:2510.26955.</li>
+<li>U. von Luxburg. A tutorial on spectral clustering. <i>Statistics and Computing</i> 17 (2007).</li>
+<li>A. Nerode. Linear automaton transformations. <i>Proc. Amer. Math. Soc.</i> 9(4):541–544 (1958), doi:10.1090/S0002-9939-1958-0135681-9.</li>
+<li>D. Hsu, S. M. Kakade, T. Zhang. A spectral algorithm for learning hidden Markov models. <i>J. Comput. Syst.
+Sci.</i> 78 (2012), arXiv:0811.4413.</li>
+<li>B. Balle, X. Carreras, F. M. Luque, A. Quattoni. Spectral learning of weighted automata: a forward-backward
+perspective. <i>Machine Learning</i> 96:33–63 (2014), doi:10.1007/s10994-013-5416-x.</li>
+</ul>
+
+    </article>
+  </section>
+</main>
+<footer class="foot">
+  <div>Built 2026-11-12 from data tag <code>r20s0b</code>. Static page; no tracking, no external requests.</div>
+  <div>Type: Source Serif 4, Inter, JetBrains Mono (SIL OFL). Maths: KaTeX (MIT).</div>
+</footer>
+<div id="tooltip" class="tooltip" hidden></div>
+<script type="application/json" id="tours-data">[{"id": "default", "label": "The default view", "hash": "#explorer?fam=layer&t=7&a=0&b=11&m=0&c=seba&r=4", "note": "Layer block: all 12 sites, stem to logits, at step 64,000; kernel rule: kNN graph, k = 15.<br>Colour: each image's coherent set ($r = 4$) from this block, painted on every panel; grey = unassigned.<br>Try: switch the colouring to class, then to the eigenfunction $\\psi_1$."}, {"id": "b9-late", "label": "Site b9 through late training, four sets", "hash": "#explorer?fam=time&t=9&a=4&b=7&m=0&c=seba&r=4", "note": "Time block: site b9, steps 2,560 to 64,000; kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 4$) of this block, painted on all 8 checkpoints and every site; grey = unassigned.<br>Try: switch the colouring to class, then set $r$ to 2 and to 6."}, {"id": "late-layers", "label": "Finding 1: late layers at the end of training", "hash": "#explorer?fam=layer&t=7&a=7&b=10&m=0&c=seba&r=4", "note": "Layer block: sites b7 to pool at step 64,000; kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 4$) of this block, painted on every panel; grey = unassigned.<br>Try: set $r$ to 3, then 6; then move the block's start from b7 to b4."}, {"id": "b9-two-sets", "label": "Finding 2: site b9 through training, two sets", "hash": "#explorer?fam=time&t=9&a=4&b=7&m=0&c=seba&r=2", "note": "Time block: site b9, steps 2,560 to 64,000; kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 2$) of this block, painted on all 8 checkpoints, so earlier rows show where these sets sat before the block; grey = unassigned.<br>Try: compare with b9 alone at step 64 (a single-snapshot block at that checkpoint), then switch the colouring to class."}, {"id": "b2-b3", "label": "Finding 3: site b2 alone, at the end of training", "hash": "#explorer?fam=layer&t=7&a=2&b=2&m=0&c=seba&r=4", "note": "Single-snapshot block: site b2 at step 64,000; kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 4$) of this one snapshot, painted on every site.<br>Try: select b3 alone and compare its sets in the b2 and b3 columns."}, {"id": "b1-block-psi1", "label": "Finding 4: one snapshot's split against a block's", "hash": "#explorer?fam=layer&t=7&a=1&b=11&m=0&c=eig&k=1", "note": "Layer block: sites b1 to logits at step 64,000; kernel rule: kNN graph, k = 15.<br>Colour: the block's eigenfunction $\\psi_1$ (blue negative, red positive), with its retention $\\rho_c(\\psi_1)$ in each snapshot in the side panel.<br>Try: select b1 alone, then b6 alone, and compare the retention strips."}, {"id": "b9-all-training", "label": "Finding 5: site b9 over all of training, gradients", "hash": "#explorer?fam=time&t=9&a=0&b=7&m=0&c=seba&r=4", "note": "Time block: site b9, all 8 checkpoints (steps 0 to 64,000); kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 4$) of this block.<br>Try: switch the colouring to the gradient cosine and step through the checkpoints."}]</script>
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="vendor/katex/auto-render.min.js"></script>
+<script type="module" src="js/main.js?v=00a9dd9888"></script>
+</body>
+</html>
