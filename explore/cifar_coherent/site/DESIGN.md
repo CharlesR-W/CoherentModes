@@ -140,6 +140,14 @@ bc_g bc_b bc_lum bc_dist hf_frac`; write `px%3Aluminance` or `px:luminance` in a
   picture in the grid), layer block / time block / single-snapshot block, kernel rule,
   block operator $\bar M$, lazy walk $M_c$, eigenfunction $\psi_k$, spectrum, retention $\rho_c$, SEBA vector,
   coherent set, unassigned, matched Jaccard. Keep new UI text in these terms.
+- The first side-panel card (beside the grid at desktop widths, so visible without scrolling; full width right under
+  the grid below 1100 px) shows the selection's images. For coherent sets: one row per set with its colour, size,
+  a stacked bar of its CIFAR class make-up (labelled validation only; hover for the counts; class key below) and a
+  strip of its highest-membership images, plus the unassigned images' size and make-up. Clicking a set selects it
+  (two rows of images and its boundary members; with the SEBA colouring it also isolates the set in the grid). For
+  an eigenfunction: its most negative, most positive and nearest-zero images. Images are the build-time
+  representatives (`D.reps`), the same ones the `images` live figure uses. With the SEBA colouring the Legend card
+  keeps only the matched-Jaccard comparisons.
 - Under the grid, a generated caption states the block (family, anchor, range), the kernel rule, the colouring (with
   r or k, draw order, what grey means) and the layout. It is definitional and is built by `captionParts()` in
   `js/explorer.js`; change that function, not prose, when the explorer's definitions change.

@@ -832,7 +832,10 @@ export class Explorer {
       correct: "Correct / wrong", loss: "Loss", jac: "Input-Jacobian norm", gcos: "Gradient alignment (cosine)", gdot: "Gradient alignment (dot product)" };
     const pxk = isPx(st.color) ? st.color.slice(3) : null, pxLab = pxk && (this.ctx.imgstats?.labels[pxk] || IMGSTATS[pxk]?.label || pxk);
     $("leg-title").textContent = pxk ? `Image statistic: ${pxLab}` : titles[st.color];
-    if (col.groups) {
+    if (col.groups && st.color === "seba") {
+      body.append(h("div", { class: "leg-note", text: "Set sizes, class make-up and images: the first card of this panel." }));
+      this.renderJaccard();
+    } else if (col.groups) {
       const g = col.groups, n = g.n;
       const t = st.fam === "layer" ? st.anchor : st.b;
       const ids = g.perRow ? (() => { const tt = st.at === "final" ? m.steps.length - 1 : t; return Uint8Array.from({ length: N }, (_, i) => this.ctx.pts.correct[tt * N + i] ? 0 : 1); })() : g.ids;
@@ -913,44 +916,75 @@ export class Explorer {
     const ri = m.seba_r.indexOf(st.r);
     return { kind: "set", ri, j: st.j, label: st.j == null ? `SEBA sets (r = ${st.r})` : `set ${st.j + 1} of ${st.r}` };
   }
+  // The first side-panel card, visible without clicking: for the selected sets, one row per set (swatch, size, class
+  // make-up bar, strip of its highest-membership images) plus the unassigned images; for psi_k, its two ends.
+  // Images come from the build-time representatives (D.reps); class labels only describe the sets.
   renderImages() {
-    const st = this.st, { m, pal, N } = this.ctx, blk = this.blk, body = $("img-body"), tg = this.target();
+    const st = this.st, { m, pal, labels, N } = this.ctx, blk = this.blk, body = $("img-body"), tg = this.target();
     body.replaceChildren();
-    const group = (label, ids, color, note) => {
-      const g = h("div", { class: "imgs-group" });
-      const lab = h("div", { class: "imgs-label" });
-      if (color) lab.append(h("span", { class: "sw", style: { background: color } }));
-      lab.append(label); if (note) lab.append(h("span", { class: "mute", text: note }));
-      const grid = h("div", { class: "imgs" });
-      ids.forEach(i => {
+    const W = body.clientWidth || 300, TH = W >= 560 ? 44 : 40, per = Math.max(5, Math.floor((W + 3) / (TH + 3)));
+    const strip = (ids, rows = 1) => {
+      const g = h("div", { class: "imgs imgs-strip", style: { gridTemplateColumns: `repeat(${per}, minmax(0, 1fr))` } });
+      ids.slice(0, per * rows).forEach(i => {
         const c = this.thumb(i);
-        c.addEventListener("pointerenter", e => { this.setHover(i, this.lensCell[0]); });
+        c.addEventListener("pointerenter", () => this.setHover(i, this.lensCell[0]));
         c.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, this.pointTip(i, this.lensCell[0], this.lensCell[1])));
         c.addEventListener("pointerleave", () => { this.setHover(-1); hideTip(); });
-        grid.append(c);
+        g.append(c);
       });
-      g.append(lab, grid); body.append(g);
+      return g;
     };
-    const n = Math.max(6, Math.min(12, Math.floor(((body.clientWidth || 300) + 3) / 43)));
+    const compBar = (cnt, total) => {
+      const bar = h("span", { class: "comp comp-lg" });
+      cnt.forEach((c, k) => { if (c) bar.append(h("i", { style: { width: (100 * c / total) + "%", background: pal.classes[k] } })); });
+      bar.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(`class make-up (${total.toLocaleString("en")} images; validation only)`,
+        cnt.map((c, k) => ({ name: m.classes[k], value: `${c} (${(100 * c / total).toFixed(0)}%)`, color: pal.classes[k], c })).filter(r => r.c).sort((x, y) => y.c - x.c))));
+      bar.addEventListener("pointerleave", hideTip);
+      return bar;
+    };
+    $("img-sub").textContent = `${blockKind(st)}: ${blockLabel(this.ctx, st)} · ${m.modes[st.mode]}`;
     if (tg.kind === "psi") {
-      $("img-title").textContent = `Representative images: ψ${tg.k}`;
-      group(`most positive ψ${tg.k}`, D.reps(m, blk, "psi", tg.k, 0).slice(0, n), pal.p.diverging.pos);
-      group(`most negative ψ${tg.k}`, D.reps(m, blk, "psi", tg.k, 1).slice(0, n), pal.p.diverging.neg);
-      group(`ψ${tg.k} nearest zero`, D.reps(m, blk, "psi", tg.k, 2).slice(0, n), pal.p.diverging.mid);
-    } else {
-      const lab = blk.lab.subarray(tg.ri * N, (tg.ri + 1) * N), r = st.r;
-      const count = j => { let c = 0; for (let i = 0; i < N; i++) if (lab[i] === j) c++; return c; };
-      if (tg.j == null) {
-        $("img-title").textContent = `Representative images: SEBA sets (r = ${r})`;
-        for (let j = 0; j < r; j++) group(`set ${j + 1}`, D.reps(m, blk, "set", tg.ri, j).top.slice(0, n), pal.set(j), ` ${count(j)} images; highest membership`);
-        body.append(h("div", { class: "card-note", text: "Click a set in the legend for more of its members and its boundary." }));
-      } else {
-        const j = tg.j, rp = D.reps(m, blk, "set", tg.ri, j);
-        $("img-title").textContent = `Representative images: set ${j + 1} of ${r}`;
-        group("highest membership", rp.top.slice(0, 2 * n), pal.set(j), ` of ${count(j)}`);
-        if (r > 1) group("boundary members", rp.bnd.slice(0, n), null, "  smallest lead over the runner-up set");
+      $("img-title").textContent = `Images at the ends of ψ${tg.k}`;
+      for (const [b, name, col] of [[1, `most negative ψ${tg.k}`, pal.p.diverging.neg], [0, `most positive ψ${tg.k}`, pal.p.diverging.pos], [2, `ψ${tg.k} nearest zero`, pal.p.diverging.mid]]) {
+        body.append(h("div", { class: "set-row" + (b === 2 ? " minor" : "") }, h("div", { class: "set-head" }, h("span", { class: "sw", style: { background: col } }), h("span", { class: "set-name", text: name })),
+          strip(D.reps(m, blk, "psi", tg.k, b), b === 2 ? 1 : 2)));
       }
+      body.append(h("div", { class: "card-note", text: "Images with the largest and smallest entries of the block's eigenfunction (computed at full precision). Hover an image to ring it in every panel." }));
+      return;
     }
+    const r = st.r, lab = blk.lab.subarray(tg.ri * N, (tg.ri + 1) * N);
+    const cnt = [...Array(r + 1)].map(() => new Array(10).fill(0)), size = new Array(r + 1).fill(0);
+    for (let i = 0; i < N; i++) { const g = lab[i] < 0 ? r : lab[i]; size[g]++; cnt[g][labels[i]]++; }
+    $("img-title").textContent = `Coherent sets, r = ${r}: images and class make-up`;
+    const seba = st.color === "seba";
+    for (let j = 0; j <= r; j++) {
+      if (j === r && !size[r]) continue;
+      const un = j === r, on = un ? (seba && st.focus === r) : tg.j === j, dim = (tg.j != null && !on) || (un && seba && st.focus != null && st.focus !== r);
+      const head = h("div", { class: "set-head", role: "button", tabindex: 0, title: un ? "Click to isolate the unassigned images" : "Click to select this set (more images, its boundary, its retention and loadings)" },
+        h("span", { class: "sw", style: { background: un ? pal.unassigned : pal.set(j) } }), h("span", { class: "set-name", text: un ? "unassigned" : `set ${j + 1}` }),
+        h("span", { class: "n", text: size[j].toLocaleString("en") }), compBar(cnt[j], size[j] || 1));
+      const pick = () => {
+        if (un) { if (!seba) return; st.focus = st.focus === r ? null : r; st.j = null; }
+        else { st.j = st.j === j ? null : j; if (seba) st.focus = st.j; }
+        this.col = colouring(this.ctx, st, blk); this.renderAll(); this.writeHash();
+      };
+      head.addEventListener("click", pick);
+      head.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+      if (seba) {
+        head.addEventListener("pointerenter", () => { if (st.focus != null) return; st.focus = j; this.col = colouring(this.ctx, st, blk); this.draw(); this.drawLens(); st.focus = null; });
+        head.addEventListener("pointerleave", () => { if (st.focus != null) return; this.col = colouring(this.ctx, st, blk); this.draw(); this.drawLens(); });
+      }
+      const row = h("div", { class: "set-row" + (on ? " on" : "") + (dim ? " dim" : "") }, head);
+      if (!un) {
+        const rp = D.reps(m, blk, "set", tg.ri, j);
+        row.append(strip(rp.top, on ? 2 : 1));
+        if (on && r > 1) row.append(h("div", { class: "imgs-label", text: "boundary members (smallest lead over the runner-up set)" }), strip(rp.bnd, 1));
+      }
+      body.append(row);
+    }
+    const key = h("div", { class: "class-key" });
+    m.classes.forEach((c, k) => key.append(h("span", {}, h("i", { style: { background: pal.classes[k] } }), c)));
+    body.append(key, h("div", { class: "card-note", text: "Bars: CIFAR class make-up of each set (validation only: labels describe the sets and play no part in finding them). Thumbnails: each set's members with the highest SEBA value. Click a set for more of its images and its boundary; hover an image to ring it in every panel." }));
   }
 
   renderRetention() {
