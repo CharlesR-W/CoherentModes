@@ -16,8 +16,9 @@ Reads data/<tag>/probe.npz (same 2,000 probe images as the measurement) and the 
   cum_mass    (T', S, 5, R) f32 median over points of the fraction of kernel mass in the r nearest neighbours
   rules                         rule names, in SPEC order
 
-and, when --gram-step is given, the full float16 Gram matrices of that step to /var/tmp/cm-figs (not the repo), which
-make_figures.py uses for the "how it is computed" figure (it recomputes Sinkhorn there).
+and the full float16 Gram matrices of that step to /var/tmp/cm-figs (not the repo), which
+make_figures.py uses for the pipeline figures (it recomputes Sinkhorn there).  --grams-only computes just those
+Grams (one checkpoint) and leaves figdata/ untouched.
 Nothing here is part of the measurement; it re-derives the same quantities for display.
 """
 from __future__ import annotations
@@ -94,8 +95,10 @@ def main():
     ap.add_argument("--steps", default="0,64000")
     ap.add_argument("--ckdir", default="/var/tmp/cm-figs/ck")
     ap.add_argument("--gram-step", type=int, default=64000)
+    ap.add_argument("--grams-only", action="store_true",
+                    help="only write the Gram stack of --gram-step to /var/tmp/cm-figs (leave figdata/*.npz alone)")
     a = ap.parse_args()
-    steps = [int(s) for s in a.steps.split(",")]
+    steps = [a.gram_step] if a.grams_only else [int(s) for s in a.steps.split(",")]
     data = ROOT / "data" / a.tag
     probe = np.load(data / "probe.npz")
     images = probe["images"]
@@ -136,6 +139,9 @@ def main():
                   flush=True)
         if step == a.gram_step:
             np.save(Path("/var/tmp/cm-figs") / f"grams_{a.tag}_{step}.npy", np.stack(grams))
+            print("wrote", Path("/var/tmp/cm-figs") / f"grams_{a.tag}_{step}.npy", flush=True)
+    if a.grams_only:
+        return
     out = HERE / "figdata"
     out.mkdir(exist_ok=True)
     np.savez_compressed(out / f"{a.tag}_kernel.npz", steps=np.array(steps), sites=np.array(SITES), k=K,

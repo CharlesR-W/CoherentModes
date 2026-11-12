@@ -115,14 +115,17 @@ function parseBlock(m, L, b) {
   return o;
 }
 
-// representative image indices computed at build time from full-precision vectors (see build_site.py)
-export const REP = { PSI: 24, TOP: 24, BND: 12 };
+// representative image indices computed at build time from full-precision vectors (see build_site.py:
+// REP_PSI, REP_TOP, REP_BND). TOP and BND are fixed; the per-eigenfunction stride PSI is derived from the stored
+// block layout (count = n_vecs * 3 * PSI + sum(seba_r) * (TOP + BND)) so the two files cannot drift apart again.
+export const REP = { TOP: 24, BND: 12 };
+const repPsi = (m, blk) => (blk.reps.length - m.seba_r.reduce((x, y) => x + y, 0) * (REP.TOP + REP.BND)) / (m.n_vecs * 3);
 export function reps(m, blk, kind, a, b) {
   // kind 'psi': a = k (1..8), b = 0 most positive | 1 most negative | 2 nearest zero
   // kind 'set': a = rank index ri, b = set j; returns {top, bnd}
-  const clean = arr => Array.from(arr).filter(i => i !== 65535);
-  if (kind === "psi") { const o = ((a - 1) * 3 + b) * REP.PSI; return clean(blk.reps.subarray(o, o + REP.PSI)); }
-  const q = m.seba_r.slice(0, a).reduce((x, y) => x + y, 0) + b, o = m.n_vecs * 3 * REP.PSI + q * (REP.TOP + REP.BND);
+  const clean = arr => Array.from(arr).filter(i => i !== 65535), P = repPsi(m, blk);
+  if (kind === "psi") { const o = ((a - 1) * 3 + b) * P; return clean(blk.reps.subarray(o, o + P)); }
+  const q = m.seba_r.slice(0, a).reduce((x, y) => x + y, 0) + b, o = m.n_vecs * 3 * P + q * (REP.TOP + REP.BND);
   return { top: clean(blk.reps.subarray(o, o + REP.TOP)), bnd: clean(blk.reps.subarray(o + REP.TOP, o + REP.TOP + REP.BND)) };
 }
 

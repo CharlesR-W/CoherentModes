@@ -81,7 +81,11 @@ export function tipRows(head, rows) {
 
 // ---------- line chart
 // opts: x (array), series [{name, y, color, dash, width, band:[lo[],hi[]]}], xscale, yrange, xlabel, ylabel,
-//       height, xfmt, yfmt, xticks, refline {y,label}, shade [x0,x1], legend (bool), title
+//       height, xfmt, yfmt, xticks, refline {y,label}, shade [x0,x1], legend (bool), title,
+//       band [lo[],hi[]] (one band for the whole chart, grey), bandMode, bandLabel.
+// bandMode for per-series bands: "each" (each in its series colour), "shared" (draw the first once, grey),
+// "envelope" (one grey band from the lowest lo to the highest hi; a series' own band shows on hovering its key),
+// "none", or "auto" (default): "shared" when all bands are equal, "each" for up to 3 banded series, else "envelope".
 export function lineChart(container, o) {
   container.replaceChildren();
   const wrap = h("div", { class: "chart-wrap" });
@@ -127,16 +131,30 @@ export function lineChart(container, o) {
     el("line", { x1: m.l, x2: W - m.r, y1: Y(o.refline.y), y2: Y(o.refline.y), stroke: "#9a9993", "stroke-width": 1 }, svg);
     if (o.refline.label) { const t = el("text", { x: m.l + 6, y: Y(o.refline.y) - 5, "text-anchor": "start" }, svg); t.textContent = o.refline.label; }
   }
+  // bands
+  const bandD = b => {
+    let d = "";
+    xs.forEach((xv, i) => { if (Number.isFinite(b[1][i])) d += (d ? "L" : "M") + X(xv) + "," + Y(Math.min(yhi, b[1][i])); });
+    for (let i = xs.length - 1; i >= 0; i--) if (Number.isFinite(b[0][i])) d += "L" + X(xs[i]) + "," + Y(Math.max(ylo, b[0][i]));
+    return d ? d + "Z" : "";
+  };
+  const GREY = { fill: "#16161a", opacity: .075 };
+  const banded = o.series.filter(s => s.band), key0 = banded.length ? JSON.stringify(banded[0].band) : "";
+  let bandMode = o.bandMode || "auto", bandNote = null;
+  if (bandMode === "auto") bandMode = banded.length > 1 && banded.every(s => JSON.stringify(s.band) === key0) ? "shared" : banded.length > 3 ? "envelope" : "each";
+  if (o.band) { el("path", { d: bandD(o.band), ...GREY }, svg); bandNote = o.bandLabel || "shaded: reference band"; }
+  if (banded.length && bandMode === "shared") { el("path", { d: bandD(banded[0].band), ...GREY }, svg); bandNote = o.bandLabel || "shaded: band (the same for every series)"; }
+  if (banded.length && bandMode === "envelope") {
+    const lo = xs.map((_, i) => Math.min(...banded.map(s => s.band[0][i]).filter(Number.isFinite))), hi = xs.map((_, i) => Math.max(...banded.map(s => s.band[1][i]).filter(Number.isFinite)));
+    el("path", { d: bandD([lo, hi]), ...GREY }, svg);
+    bandNote = o.bandLabel || "shaded: from the lowest to the highest of the series' bands (hover a key for one series' band)";
+  }
   // series
-  const paths = [];
+  const paths = [], bandEls = [];
   o.series.forEach((s, si) => {
     const gg = el("g", {}, svg);
-    if (s.band) {
-      let d = "";
-      xs.forEach((xv, i) => { if (Number.isFinite(s.band[1][i])) d += (d ? "L" : "M") + X(xv) + "," + Y(s.band[1][i]); });
-      for (let i = xs.length - 1; i >= 0; i--) if (Number.isFinite(s.band[0][i])) d += "L" + X(xs[i]) + "," + Y(s.band[0][i]);
-      el("path", { d: d + "Z", fill: s.color, opacity: .1 }, gg);
-    }
+    if (s.band && bandMode === "each") el("path", { d: bandD(s.band), fill: s.color, opacity: .1 }, gg);
+    bandEls[si] = s.band && bandMode === "envelope" ? el("path", { d: bandD(s.band), fill: s.color, opacity: 0, "pointer-events": "none" }, svg) : null;
     let d = "", pen = false;
     xs.forEach((xv, i) => {
       const v = s.y[i];
@@ -175,12 +193,13 @@ export function lineChart(container, o) {
       const key = h("i", { style: { "--sw": s.color } });
       if (s.dash) key.style.background = `repeating-linear-gradient(90deg, ${s.color} 0 4px, transparent 4px 7px)`;
       const k = h("span", { class: "k" }, key, s.name);
-      k.addEventListener("pointerenter", () => paths.forEach((p, j) => p.setAttribute("opacity", j === si ? 1 : .15)));
-      k.addEventListener("pointerleave", () => paths.forEach(p => p.setAttribute("opacity", 1)));
+      k.addEventListener("pointerenter", () => { paths.forEach((p, j) => p.setAttribute("opacity", j === si ? 1 : .15)); bandEls[si]?.setAttribute("opacity", .22); });
+      k.addEventListener("pointerleave", () => { paths.forEach(p => p.setAttribute("opacity", 1)); bandEls[si]?.setAttribute("opacity", 0); });
       lg.append(k);
     });
+    if (bandNote) lg.append(h("span", { class: "k mute" }, h("i", { style: { background: "rgba(22,22,26,.12)", height: "8px", borderRadius: "2px" } }), bandNote));
     wrap.append(lg);
-  }
+  } else if (bandNote) wrap.append(h("div", { class: "chart-legend" }, h("span", { class: "k mute", text: bandNote })));
   return { svg, X, Y };
 }
 
@@ -206,8 +225,12 @@ export function heatmap(container, o) {
   const draw = () => {
     wrap.replaceChildren();
     const Wc = Math.max(260, container.clientWidth || 480);
-    const ml = o.ml ?? (o.rowlabel ? 70 : 56), mt = 8, mb = 46;
+    const ml = o.ml ?? (o.rowlabel ? 70 : 56), mt = 8;
     const cw = Math.max(6, Math.min(44, (Wc - ml - 70) / nc)), ch = o.cellH || Math.max(10, Math.min(24, cw));
+    // column labels: horizontal when every label fits its cell, otherwise rotated 45 degrees (full name on hover)
+    const colTxt = o.cols.map(c => typeof c === "number" ? fmtStep(c) : String(c)), CH = 6.1;
+    const rot = colTxt.some(t => t.length * CH > cw - 3), lmax = Math.max(...colTxt.map(t => t.length)) * CH;
+    const mb = rot ? 30 + Math.min(110, lmax * .72) : 46;
     const W = Math.min(Wc, ml + nc * cw + 96), H = mt + nr * ch + mb;
     const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, style: "margin: 0 auto" }, wrap);
     const Z = has3 ? o.z[k] : o.z;
@@ -225,8 +248,13 @@ export function heatmap(container, o) {
         if (o.onclick) { rect.style.cursor = "pointer"; rect.addEventListener("click", () => o.onclick(r, c, k)); }
       }
     }
-    const every = Math.ceil(nc / Math.max(1, Math.floor((W - ml) / 34)));
-    for (let c = 0; c < nc; c += every) { const t = el("text", { x: ml + c * cw + cw / 2, y: mt + nr * ch + 14, "text-anchor": "middle" }, svg); t.textContent = typeof o.cols[c] === "number" ? fmtStep(o.cols[c]) : o.cols[c]; }
+    const every = Math.ceil(nc / Math.max(1, Math.floor(nc * cw / (rot ? 13 : 34))));
+    for (let c = 0; c < nc; c += every) {
+      const x = ml + c * cw + cw / 2, y = mt + nr * ch + (rot ? 8 : 14);
+      const t = el("text", rot ? { x, y, "text-anchor": "end", "dominant-baseline": "middle", transform: `rotate(-45 ${x} ${y})` } : { x, y, "text-anchor": "middle" }, svg);
+      t.textContent = colTxt[c];
+      el("title", {}, t).textContent = `${o.collabel ? o.collabel + ": " : ""}${o.cols[c]}`;
+    }
     if (o.collabel) { const t = el("text", { x: ml + nc * cw / 2, y: H - 6, "text-anchor": "middle", class: "ttl" }, svg); t.textContent = o.collabel; }
     if (o.rowlabel) { const t = el("text", { x: 0, y: 0, "text-anchor": "middle", class: "ttl", transform: `translate(11,${mt + nr * ch / 2}) rotate(-90)` }, svg); t.textContent = o.rowlabel; }
     // colour bar

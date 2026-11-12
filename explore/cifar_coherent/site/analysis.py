@@ -106,7 +106,21 @@ JSON layout (site/assets/questions.json; floats rounded to 4 decimals; NaN -> nu
               checkpoint qualifies trivially), settled_step: first checkpoint from which this holds at every
               later checkpoint, vs_class_final, vs_class_null_hi_final, vs_class_ceiling_final},
      "carry": {mean_adjacent[t] (mean over a of adjacent score), mean_adjacent_null[t]},
-     "grad": per site, block "all", last gradgram checkpoint {sets_diff, classes_diff, null_mean, null_hi}}
+     "grad": per site, block "all", last gradgram checkpoint {sets_diff, classes_diff, null_mean, null_hi}},
+ (added by site/analysis_findings.py, whose docstring defines them exactly; added after the 3 MB size check above,
+  so they never change which (mode, r) variants of the keys above are kept)
+ "q_classmix": class counts of the SEBA sets (and unassigned) of every stored layer and time block, r in {2, 3, 4},
+ "q_va": the r = 2 split of every single-cell block against vehicles/animals, with permutation null, ceiling,
+         milestones (onset_step, half_step, most_step), best class bipartition, per-class placement, pixel baseline,
+ "q_imgstats": pixel statistics of the probe images, their correlations (and within-class correlations, set
+         contrasts, least-squares R^2) with psi_1..psi_8 and SEBA vectors, with permutation nulls; lines/heatmaps,
+ "findings_support": single-cell psi_1 vs layer-block psi_1 comparisons (finding 5),
+ "facts": flat {name: formatted string}; build_site.py exposes them as {{fact:q.<name>}}. Carry-over ("carry.*")
+         and gradient ("grad.*") facts are computed here from Q2/Q3; the rest in analysis_findings.py.
+         grad.r<r>.b9.<all|late>.*class_union_assigned*: within-minus-between gradient cosine of the class-union
+         partition (each class wholly to the set holding most of its images) on the images the SEBA sets assign,
+         the same population as the sets' own statistic; this is the primary reference. *.class_union_diff (kept)
+         uses all N images. ratio_to_classes_max and adjacent_null_hi_max are last-checkpoint values.
 }
 """
 import argparse
@@ -344,6 +358,8 @@ def main():
     ap.add_argument('--data-dir', default=None)
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--out-dir', default=None, help='default: site/assets (testing only)')
+    ap.add_argument('--classmix-modes', default=None,
+                    help='comma-separated kernel-rule indices for q_classmix (default: the default rule only)')
     args = ap.parse_args()
     data_dir = Path(args.data_dir) if args.data_dir else ROOT / 'data' / args.tag
     out_dir = Path(args.out_dir) if args.out_dir else SITE_DIR / 'assets'
@@ -505,13 +521,173 @@ def main():
         out['q_grad'] = {k: v for k, v in out['q_grad'].items() if '_' not in k or k.startswith('yrange')
                          or ok(k)}
         out['meta']['kept'] = keep
-        text = json.dumps(out, separators=(',', ':'), allow_nan=False, ensure_ascii=False)
+    # New sections (analysis_findings.py); added after the size check so the keys above keep their meaning.
+    cm_modes = None if args.classmix_modes is None else [int(x) for x in args.classmix_modes.split(',')]
+    sections, facts = findings_sections(data_dir, cm_modes, Q12, dm, dri, avail, tg, G3, clsWB)
+    out.update(clean(sections))
+    facts.update(when_decod_facts(o, dr, dec, steps, sites, T, S))
+    out['facts'] = facts
+    out['meta']['definitions_findings'] = ('See the docstring of site/analysis_findings.py: q_classmix (class counts '
+                                           'per SEBA set), q_va (r = 2 sets vs vehicles/animals), q_imgstats (pixel '
+                                           'statistics vs psi_k and SEBA vectors), facts.')
+    print(f'findings sections done at {time.time() - t0:.1f}s', flush=True)
+    text = json.dumps(out, separators=(',', ':'), allow_nan=False, ensure_ascii=False)
     (out_dir / 'questions.json').write_text(text)
     print(f'wrote {out_dir / "questions.json"} ({len(text) / 1e6:.2f} MB) at {time.time() - t0:.1f}s', flush=True)
 
     figures(out, out_dir / 'fig', dm, dr)
     print(f'figures done at {time.time() - t0:.1f}s', flush=True)
     print(json.dumps(out['summary'], indent=1, ensure_ascii=False))
+
+
+# ---------------------------------------------------------------- facts for the Measurements tab
+
+
+def when_decod_facts(o, r, dec, steps, sites, T, S):
+    """Facts for the `when` and `decodability` sections (default kernel rule, rank r).
+
+    when.r<r>.<site>.first_step / settled_step: as summary.when (vs_final > 0.5 and > its null 97.5th percentile;
+    'settled' = from then on at every later checkpoint). when.r<r>.step0.vs_final_min/max: range over sites at
+    step 0. when.r<r>.final.vs_class.<site>, ceilings and null upper edges at the last checkpoint.
+    decod.<ridge|knn>.<flat|gap>.<site>.final / .step0: held-out accuracy from decod.json (the gap view has no
+    pool or logits entry, so no gap fact is made there); .step0_min/max: range over the sites that have the view."""
+    fmt = lambda x: 'n/a' if x is None or not np.isfinite(x) else f'{x:.2f}'
+    stp = lambda x: 'none' if x is None else f'{int(x):,}'
+    f = {}
+    pre = f'when.r{r}'
+    for s in range(S):
+        ok = (o['vf'][s] > 0.5) & (o['vf'][s] > o['vf_hi'][s])
+        f[f'{pre}.{sites[s]}.first_step'] = stp(next((steps[t] for t in range(T) if ok[t]), None))
+        f[f'{pre}.{sites[s]}.settled_step'] = stp(next((steps[t] for t in range(T) if ok[t:].all()), None))
+        f[f'{pre}.final.vs_class.{sites[s]}'] = fmt(o['vc'][s, -1])
+        f[f'{pre}.final.vs_class_ceiling.{sites[s]}'] = fmt(o['vc_ceil'][s, -1])
+        for t in range(T):
+            f[f'{pre}.{sites[s]}.step{steps[t]}.vs_final'] = fmt(o['vf'][s, t])
+    f[f'{pre}.step0.vs_final_min'] = fmt(o['vf'][:, 0].min())
+    f[f'{pre}.step0.vs_final_max'] = fmt(o['vf'][:, 0].max())
+    f[f'{pre}.vs_final_null_hi_max'] = fmt(o['vf_hi'][:, :-1].max())
+    f[f'{pre}.final.vs_class_ceiling_min'] = fmt(o['vc_ceil'][:, -1].min())
+    f[f'{pre}.final.vs_class_ceiling_max'] = fmt(o['vc_ceil'][:, -1].max())
+    f[f'{pre}.final.vs_class_null_hi_max'] = fmt(o['vc_hi'][:, -1].max())
+    res = dec['results']
+    first, last = res[0], res[-1]
+    f['decod.first_step'], f['decod.final_step'] = stp(first['step']), stp(last['step'])
+    for metric, mn in (('ridge_acc', 'ridge'), ('knn_acc', 'knn')):
+        for view in ('flat', 'gap'):
+            v0 = []
+            for site in dec.get('sites', sites):
+                for rr, tag in ((last, 'final'), (first, 'step0')):
+                    e = rr['views'].get(view, {}).get(site)
+                    if e is not None and e.get(metric) is not None:
+                        f[f'decod.{mn}.{view}.{site}.{tag}'] = fmt(e[metric])
+                        if tag == 'step0':
+                            v0.append(e[metric])
+            if v0:
+                f[f'decod.{mn}.{view}.step0_min'], f[f'decod.{mn}.{view}.step0_max'] = fmt(min(v0)), fmt(max(v0))
+    return f
+
+
+# ---------------------------------------------------------------- findings sections
+
+
+def findings_sections(data_dir, cm_modes, Q12, dm, dri, avail, tg, G3, clsWB):
+    """Runs analysis_findings.run and adds the facts that need Q1-Q3 results (carry-over, gradients)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('analysis_findings', SITE_DIR / 'analysis_findings.py')
+    af = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(af)
+    sections, facts = af.run(D, data_dir, sys.modules[__name__], cm_modes)
+    steps, sites, T, S, R = D['steps'], D['sites'], D['T'], D['S'], D['R']
+    f2 = af.f2
+    for r in (2, 4):
+        if (dm, R.index(r)) not in Q12:
+            continue
+        o = Q12[(dm, R.index(r))]
+        adj = o['adj'][T - 1]
+        for a in range(S - 1):
+            facts[f'carry.r{r}.final.{sites[a]}_{sites[a + 1]}'] = f2(adj[a, 0])
+        facts[f'carry.r{r}.final.adjacent_min'] = f2(adj[:, 0].min())
+        facts[f'carry.r{r}.final.adjacent_min_pair'] = f'{sites[int(adj[:, 0].argmin())]}→' \
+                                                      f'{sites[int(adj[:, 0].argmin()) + 1]}'
+        facts[f'carry.r{r}.final.adjacent_max'] = f2(adj[:, 0].max())
+        facts[f'carry.r{r}.final.adjacent_max_pair'] = f'{sites[int(adj[:, 0].argmax())]}→' \
+                                                      f'{sites[int(adj[:, 0].argmax()) + 1]}'
+        facts[f'carry.r{r}.final.adjacent_null_hi_max'] = f2(adj[:, 3].max())
+        facts[f'carry.r{r}.final.adjacent_null_mean'] = f2(adj[:, 1].mean())
+        ma = o['adj'][:, :, 0].mean(1)
+        facts[f'carry.r{r}.mean_adjacent_min'] = f2(ma.min())
+        facts[f'carry.r{r}.mean_adjacent_max'] = f2(ma.max())
+        facts[f'carry.r{r}.mean_adjacent_min_step'] = af.step_fmt(steps[int(ma.argmin())])
+        facts[f'carry.r{r}.mean_adjacent_max_step'] = af.step_fmt(steps[int(ma.argmax())])
+        for t in range(T):
+            facts[f'carry.r{r}.step{steps[t]}.mean_adjacent'] = f2(ma[t])
+        mat = o['mat'][T - 1]
+        sidx = {s_: i for i, s_ in enumerate(sites)}
+        for x, y in (('stem', 'logits'), ('b1', 'pool'), ('b3', 'b6'), ('b9', 'logits'), ('b7', 'b9'),
+                     ('b2', 'b3'), ('b6', 'b7')):
+            facts[f'carry.r{r}.final.{x}_{y}'] = f2(mat[sidx[x], sidx[y]])
+        facts[f'carry.r{r}.final.hash'] = af.explorer_hash('layer', T - 1, 0, 0, dm, r=r)
+    if avail:
+        k = len(tg) - 1
+        for r in (2, 4):
+            ri = R.index(r)
+            for s in range(S):
+                for bn in ('all', 'late'):
+                    rec = G3.get((dm, ri, s, bn))
+                    if rec is None:
+                        continue
+                    pre = f'grad.r{r}.{sites[s]}.{bn}'
+                    facts[f'{pre}.final.sets_diff'] = af.f3(rec['w'][k] - rec['b'][k])
+                    facts[f'{pre}.final.null_hi'] = af.f3(rec['nhi'][k])
+                    facts[f'{pre}.first.sets_diff'] = af.f3(rec['w'][0] - rec['b'][0])
+                    facts[f'{pre}.first.null_hi'] = af.f3(rec['nhi'][0])
+                    facts[f'{pre}.null_hi_max'] = af.f3(np.nanmax(rec['nhi']))
+                    facts[f'{pre}.n_above_null'] = str(int(((rec['w'] - rec['b']) > rec['nhi']).sum()))
+            sd = [G3[(dm, ri, s, 'all')]['w'][k] - G3[(dm, ri, s, 'all')]['b'][k] for s in range(S)]
+            facts[f'grad.r{r}.all.final.sets_diff_min'] = af.f3(min(sd))
+            facts[f'grad.r{r}.all.final.sets_diff_max'] = af.f3(max(sd))
+            facts[f'grad.r{r}.all.final.ratio_to_classes_max'] = af.f2(max(sd) / (clsWB[0][k] - clsWB[1][k]))
+        # Class-union reference: each class is given wholly to the set holding most of its images, so the
+        # partition merges classes as the sets do but has no impurity. Gradients carry the one-hot label, so
+        # this separates "the sets merge classes" from "the sets cut across classes" (validation only).
+        # Primary ("class_union_assigned"): the union labels on the SAME population as the sets' statistic, i.e.
+        # the images the sets assign (unassigned images get -1 and are excluded, as in the sets' within/between).
+        # Secondary ("class_union", kept): the union labels on all N images (population differs from the sets').
+        TL = D['TL']
+        for r in (2, 4):
+            ri = R.index(r)
+            s9 = sites.index('b9') if 'b9' in sites else S - 3
+            for bn, (c, d) in (('all', (0, T - 1)), ('late', (T // 2, T - 1))):
+                l = TL[s9, dm, D['tp'][(c, d)], ri].astype(np.int64)
+                cnt = af.class_counts(l, D['classes'], r)[:r]
+                owner = cnt.argmax(0)
+                lu = owner[D['classes']]
+                la = np.where(l >= 0, lu, -1)
+                ys, ya = [], []
+                for kk, t in enumerate(tg):
+                    G = np.load(data_dir / f'gradgram_{steps[t]}.npy').astype(np.float32)
+                    w, b = grad_within_between(G, lu, r)
+                    ys.append(float(w[0] - b[0]))
+                    w, b = grad_within_between(G, la, r)
+                    ya.append(float(w[0] - b[0]))
+                pre = f'grad.r{r}.b9.{bn}'
+                sets_fin = G3[(dm, ri, s9, bn)]['w'][-1] - G3[(dm, ri, s9, bn)]['b'][-1]
+                facts[f'{pre}.final.class_union_assigned_diff'] = af.f3(ya[-1])
+                facts[f'{pre}.first.class_union_assigned_diff'] = af.f3(ya[0])
+                facts[f'{pre}.final.sets_over_class_union_assigned'] = af.f2(sets_fin / ya[-1])
+                facts[f'{pre}.n_assigned'] = f'{int((l >= 0).sum()):,}'
+                facts[f'{pre}.final.class_union_diff'] = af.f3(ys[-1])
+                facts[f'{pre}.first.class_union_diff'] = af.f3(ys[0])
+                facts[f'{pre}.class_union_groups'] = ' | '.join(
+                    ', '.join(D['meta']['classes'][c_] for c_ in range(10) if owner[c_] == j) or '(none)'
+                    for j in range(r))
+                facts[f'{pre}.final.sets_over_class_union'] = af.f2(
+                    (G3[(dm, ri, s9, bn)]['w'][-1] - G3[(dm, ri, s9, bn)]['b'][-1]) / ys[-1])
+        facts['grad.classes.final.diff'] = af.f3(clsWB[0][k] - clsWB[1][k])
+        facts['grad.classes.first.diff'] = af.f3(clsWB[0][0] - clsWB[1][0])
+        facts['grad.final_step'] = af.step_fmt(steps[tg[k]])
+        facts['grad.first_step'] = af.step_fmt(steps[tg[0]])
+    return sections, facts
 
 
 # ---------------------------------------------------------------- figures
@@ -521,11 +697,16 @@ def figures(out, fig_dir, dm, dr):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    import matplotlib.ticker
+    from matplotlib import font_manager
     from matplotlib.colors import LinearSegmentedColormap
 
+    for f_ in sorted((SITE_DIR / 'figdata' / 'fonts').glob('Inter-*.ttf')):  # vendored Inter, as make_figures.py
+        font_manager.fontManager.addfont(str(f_))
     pal = json.loads((SITE_DIR / 'palette.json').read_text())
     fg, mute, line, bg = pal['fg'], pal['mute'], pal['line'], pal['surface']
-    plt.rcParams.update({'font.size': 8.5, 'axes.edgecolor': mute, 'axes.labelcolor': fg, 'text.color': fg,
+    plt.rcParams.update({'font.family': ['Inter', 'DejaVu Sans'], 'mathtext.fontset': 'dejavusans',
+                         'font.size': 8.5, 'axes.edgecolor': mute, 'axes.labelcolor': fg, 'text.color': fg,
                          'xtick.color': mute, 'ytick.color': mute, 'xtick.labelcolor': fg, 'ytick.labelcolor': fg,
                          'axes.titlesize': 9.5, 'axes.titlecolor': fg, 'legend.fontsize': 7, 'legend.frameon': False,
                          'axes.spines.top': False, 'axes.spines.right': False, 'figure.facecolor': bg,
@@ -537,7 +718,7 @@ def figures(out, fig_dir, dm, dr):
     meta = out['meta']
     steps, sites = meta['steps'], meta['sites']
     key = f'{dm}_{dr}'
-    sub = f'kernel rule: {meta["modes"][dm]}, r = {dr}' + ('   [SYNTHETIC FIXTURE]' if meta['fixture'] else '')
+    sub = f'kernel rule: {meta["modes"][dm]}; r = {dr} coherent sets' + ('   [SYNTHETIC FIXTURE]' if meta['fixture'] else '')
     DPI = 200
 
     def symlog(ax, xs):
@@ -573,7 +754,8 @@ def figures(out, fig_dir, dm, dr):
     w = out['q_when'][key]
     fig, axs = plt.subplots(1, 2, figsize=(7, 3.4), gridspec_kw=dict(width_ratios=[1, 1.15]))
     stl = [f'{x // 1000}k' if x >= 1000 else str(x) for x in steps]
-    heatmap(axs[0], w['vs_final']['z'], sites, stl, 'Sets at each step vs final sets', fig, 'matched Jaccard',
+    heatmap(axs[0], w['vs_final']['z'], sites, stl, 'Single-cell sets vs the same site\'s\nsets at the last checkpoint', fig,
+            'matched Jaccard',
             annot=True)
     axs[0].set_xlabel('training step')
     ax = axs[1]
@@ -581,16 +763,16 @@ def figures(out, fig_dir, dm, dr):
     cols = ordinal(len(sites))
     lo = np.nanmin(np.array([s['band'][0] for s in lv['series']], dtype=float), 0)
     hi = np.nanmax(np.array([s['band'][1] for s in lv['series']], dtype=float), 0)
-    ax.fill_between(steps, lo, hi, color=pal['unassigned'], alpha=0.7, lw=0, label='null 95% (all sites)')
+    ax.fill_between(steps, lo, hi, color=pal['unassigned'], alpha=0.7, lw=0, label='permutation null 2.5–97.5 % (all sites)')
     ceil = np.nanmean(np.array(w['vs_class_ceiling']['z'], dtype=float), 0)
-    ax.plot(steps, ceil, color=mute, ls='--', lw=1, label='size ceiling (mean)')
+    ax.plot(steps, ceil, color=mute, ls='--', lw=1, label='size ceiling (mean over sites)')
     for s, c in zip(lv['series'], cols):
         ax.plot(steps, np.array(s['y'], dtype=float), color=c, label=s['name'])
     symlog(ax, steps)
     ax.set_ylim(0, 1)
     ax.set_xlabel('training step')
     ax.set_ylabel('matched Jaccard')
-    ax.set_title('Sets vs CIFAR classes (validation)', loc='left')
+    ax.set_title('Single-cell sets vs\nthe 10 CIFAR classes', loc='left')
     ax.legend(ncol=2, loc='upper left', bbox_to_anchor=(1.0, 1.02), handlelength=1.2, columnspacing=0.8)
     fig.suptitle(sub, x=0.01, ha='left', fontsize=7.5, color=mute)
     fig.tight_layout()
@@ -600,21 +782,21 @@ def figures(out, fig_dir, dm, dr):
     # q_carry
     c = out['q_carry'][key]
     fig, axs = plt.subplots(1, 2, figsize=(7, 3.4), gridspec_kw=dict(width_ratios=[1, 1.15]))
-    heatmap(axs[0], c['matrix']['z'][-1], sites, sites, f'Site vs site sets, step {steps[-1]}', fig,
+    heatmap(axs[0], c['matrix']['z'][-1], sites, sites, f'Single-cell sets, site vs site,\nstep {steps[-1]:,}', fig,
             'matched Jaccard')
     ax = axs[1]
     adj, adjn = c['adjacent'], c['adjacent_null']
     xs = adj['x']
     nb = adjn['series'][-1]['band']
     ax.fill_between(xs, np.array(nb[0], dtype=float), np.array(nb[1], dtype=float), color=pal['unassigned'],
-                    alpha=0.7, lw=0, label=f'null 95% (step {steps[-1]})')
+                    alpha=0.7, lw=0, label=f'permutation null 2.5–97.5 % (step {steps[-1]:,})')
     for s, col in zip(adj['series'], ordinal(len(adj['series']))):
         ax.plot(xs, np.array(s['y'], dtype=float), color=col, marker='o', ms=2.5, label=s['name'].replace('step ', ''))
     ax.set_xticks(xs)
     ax.set_xticklabels(adj['xticklabels'], rotation=55, ha='right', fontsize=7)
     ax.set_ylim(0, 1)
     ax.set_ylabel('matched Jaccard')
-    ax.set_title('Each site vs the next, per checkpoint', loc='left')
+    ax.set_title('Single-cell sets:\nsite vs next site', loc='left')
     ax.legend(title='step', title_fontsize=7, loc='upper left', bbox_to_anchor=(1.0, 1.02), handlelength=1.2)
     fig.suptitle(sub, x=0.01, ha='left', fontsize=7.5, color=mute)
     fig.tight_layout()
@@ -633,21 +815,28 @@ def figures(out, fig_dir, dm, dr):
                 continue
             ser = g[f'{dm}_{dr}_{s}_all']['lines']['series']
             nl = ser[2]
-            ax.fill_between(gs, np.array(nl['band'][0], dtype=float), np.array(nl['band'][1], dtype=float),
-                            color=pal['unassigned'], alpha=0.8, lw=0, label='random sets, 95%')
+            blo, bhi = np.array(nl['band'][0], dtype=float), np.array(nl['band'][1], dtype=float)
+            ax.fill_between(gs, blo, bhi, color=mute, alpha=0.35, lw=0.8, edgecolor=mute,
+                            label='size-preserving permutation null, 2.5–97.5 %')
             ax.axhline(0, color=mute, lw=0.6)
-            ax.plot(gs, np.array(ser[0]['y'], dtype=float), color=pal['sets'][0], marker='o', ms=2, label='SEBA sets')
+            ax.plot(gs, np.array(ser[0]['y'], dtype=float), color=pal['sets'][0], marker='o', ms=2,
+                    label='coherent sets (time block, all checkpoints)')
             ax.plot(gs, np.array(ser[1]['y'], dtype=float), color=pal['sets'][1], ls='--', label='CIFAR classes')
             ax.set_title(sites[s], loc='left', fontsize=8.5)
+            ax.set_yscale('symlog', linthresh=0.01, linscale=1.0)  # the null band is ~0.003 wide
             ax.set_ylim(*g['yrange_diff'])
+            ax.set_yticks([-0.01, 0, 0.01, 0.1, 1] if g['yrange_diff'][0] < -0.005 else [0, 0.01, 0.1, 1])
+            ax.set_yticklabels([f'{v:g}' for v in ax.get_yticks()])
+            ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
             symlog(ax, gs)
             ax.tick_params(labelsize=6.5)
             ax.set_xticklabels([f'{x // 1000}k' if x >= 1000 else str(x) for x in gs], rotation=45, fontsize=6)
         for ax in axs[:, 0]:
-            ax.set_ylabel('within − between', fontsize=7.5)
+            ax.set_ylabel('within − between (symlog)', fontsize=7.5)
         h, l = axs[0, 0].get_legend_handles_labels()
         fig.legend(h, l, loc='lower center', ncol=3, fontsize=7.5)
-        fig.suptitle('Gradient cosine within minus between sets (time block over all checkpoints)\n' + sub,
+        fig.suptitle('Mean cosine of per-image loss gradients, within sets minus between sets, per checkpoint;\n'
+                     'sets of the time block over all checkpoints at each site; ' + sub,
                      x=0.01, ha='left', fontsize=8, color=fg)
         fig.tight_layout(rect=(0, 0.04, 1, 1))
         fig.savefig(fig_dir / 'q_grad.png', dpi=DPI)
@@ -679,7 +868,7 @@ def figures(out, fig_dir, dm, dr):
     h, l = axs[0, 1].get_legend_handles_labels()
     fig.legend(h, l, title='checkpoint (step)', title_fontsize=7, loc='center right', fontsize=6.5,
                handlelength=1.2)
-    fig.suptitle('Linear and kNN decodability of class by site (validation fits; dotted = chance)'
+    fig.suptitle('Test accuracy of closed-form ridge and cosine-kNN class fits by site (dotted = chance 0.1)'
                  + ('   [SYNTHETIC FIXTURE]' if meta['fixture'] else ''), x=0.01, ha='left', fontsize=8.5)
     fig.tight_layout(rect=(0, 0, 0.87, 1))
     fig.savefig(fig_dir / 'q_decod.png', dpi=DPI)

@@ -1,17 +1,45 @@
 // Page shell: hash router, maths, gifs, side notes, heading anchors, lazy live figures.
-const TABS = ["overview", "explorer", "questions", "method"];
+const TABS = ["overview", "explorer", "findings", "measurements", "method"];
+const TAB_ALIAS = { questions: "measurements" };          // old tab names (the site is published)
+// Old #<tab>/<id> whose section moved. Applied only when <id> is no longer in <tab>, so an old URL keeps
+// working while the content is being moved; a target id that does not exist (yet) lands on its tab's top.
+const ANCHOR_ALIAS = {
+  "overview/treated-alike": "overview/procedure",
+  "overview/blocks": "overview/step-3",
+  "overview/through-training": "overview/step-3",
+  "overview/hankel": "method/avgprod",
+  "overview/kernel": "method/kernel",
+  "overview/reading": "method/reading",
+  "overview/panels": "method/loadings",
+  "overview/limits": "method/checks",
+  "method/limits": "method/checks",
+};
 let explorer = null, current = null;
 
-function parseHash() {
+const panelOf = tab => document.getElementById(`tab-${tab}`);
+const inTab = (tab, id) => (id && panelOf(tab)?.querySelector(`#${CSS.escape(id)}`)) || null;
+function findTabOf(id) { const e = document.getElementById(id); const p = e && e.closest(".tab-panel"); return p ? p.dataset.tab : null; }
+
+// -> {tab, anchor (an element or null), query, canon (the hash to show, or null to leave the URL alone)}
+function resolveHash() {
   const raw = decodeURIComponent(location.hash.slice(1));
-  const [path, query] = raw.split("?");
-  const [tab, anchor] = path.split("/");
-  return { tab: TABS.includes(tab) ? tab : (document.getElementById(tab) ? findTabOf(tab) : "overview"), anchor: TABS.includes(tab) ? anchor : tab, query: new URLSearchParams(query || "") };
+  const qi = raw.indexOf("?"), path = qi < 0 ? raw : raw.slice(0, qi), qs = qi < 0 ? "" : raw.slice(qi);
+  let [tab, id] = path.split("/");
+  let moved = false;
+  if (TAB_ALIAS[tab]) { tab = TAB_ALIAS[tab]; moved = true; }
+  if (!TABS.includes(tab)) {
+    // a bare #id (no tab): find the tab that holds it; anything else goes to the Overview
+    const t = tab && findTabOf(tab);
+    return { tab: t || "overview", anchor: t ? document.getElementById(tab) : null, query: new URLSearchParams(qs.slice(1)), canon: null };
+  }
+  if (id && !inTab(tab, id) && ANCHOR_ALIAS[`${tab}/${id}`]) { [tab, id] = ANCHOR_ALIAS[`${tab}/${id}`].split("/"); moved = true; }
+  const anchor = inTab(tab, id);
+  return { tab, anchor, query: new URLSearchParams(qs.slice(1)), canon: moved ? `#${tab}${id ? "/" + id : ""}${qs}` : null };
 }
-function findTabOf(id) { const e = document.getElementById(id); const p = e && e.closest(".tab-panel"); return p ? p.dataset.tab : "overview"; }
 
 async function route() {
-  const { tab, anchor, query } = parseHash();
+  const { tab, anchor, query, canon } = resolveHash();
+  if (canon && canon !== location.hash) history.replaceState(history.state, "", canon);
   const wanted = location.hash;
   const changed = tab !== current;
   current = tab;
@@ -27,10 +55,8 @@ async function route() {
     if ([...query.keys()].length && wanted !== explorer.lastHash) explorer.applyParams(query);
     else explorer.layout();
   }
-  if (anchor) {
-    const e = document.getElementById(anchor);
-    if (e) requestAnimationFrame(() => e.scrollIntoView({ block: "start" }));
-  } else if (changed) window.scrollTo(0, 0);
+  if (anchor) requestAnimationFrame(() => anchor.scrollIntoView({ block: "start" }));
+  else if (changed || tab !== "explorer") window.scrollTo(0, 0);   // no anchor, or an unknown one: the tab's top
   observeLive();
 }
 

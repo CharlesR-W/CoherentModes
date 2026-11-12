@@ -5,8 +5,9 @@
     python3 -m http.server 8765 --bind 127.0.0.1 -d viewer/site                    # then open http://127.0.0.1:8765/
 
 Reads data/<tag>/ (and optionally data/<layout-tag>/umap_*.npy, a second network's layouts) and site/ sources;
-writes viewer/site/ (deploy root, .nojekyll). Content fragments site/content/{overview,questions,method}.html are
-inlined when present (placeholders otherwise); site/assets/ is copied verbatim.
+writes viewer/site/ (deploy root, .nojekyll). Content fragments site/content/{overview,findings,measurements,method}.html
+are inlined when present (placeholders otherwise); site/content/tours.json (explorer tours) and site/content/header.json
+are read when present; site/assets/ is copied verbatim, and assets/questions.json["facts"] joins the fact table as q.<name>.
 
 Data written to viewer/site/d/ (all little-endian; see DATA_LAYOUT below and js/data.js):
   meta.json            steps, sites, modes, kappa, nn_mass, all block spectra, layouts of the binary chunks, ...
@@ -42,9 +43,12 @@ OUT = ROOT / "viewer" / "site"
 N_VECS = 8
 BLOCK_FORMAT = "blk-v6"        # bump when the block chunk layout or its derivation changes
 REP_PSI, REP_TOP, REP_BND = 12, 24, 12      # representative images stored per function
-DEFAULT_TITLE = ("Spectral Clustering of Tempered Cross-Hankel for Unsupervised Persistent Neural Ontology "
-                 "Identification")
-TITLE_JOKE = "(This name is a joke)"
+DEFAULT_TITLE = ("Towards Characterizing a Neural Network's Native Ontology: Coherent Sets of Data Through Layers "
+                 "and Over Training")
+DEFAULT_SUBTITLE = ("or, Sparse Eigenbases of the Tempered Cross-Hankel Operator for Spectral Identification of the "
+                    "Kantian Categories by Neural Coherent Sets")
+DEFAULT_SHORT_TITLE = "Coherent sets in ResNet-20"
+TOUR_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 POINT_FIELDS = ["loss", "jac_fro", "grad_cos", "grad_dot", "grad_norm"]   # f32; plus pred/correct
 
 
@@ -471,33 +475,74 @@ class Builder:
                     f[f"self_weight.rule{mi}.final.mid_median"] = f"{np.nanmedian(sw[mi, -1, mid]):.2g}"
         (self.d / "facts.json").write_text(json.dumps(f, indent=1))
 
-    # ------------------------------------------------------------------ HTML
-    def fragment(self, name: str, placeholder: str) -> str:
-        p = HERE / "content" / f"{name}.html"
-        text = p.read_text() if p.exists() else placeholder
+    # ------------------------------------------------------------------ facts from analysis.py
+    def merge_analysis_facts(self):
+        """assets/questions.json["facts"] = {name: value-or-formatted-string} joins the fact table as q.<name>.
+        Absent file or key: nothing is added (analysis.py may not have produced them yet). Rewrites facts.json."""
+        for k in [k for k in self.facts if k.startswith("q.")]:
+            del self.facts[k]
+        p = HERE / "assets" / "questions.json"
+        qf = json.loads(p.read_text()).get("facts") if p.exists() else None
+        if qf is None:
+            log("note: assets/questions.json has no 'facts' key; no q.* facts")
+        elif not isinstance(qf, dict):
+            sys.exit('assets/questions.json["facts"] must be a flat {name: value} object')
+        else:
+            for k, v in qf.items():
+                if isinstance(v, bool) or not isinstance(v, (str, int, float)):
+                    sys.exit(f'assets/questions.json["facts"]["{k}"]: expected a string or number, got {type(v).__name__}')
+                self.facts[f"q.{k}"] = v if isinstance(v, str) else f"{v:,}" if isinstance(v, int) else f"{v:.3g}"
+            log(f"facts: {len(qf)} q.* facts from assets/questions.json")
+        (self.d / "facts.json").write_text(json.dumps(self.facts, indent=1))
 
+    # ------------------------------------------------------------------ HTML
+    def sub_facts(self, text: str, where: str) -> str:
         def sub(mo):
             key = mo.group(1).strip()
             if key not in self.facts:
-                sys.exit(f"{p.name}: unknown fact '{key}'. Known facts:\n  " + "\n  ".join(sorted(self.facts)))
+                sys.exit(f"{where}: unknown fact '{key}'. Known facts:\n  " + "\n  ".join(sorted(self.facts)))
             return html.escape(self.facts[key])
-        text = re.sub(r"\{\{\s*fact:([^}]+)\}\}", sub, text)
+        return re.sub(r"\{\{\s*fact:([^}]+)\}\}", sub, text)
+
+    def fragment(self, name: str, placeholder: str) -> str:
+        p = HERE / "content" / f"{name}.html"
+        text = self.sub_facts(p.read_text() if p.exists() else placeholder, p.name)
         # prose images load lazily so the first paint of a tab does not wait for every figure
         return re.sub(r"<img(?![^>]*\bloading=)", '<img loading="lazy" decoding="async"', text)
 
+    def tours(self) -> str:
+        """content/tours.json = [{"id", "label", "hash": "#explorer?...", "note": html}], validated and inlined
+        as JSON for js/explorer.js (the Tours menu; #explorer?tour=<id>)."""
+        p = HERE / "content" / "tours.json"
+        if not p.exists():
+            return "[]"
+        tours = json.loads(p.read_text())
+        bad = lambda msg: sys.exit(f"content/tours.json: {msg}")
+        if not isinstance(tours, list):
+            bad("expected a list of tours")
+        seen = set()
+        for i, t in enumerate(tours):
+            if not isinstance(t, dict) or not all(isinstance(t.get(k), str) and t[k] for k in ("id", "label", "hash", "note")):
+                bad(f"tour {i}: needs non-empty string fields id, label, hash, note")
+            if not TOUR_ID.fullmatch(t["id"]) or t["id"] in seen:
+                bad(f"tour {i}: id '{t['id']}' must be a unique lower-case slug (a-z, 0-9, -)")
+            if not t["hash"].startswith("#explorer?") or "tour=" in t["hash"]:
+                bad(f"tour '{t['id']}': hash must start with '#explorer?' and must not itself contain tour=")
+            seen.add(t["id"])
+            t["note"] = self.sub_facts(t["note"], f"tours.json ({t['id']})")
+        # inlined in a <script type="application/json">: keep "</" out of it
+        return json.dumps(tours, ensure_ascii=False).replace("</", "<\\/")
+
     def assemble_html(self):
-        hdr = {"title": DEFAULT_TITLE, "joke": TITLE_JOKE,
-               "subtitle": "Which images does a trained network treat as alike, and does that grouping persist across "
-                           "layers and through training? A label-free spectral look at ResNet-20 on CIFAR-10.",
+        self.merge_analysis_facts()
+        # header.json: {"title", "subtitle", "short_title", "date", "description"?}; a "joke" key is ignored
+        hdr = {"title": DEFAULT_TITLE, "subtitle": DEFAULT_SUBTITLE, "short_title": DEFAULT_SHORT_TITLE,
                "date": dt.date.today().isoformat()}
         hp = HERE / "content" / "header.json"
         if hp.exists():
-            user = json.loads(hp.read_text())
-            if "joke" not in user and "joke" in user.get("subtitle", "").lower() + user.get("title", "").lower():
-                user["joke"] = ""          # the writer already says it
-            hdr.update(user)
+            hdr.update({k: v for k, v in json.loads(hp.read_text()).items() if v})
         date = dt.date.fromisoformat(hdr["date"])
-        title_html = html.escape(hdr["title"]) + (f' <span class="joke">{html.escape(hdr["joke"])}</span>' if hdr.get("joke") else "")
+        title_html = html.escape(hdr["title"])
         ph = lambda what, extra="": (f'<div class="placeholder"><b>{what}</b> will appear here: the writer\'s fragment '
                                      f'<code>site/content/{what.lower()}.html</code> has not been built yet.</div>{extra}')
         q_extra = ('\n<h2 id="decodability">Where and when is class linearly decodable?</h2>\n'
@@ -506,24 +551,37 @@ class Builder:
                    '</figcaption></figure>\n<figure class="fig wide live" data-live="curves"><figcaption>Training curves.</figcaption></figure>')
         rep = {
             "{{TITLE}}": title_html,
-            "{{TITLE_TEXT}}": html.escape(hdr["title"] + (" " + hdr["joke"] if hdr.get("joke") else "")),
-            "{{SHORT_TITLE}}": html.escape(hdr.get("short_title", "Coherent sets in ResNet-20")),
+            "{{TITLE_TEXT}}": html.escape(hdr["title"]),
+            "{{SHORT_TITLE}}": html.escape(hdr["short_title"]),
             "{{SUBTITLE}}": html.escape(hdr["subtitle"]),
-            "{{DESCRIPTION}}": html.escape(hdr["subtitle"]),
+            "{{DESCRIPTION}}": html.escape(hdr.get("description", hdr["title"] + " " + hdr["subtitle"])),
             "{{DATE_ISO}}": date.isoformat(), "{{DATE}}": f"{date.day} {date:%B %Y}",
             "{{BUILD_DATE}}": dt.date.today().isoformat(), "{{TAG}}": html.escape(self.tag),
             "{{FIXTURE_NOTE}}": " (SYNTHETIC FIXTURE: pictures carry no meaning)" if self.meta.get("fixture") else "",
             "{{EXPLORER}}": (HERE / "explorer.html").read_text(),
             "{{CONTENT_OVERVIEW}}": self.fragment("overview", ph("Overview")),
-            "{{CONTENT_QUESTIONS}}": self.fragment("questions", ph("Questions", q_extra)),
+            "{{CONTENT_FINDINGS}}": self.fragment("findings", ph("Findings")),
+            "{{CONTENT_MEASUREMENTS}}": self.fragment("measurements", ph("Measurements", q_extra)),
             "{{CONTENT_METHOD}}": self.fragment("method", ph("Method")),
+            "{{TOURS_JSON}}": self.tours(),
         }
         page = (HERE / "index.html").read_text()
         for k, v in rep.items():
             page = page.replace(k, v)
         left = re.findall(r"\{\{[A-Z_]+\}\}", page)
         assert not left, left
-        (OUT / "index.html").write_text(page)
+        (OUT / "index.html").write_text(self.cache_bust(page))
+
+    def cache_bust(self, page):
+        """Append ?v=<hash of the built js/css> to the page's css/js URLs and to the relative module imports
+        inside js/, so a returning reader never runs cached old modules against a new page (Pages: max-age=600)."""
+        import hashlib
+        files = sorted([*(OUT / "js").glob("*.js"), *(OUT / "css").glob("*.css")])
+        v = hashlib.sha256(b"".join(p.read_bytes() for p in files)).hexdigest()[:10]
+        imp = re.compile(r"""(["'])\./([A-Za-z0-9_-]+\.js)\1""")
+        for p in (OUT / "js").glob("*.js"):
+            p.write_text(imp.sub(lambda m: f"{m[1]}./{m[2]}?v={v}{m[1]}", p.read_text()))
+        return re.sub(r"""((?:src|href)=")((?:js|css)/[A-Za-z0-9_-]+\.(?:js|css))(")""", rf"\1\2?v={v}\3", page)
 
 
 def main():

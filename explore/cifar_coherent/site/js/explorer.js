@@ -7,6 +7,35 @@ const $ = id => document.getElementById(id);
 const DIM = "#e7e6e1";
 const BLOCK_KINDS = new Set(["seba", "nodal", "eig"]);
 const DIAG = { loss: "loss", jac: "jac_fro", gcos: "grad_cos", gdot: "grad_dot" };
+// Per-image pixel statistics (colour value "px:<stat>"), from assets/questions.json -> q_imgstats.per_image, loaded
+// on first use. Definitions as in analysis_findings.py (section 3); pixel values in [0, 1]; Y = 0.299 R + 0.587 G +
+// 0.114 B; border = the 448 pixels within 4 px of the edge, centre = the central 16 x 16. div: signed, diverging scale.
+export const IMGSTATS = {
+  mean_r: { label: "mean R", def: "mean of the red channel over the 1,024 pixels" },
+  mean_g: { label: "mean G", def: "mean of the green channel over the 1,024 pixels" },
+  mean_b: { label: "mean B", def: "mean of the blue channel over the 1,024 pixels" },
+  luminance: { label: "luminance Y", def: "mean of Y over the pixels" },
+  contrast: { label: "RMS contrast of Y", def: "standard deviation of Y over the pixels" },
+  saturation: { label: "HSV saturation", def: "mean over pixels of (max − min) / max of (R, G, B)" },
+  bc_r: { label: "border − centre R", def: "border-ring mean minus centre mean of R", div: true },
+  bc_g: { label: "border − centre G", def: "border-ring mean minus centre mean of G", div: true },
+  bc_b: { label: "border − centre B", def: "border-ring mean minus centre mean of B", div: true },
+  bc_lum: { label: "border − centre Y", def: "border-ring mean minus centre mean of Y", div: true },
+  bc_dist: { label: "|border − centre| RGB", def: "Euclidean norm of the border − centre differences of (R, G, B)" },
+  hf_frac: { label: "high-frequency share of Y", def: "share of the DFT energy of Y − mean(Y) at radius > 8 cycles per image among all non-zero frequencies" },
+};
+const isPx = c => typeof c === "string" && c.startsWith("px:");
+// load what a colouring needs beyond the shared context (the pixel statistics); call before colouring()
+export async function prepare(ctx, st) {
+  if (!isPx(st.color) || ctx.imgstats) return;
+  const q = (await D.json("assets/questions.json")).q_imgstats;
+  if (!q || !q.per_image) throw new Error("assets/questions.json has no q_imgstats.per_image");
+  ctx.imgstats = { per: q.per_image, labels: q.stat_labels || {}, range: {} };
+  for (const [k, v] of Object.entries(q.per_image)) {
+    const a = Float64Array.from(v);
+    ctx.imgstats.range[k] = IMGSTATS[k]?.div ? Math.max(1e-9, quantile(Array.from(a, Math.abs), .99)) : [quantile(a, .01), quantile(a, .99)];
+  }
+}
 const fmt = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : "n/a";
 const pct = v => Number.isFinite(v) ? (100 * v).toFixed(0) + "%" : "n/a";
 
@@ -44,6 +73,8 @@ function diagRanges(ctx) {
 
 export function pairOf(ctx, st) { return ctx.pairIdx[st.fam][st.a + "," + st.b]; }
 export function blockOf(ctx, st) { return D.block(st.fam, st.anchor, st.mode, pairOf(ctx, st)); }
+// "Layer block" / "Time block" / "Single-cell block" (glossary terms)
+export const blockKind = st => st.a === st.b ? "Single-cell block" : st.fam === "layer" ? "Layer block" : "Time block";
 export function blockLabel(ctx, st) {
   const { m } = ctx;
   if (st.fam === "layer") {
@@ -55,6 +86,20 @@ export function blockLabel(ctx, st) {
 }
 export const inBlock = (st, t, s) => st.fam === "layer" ? (t === st.anchor && s >= st.a && s <= st.b) : (s === st.anchor && t >= st.a && t <= st.b);
 const funIndex = (m, kind, k, ri, j) => kind === "psi" ? k - 1 : 8 + m.seba_r.slice(0, ri).reduce((x, y) => x + y, 0) + j;
+
+// one probe image from the sprite sheet, as a 32 x 32 canvas (scaled by CSS)
+export function thumb(ctx, i) {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 32; cv.dataset.i = i;
+  const cols = ctx.m.sprite_cols;
+  const draw = im => cv.getContext("2d").drawImage(im, (i % cols) * 32, Math.floor(i / cols) * 32, 32, 32, 0, 0, 32, 32);
+  if (ctx.sprite) draw(ctx.sprite); else D.sprite().then(draw);
+  return cv;
+}
+
+// tours from content/tours.json, inlined by build_site.py
+export function tours() {
+  try { return JSON.parse(document.getElementById("tours-data")?.textContent || "[]"); } catch (e) { console.error(e); return []; }
+}
 
 // ------------------------------------------------------------------------------------------- colouring
 // Returns {ci: [T] Uint8Array(N), order: [T] Uint16Array(N), cols: css[], legend}
@@ -84,6 +129,14 @@ export function colouring(ctx, st, blk) {
       out = { ...same(ci, orderBy(key)), cols: [pal.p.diverging.pos, pal.p.diverging.neg, pal.unassigned],
         groups: { ids: ci, n: 3, names: [`ψ${st.k} > 0`, `ψ${st.k} < 0`, `ψ${st.k} = 0`], unassigned: 2 } };
     }
+  } else if (isPx(c)) {
+    const k = c.slice(3), v = ctx.imgstats?.per[k], R = ctx.imgstats?.range[k];
+    if (!v) throw new Error(`no image statistic "${k}"`);
+    const lab = ctx.imgstats.labels[k] || IMGSTATS[k]?.label || k;
+    let ci, key, cols, cont;
+    if (IMGSTATS[k]?.div) { ci = Uint8Array.from(v, x => qDiv(x / R)); key = Float64Array.from(v, Math.abs); cols = divLUT(pal); cont = { kind: "div", lo: -R, hi: R, label: lab }; }
+    else { const [lo, hi] = R; ci = Uint8Array.from(v, x => qSeq((x - lo) / (hi - lo || 1))); key = Float64Array.from(v); cols = seqLUT(pal); cont = { kind: "seq", lo, hi, label: lab }; }
+    out = { ...same(ci, orderBy(key)), cols, cont };
   } else if (c === "class") {
     const ci = Uint8Array.from(labels);
     out = { ...same(ci, hashOrder), cols: pal.classes.slice(), groups: { ids: ci, n: 10, names: m.classes.slice(), classes: true } };
@@ -252,6 +305,9 @@ export class Explorer {
     // disable diagnostics that the data do not have
     const have = new Set(m.points_fields);
     for (const [c, f] of Object.entries(DIAG)) if (!have.has(f)) { const o = $("ex-color").querySelector(`option[value=${c}]`); if (o) { o.disabled = true; o.textContent += " (not in data)"; } }
+    const og = document.createElement("optgroup"); og.label = "Image statistics (pixels)";
+    for (const [k, d] of Object.entries(IMGSTATS)) og.append(new Option(d.label, "px:" + k));
+    $("ex-color").append(og);
     $("ex-color").addEventListener("change", e => this.setColor(e.target.value));
     $("ex-k").addEventListener("change", e => {
       if (this.st.kind === "psi") this.st.k = +e.target.value; else { this.st.r = +e.target.value; this.st.j = null; }
@@ -264,6 +320,36 @@ export class Explorer {
     kb.addEventListener("click", () => setHelp(kb.getAttribute("aria-expanded") !== "true"));
     document.addEventListener("keydown", e => { if (e.key === "Escape") setHelp(false); });
     document.addEventListener("pointerdown", e => { if (!$("ex-kappa-help").hidden && !e.target.closest("#ex-kappa-help, #ex-kappa-btn")) setHelp(false); });
+    this.buildGuide();
+  }
+
+  // ---------------------------------------------------------------- tours and the how-to
+  buildGuide() {
+    this.tours = tours(); this.tour = null;
+    const sel = $("ex-tour-sel");
+    this.tours.forEach(t => sel.add(new Option(t.label, t.id)));
+    if (!this.tours.length) sel.closest(".ctl").querySelectorAll("label, select").forEach(e => e.hidden = true);
+    // a tour is a URL (#explorer?tour=<id>), so the menu, back and forward all go through the router
+    sel.addEventListener("change", () => { if (sel.value) location.hash = `#explorer?tour=${encodeURIComponent(sel.value)}`; });
+    $("ex-tour-reset").addEventListener("click", () => { if (this.tour) this.applyParams(new URLSearchParams({ tour: this.tour.id })); });
+    $("ex-tour-close").addEventListener("click", () => { this.setTour(null); this.writeHash(); });
+    // how-to: open on the first visit, collapsed after that
+    const how = $("ex-howto"), btn = $("ex-howto-btn"), KEY = "cm.explorer.howto-seen";
+    let seen = false; try { seen = localStorage.getItem(KEY) === "1"; localStorage.setItem(KEY, "1"); } catch (e) { /* private mode */ }
+    how.open = !seen;
+    const sync = () => btn.setAttribute("aria-expanded", String(how.open));
+    how.addEventListener("toggle", sync); sync();
+    btn.addEventListener("click", () => { how.open = !how.open; if (how.open) how.scrollIntoView({ block: "nearest" }); });
+  }
+  setTour(t) {
+    this.tour = t ? { id: t.id, base: null } : null;
+    $("ex-tour").hidden = !t;
+    $("ex-tour-sel").value = t ? t.id : "";
+    if (!t) return;
+    $("ex-tour-label").textContent = t.label;
+    const note = $("ex-tour-note"); note.innerHTML = t.note;
+    if (window.renderMathInElement) window.renderMathInElement(note, { delimiters: [{ left: "$", right: "$", display: false }, { left: "\\(", right: "\\)", display: false }], throwOnError: false });
+    $("ex-tour-reset").hidden = true; $("ex-tour").classList.remove("moved");
   }
 
   setColor(c) {
@@ -495,13 +581,7 @@ export class Explorer {
     if (i >= 0) document.querySelectorAll(`.imgs canvas[data-i="${i}"]`).forEach(c => c.classList.add("hl"));
   }
 
-  thumb(i, size = 32) {
-    const cv = document.createElement("canvas"); cv.width = cv.height = 32; cv.dataset.i = i;
-    const sp = this.ctx.sprite, cols = this.ctx.m.sprite_cols;
-    const draw = im => cv.getContext("2d").drawImage(im, (i % cols) * 32, Math.floor(i / cols) * 32, 32, 32, 0, 0, 32, 32);
-    if (sp) draw(sp); else D.sprite().then(draw);
-    return cv;
-  }
+  thumb(i) { return thumb(this.ctx, i); }
   pointTip(i, t, s) {
     const { m, labels, pts, N } = this.ctx, st = this.st;
     const rows = [];
@@ -519,6 +599,7 @@ export class Explorer {
         rows.push({ name: `ψ${st.k} / max|ψ|`, value: fmt(p[i] / mx) });
       }
       if (st.color in DIAG && st.color !== "loss") { const f = DIAG[st.color]; rows.push({ name: f, value: pts[f][tt * N + i].toPrecision(3) }); }
+      if (isPx(st.color) && this.ctx.imgstats) { const k = st.color.slice(3); rows.push({ name: this.ctx.imgstats.labels[k] || k, value: this.ctx.imgstats.per[k][i].toFixed(3) }); }
     }
     const d = h("div", { class: "tt-img" }, this.thumb(i), tipRows(`#${i} · ${m.sites[s]} · step ${m.steps[t].toLocaleString("en")}`, rows));
     return d;
@@ -534,6 +615,10 @@ export class Explorer {
     const token = this._tok = (this._tok || 0) + 1;
     let blk;
     try { blk = await blockOf(ctx, st); } catch (e) { $("ex-status").textContent = "failed to load block"; console.error(e); return; }
+    if (isPx(st.color) && !ctx.imgstats) {
+      $("ex-status").textContent = "loading image statistics…";
+      try { await prepare(ctx, st); } catch (e) { $("ex-status").textContent = "image statistics unavailable"; console.error(e); return; }
+    }
     if (token !== this._tok) return;
     this.blk = blk;
     $("ex-status").textContent = "";
@@ -560,12 +645,24 @@ export class Explorer {
     if (st.j != null) p.set("j", st.j);
     if (st.color in DIAG || st.color === "correct") p.set("at", st.at);
     if (st.lay) p.set("lay", st.lay);
-    const hsh = "#explorer?" + p.toString();
+    let hsh = "#explorer?" + p.toString();
+    if (this.tour) {
+      if (this.tour.base == null) this.tour.base = hsh;     // the first state written after the tour was applied
+      const on = hsh === this.tour.base;
+      $("ex-tour").classList.toggle("moved", !on); $("ex-tour-reset").hidden = on;
+      $("ex-tour-sel").value = on ? this.tour.id : "";
+      if (on) hsh += "&tour=" + encodeURIComponent(this.tour.id);
+    }
     this.lastHash = hsh;
     if (location.hash !== hsh && document.body.dataset.tab === "explorer") history.replaceState(null, "", hsh);
   }
   applyParams(p) {
     const st = this.st, { m, T, S } = this.ctx;
+    // #explorer?tour=<id>: exactly the tour's own parameters (others are ignored, so the note always describes the view)
+    const tid = p.get("tour"), tour = tid != null ? this.tours.find(t => t.id === tid) : null;
+    if (tour) p = new URLSearchParams(tour.hash.split("?")[1] || "");
+    this.setTour(tour);
+    if (tid != null && !tour) setTimeout(() => { $("ex-status").textContent = `no tour called "${tid}"`; }, 0);
     const int = (k, lo, hi) => { const v = parseInt(p.get(k), 10); return Number.isFinite(v) && v >= lo && v <= hi ? v : null; };
     if (p.get("fam") === "time" || p.get("fam") === "layer") st.fam = p.get("fam");
     const lim = st.fam === "layer" ? S - 1 : T - 1, alim = st.fam === "layer" ? T - 1 : S - 1;
@@ -659,7 +756,7 @@ export class Explorer {
   }
   renderBlockCard() {
     const st = this.st, { m, pal } = this.ctx, blk = this.blk;
-    $("blk-title").textContent = (st.fam === "layer" ? "Block across layers: " : "Block through training: ") + blockLabel(this.ctx, st);
+    $("blk-title").textContent = `${blockKind(st)}: ${blockLabel(this.ctx, st)}`;
     const { ks, ms, n, perPoint } = this.kappaRange();
     const fmtK = v => v >= 10 ? v.toFixed(1) : v.toPrecision(2);
     const rng = a => { const lo = Math.min(...a), hi = Math.max(...a); return Math.abs(hi - lo) < 1e-3 * hi ? fmtK(lo) : `${fmtK(lo)}–${fmtK(hi)}`; };
@@ -695,9 +792,8 @@ export class Explorer {
       hit.addEventListener("click", () => { st.kind = "psi"; st.k = k; if (st.color === "seba") st.color = "eig"; st.focus = null; this.update(); });
     }
     const locNote = nLoc ? ` <span style="color:${m.palette.accent};font-weight:600">${nLoc} localised mode${nLoc > 1 ? "s" : ""}</span> (PN below ${LOC}): a mode carried by a handful of images, not a grouping; sets built from it are suspect.` : "";
-    $("blk-spec-note").innerHTML = (st.kind === "psi"
-      ? `Eigenvalues of the block's averaged operator (λ<sub>0</sub> = 1 is the constant, not shown). λ near 1 = low average diffusion penalty over the block's cells. Click a bar to colour by that ψ.`
-      : `Eigenvalues of the block's averaged operator (λ<sub>0</sub> = 1, the constant, not shown). The r = ${st.r} sets come from the span of ψ<sub>0</sub>..ψ<sub>${st.r - 1}</sub> (dark). λ near 1 = low average diffusion penalty over the block.`)
+    $("blk-spec-note").innerHTML = `Spectrum of the block operator M̄, the mean of the lazy walks M<sub>c</sub> over the block's ${st.b - st.a + 1} cell${st.a === st.b ? "" : "s"}: λ<sub>1</sub>..λ<sub>8</sub> (λ<sub>0</sub> = 1, the constant ψ<sub>0</sub>, not shown). 1 − λ<sub>k</sub> is ψ<sub>k</sub>'s average variation across the block's walks.`
+      + (st.kind === "psi" ? ` Click a bar to colour by that ψ.` : ` The r = ${st.r} coherent sets come from SEBA on ψ<sub>0</sub>..ψ<sub>${st.r - 1}</sub> (dark).`)
       + ` PN: participation number (Σψ²)²/Σψ⁴, roughly how many images a mode is spread over.` + locNote;
     this.renderBlockMap();
   }
@@ -732,9 +828,10 @@ export class Explorer {
   renderLegend() {
     const st = this.st, { m, pal, labels, N } = this.ctx, col = this.col, body = $("leg-body");
     body.replaceChildren(); $("leg-jac").replaceChildren();
-    const titles = { seba: `Coherent sets (SEBA, r = ${st.r})`, nodal: `Nodal domains of ψ${st.k}`, eig: `Eigenfunction ψ${st.k}`, class: "CIFAR class (validation only)",
+    const titles = { seba: `Coherent sets (SEBA, r = ${st.r})`, nodal: `Sign of ψ${st.k} (nodal domains)`, eig: `Eigenfunction ψ${st.k}`, class: "CIFAR class (validation only)",
       correct: "Correct / wrong", loss: "Loss", jac: "Input-Jacobian norm", gcos: "Gradient alignment (cosine)", gdot: "Gradient alignment (dot product)" };
-    $("leg-title").textContent = titles[st.color];
+    const pxk = isPx(st.color) ? st.color.slice(3) : null, pxLab = pxk && (this.ctx.imgstats?.labels[pxk] || IMGSTATS[pxk]?.label || pxk);
+    $("leg-title").textContent = pxk ? `Image statistic: ${pxLab}` : titles[st.color];
     if (col.groups) {
       const g = col.groups, n = g.n;
       const t = st.fam === "layer" ? st.anchor : st.b;
@@ -770,6 +867,7 @@ export class Explorer {
         gcos: `Cosine between the image's loss gradient (all parameters) and the mean gradient over the 2,000 probe images. At ${st.at === "final" ? "the final checkpoint" : "each row's own checkpoint"}. Uses labels through the loss.`,
         gdot: `Dot product of the image's loss gradient with the mean gradient (scale: 99th percentile of |value|). At ${st.at === "final" ? "the final checkpoint" : "each row's own checkpoint"}. Uses labels through the loss.`,
       };
+      if (pxk) notes[st.color] = pxDef(pxk) + " Computed from the probe image's pixels, so it is the same in every cell. Labels do not enter it.";
       body.append(h("div", { class: "leg-note", text: notes[st.color] || "" }));
     }
   }
@@ -871,7 +969,8 @@ export class Explorer {
       x: xs, series, yrange: [lo, 1.0], height: 150, xticks: xs.filter(i => X <= 8 || (X - 1 - i) % 2 === 0), xfmt: i => names[i], shade: [st.a - .45, st.b + .45],
       yfmt: v => v.toFixed(2), refline: tg.kind === "psi" ? { y: blk.vals[tg.k], label: `λ${tg.k} (block mean)` } : null, ml: 36, xname: st.fam === "layer" ? "site" : "step",
     });
-    $("ret-note").innerHTML = `${tg.kind === "psi" ? "ψ<sup>T</sup>M<sub>cell</sub>ψ" : "v<sup>T</sup>M<sub>cell</sub>v / v<sup>T</sup>v"} for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}; the block's cells are shaded. The block's eigenvalue is an <b>average</b> of these, so a flat strip inside the shading means the split is cheap in every cell, while a dip means one cell pays for it.`;
+    $("ret-title").innerHTML = `Retention ρ<sub>c</sub>(${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : tg.j == null ? "SEBA vectors" : `SEBA vector ${tg.j + 1}`}) in every cell`;
+    $("ret-note").innerHTML = `ρ<sub>c</sub>(f) = f<sup>T</sup>M<sub>c</sub>f / f<sup>T</sup>f for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}, with f = ${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : "each SEBA vector (colours as the sets)"}; the block's cells are shaded. ${tg.kind === "psi" ? `λ<sub>${tg.k}</sub> (dashed) is the mean of ρ<sub>c</sub> over the shaded cells: an <b>average</b>, not a value in every cell.` : "The spectrum is an <b>average</b> of retention over the shaded cells, not a value in every cell."}`;
   }
 
   async renderLoadings() {
@@ -938,7 +1037,7 @@ export class Explorer {
     const fi = tg.kind === "psi" ? tg.k - 1 : 8 + m.seba_r.slice(0, ri).reduce((x, y) => x + y, 0) + j;
     $("stats-title").textContent = st.fam === "layer" ? `Sites at step ${m.steps[st.anchor].toLocaleString("en")}` : `Checkpoints at ${m.sites[st.anchor]}`;
     const tb = h("table", { class: "mini" });
-    tb.append(h("tr", {}, h("th", { text: st.fam === "layer" ? "site" : "step" }), h("th", { text: "κ" }), h("th", { text: "15-NN mass" }), h("th", { text: "retention" }), h("th", { text: "R²" })));
+    tb.append(h("tr", {}, h("th", { text: st.fam === "layer" ? "site" : "step" }), h("th", { text: "κ" }), h("th", { text: "15-NN mass" }), h("th", { text: "ρ_c" }), h("th", { text: "R²" })));
     const X = blk.X;
     for (let x = 0; x < X; x++) {
       const [t, s] = st.fam === "layer" ? [st.anchor, x] : [x, st.anchor];
@@ -948,7 +1047,7 @@ export class Explorer {
         h("td", { text: pct(m.nn_mass?.[st.mode]?.[t]?.[s] ?? NaN) }), h("td", { text: fmt(ret, 3) }), h("td", { text: (100 * blk.r2[fi * T * S + t * S + s] / 255).toFixed(0) + "%" }));
       tb.append(tr);
     }
-    body.replaceChildren(tb, h("div", { class: "card-note", text: `κ (per-image median for perplexity rules; none for the kNN graph) and median 15-NN kernel mass under ${m.modes[st.mode]}; retention and R² of ${tg.kind === "psi" ? "ψ" + tg.k : "set " + (j + 1)}. Bold rows are in the block.` }));
+    body.replaceChildren(tb, h("div", { class: "card-note", text: `κ (per-image median for perplexity rules; none for the kNN graph) and median 15-NN kernel mass under ${m.modes[st.mode]}; retention ρ_c and R² of ${tg.kind === "psi" ? "ψ" + tg.k : "SEBA vector " + (j + 1)}. Bold rows are in the block.` }));
   }
 
   renderKey() {
@@ -969,14 +1068,48 @@ export class Explorer {
   }
   renderCaption() {
     this.renderKey();
-    const st = this.st, { m } = this.ctx;
-    const what = { seba: `the block's SEBA coherent sets (r = ${st.r}; grey = unassigned)`, nodal: `the sign of the block's ψ${st.k}`, eig: `the block's eigenfunction ψ${st.k}`,
-      class: "CIFAR class (labels: validation only)", loss: "per-image loss", correct: "whether the network classifies the image correctly", jac: "input-Jacobian norm",
-      gcos: "cosine of the image's loss gradient with the mean gradient", gdot: "dot product of the image's loss gradient with the mean gradient" }[st.color];
-    const at = (st.color in DIAG || st.color === "correct") ? (st.at === "final" ? " at the final checkpoint" : " at each row's own checkpoint") : "";
-    const lay = m.layouts.length > 1 ? ` Layout: UMAP of seed ${st.lay}${st.lay ? " (a second network; colours still from seed 0)" : ""}.` : "";
-    $("ex-caption").textContent = `Colour: ${what}${at}. ${BLOCK_KINDS.has(st.color) ? "Computed from the outlined block only and painted on every cell, so you can follow the same images to other layers and checkpoints. " : ""}Block: ${blockLabel(this.ctx, st)}, kernel rule ${m.modes[st.mode]}.${lay} Positions come from a 2-d UMAP of each cell (AlignedUMAP across sites, Procrustes across checkpoints); no number on this page is computed from them.`;
+    $("ex-caption").replaceChildren(...captionParts(this.ctx, this.st, this.col));
   }
+}
+
+// definition and colour scale of a pixel statistic, as one sentence
+function pxDef(k) {
+  const d = IMGSTATS[k];
+  return `${d ? d.def[0].toUpperCase() + d.def.slice(1) : k}; pixel values in [0, 1]${/^(luminance|contrast|bc_lum|hf_frac)$/.test(k) ? ", Y = 0.299 R + 0.587 G + 0.114 B" : ""}${/^bc_/.test(k) ? "; border = pixels within 4 px of the edge, centre = the central 16 × 16" : ""}. ` +
+    (d?.div ? "Diverging scale, symmetric, clipped at the 99th percentile of |value| over the probe images; largest |value| on top." : "Sequential scale from the 1st to the 99th percentile over the probe images; largest value on top.");
+}
+
+// Definitional caption of an explorer state: block, kernel rule, colouring (with r or k), layout. Never interpretive.
+export function captionParts(ctx, st, col) {
+  const { m, T, S } = ctx, step = t => `step ${m.steps[t].toLocaleString("en")}`, n = st.b - st.a + 1;
+  let blk;
+  if (st.fam === "layer") blk = st.a === st.b ? `site ${m.sites[st.a]} at ${step(st.anchor)}`
+    : `sites ${m.sites[st.a]} to ${m.sites[st.b]} at ${step(st.anchor)} (${n} cells)`;
+  else blk = st.a === st.b ? `site ${m.sites[st.anchor]} at ${step(st.a)}`
+    : `site ${m.sites[st.anchor]}, checkpoints ${step(st.a)} to ${step(st.b)} (${n} cells)`;
+  const fromBlk = "computed on the outlined block only and painted on every cell; ";
+  const focus = col && col.groups && st.focus != null && st.focus < col.groups.n ? ` Only ${col.groups.names[st.focus]} is coloured; the rest are light grey.` : "";
+  const at = st.at === "final" ? `at the final checkpoint (${step(T - 1)}) in every row` : "at each row's own checkpoint";
+  const side = st.kind === "psi" ? `side panel: ψ${st.k}` : `side panel: r = ${st.r} coherent sets`;
+  const colour = {
+    seba: `coherent sets, r = ${st.r}. Each image's hard label is the largest of the ${st.r} SEBA vectors from ψ0..ψ${st.r - 1} of the block operator M̄; grey = unassigned (no positive entry); ${fromBlk}points drawn in order of membership value, largest on top.`,
+    eig: `ψ${st.k} / max|ψ${st.k}|, where ψ${st.k} is the eigenfunction of the block operator M̄ for λ${st.k}, eigenvalues in decreasing order from λ0 = 1 (the constant); diverging scale, sign fixed so the largest-magnitude entry is positive; ${fromBlk}largest |ψ| on top.`,
+    nodal: `sign of ψ${st.k} of the block operator M̄ (ψ${st.k} > 0, < 0, = 0); ${fromBlk}largest |ψ| on top.`,
+    class: `CIFAR-10 class label (validation only). The block sets only the side panel (${side}).`,
+    loss: `per-image cross-entropy loss ${at}, log scale, range fixed across rows (1st to 99th percentile over all checkpoints). The block sets only the side panel (${side}).`,
+    correct: `whether the network's prediction is correct, ${at}. The block sets only the side panel (${side}).`,
+    jac: `Frobenius norm of the input Jacobian of the logits, ${at}, log scale fixed across rows. The block sets only the side panel (${side}).`,
+    gcos: `cosine between the image's loss gradient (all parameters) and the mean gradient over the probe images, ${at}. The block sets only the side panel (${side}).`,
+    gdot: `dot product of the image's loss gradient with the mean gradient, ${at}. The block sets only the side panel (${side}).`,
+  }[st.color] || (isPx(st.color) ? `image statistic ${ctx.imgstats?.labels[st.color.slice(3)] || IMGSTATS[st.color.slice(3)]?.label || st.color.slice(3)}: ${pxDef(st.color.slice(3))} The same per-image value in every cell (a property of the probe image, not of the network). The block sets only the side panel (${side}).` : st.color);
+  const lay = m.layouts.length > 1 && st.lay ? `UMAP of seed ${st.lay} (a second network; colours from seed 0)` : "UMAP of each cell (AlignedUMAP across sites, Procrustes across checkpoints)";
+  const part = (label, text) => [h("b", { text: label + " " }), text + " "];
+  return [
+    ...part("Block:", `${blockKind(st).toLowerCase()}, ${blk}.`),
+    ...part("Kernel rule:", `${m.modes[st.mode]}.`),
+    ...part("Colour:", colour + focus),
+    ...part("Positions:", `${lay}; display only, no number on this page is computed from them. Rows: checkpoints (step, validation accuracy); columns: sites; ${T * S} cells of the same ${m.n.toLocaleString("en")} probe images.`),
+  ];
 }
 
 function bars(items, pal) {

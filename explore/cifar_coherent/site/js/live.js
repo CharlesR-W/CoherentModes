@@ -1,4 +1,4 @@
-// Live mini-figures embedded in prose (see DESIGN.md): decod, curves, lines, heatmap, kernel, cells.
+// Live mini-figures embedded in prose (see DESIGN.md): decod, curves, lines, heatmap, kernel, cells, images.
 import * as D from "./data.js";
 import { Palette } from "./colors.js";
 import { h, el, lineChart, heatmap, fmtStep, showTip, hideTip, tipRows, scale, niceTicks } from "./charts.js";
@@ -12,7 +12,7 @@ const seg = (opts, val, on) => {
 const onResize = (elm, fn) => { let w = elm.clientWidth; new ResizeObserver(() => { if (Math.abs(elm.clientWidth - w) > 4) { w = elm.clientWidth; fn(); } }).observe(elm); };
 
 export async function render(kind, body, ds) {
-  const fn = { decod, curves, lines, heatmap: heat, kernel, cells }[kind];
+  const fn = { decod, curves, lines, heatmap: heat, kernel, cells, images }[kind];
   if (!fn) throw new Error(`unknown live figure "${kind}"`);
   await fn(body, ds);
 }
@@ -109,16 +109,29 @@ async function lines(body, ds) {
     lineChart(box, { x: o.x, xscale: o.xscale || "linear",
       xfmt: lab ? (v => lab[o.x.indexOf(v)] ?? String(v)) : (o.xscale && o.xscale !== "linear" ? fmtStep : (v => (+(+v).toPrecision(4)).toString())),
       xticks: lab ? o.x.filter((_, i) => i % every === 0) : undefined,
-      xname: o.xlabel || "", xlabel: o.xlabel, ytitle: o.ylabel, mr: lab ? 40 : undefined, yrange: o.yrange, height: +ds.height || 280, refline: o.refline || ceiling, series });
+      xname: o.xlabel || "", xlabel: o.xlabel, ytitle: o.ylabel, mr: lab ? 40 : undefined, yrange: o.yrange, height: +ds.height || 280, refline: o.refline || ceiling, series,
+      band: o.band, bandMode: o.band_mode, bandLabel: o.band_label });
   };
   draw(); onResize(body, draw);
+}
+// value format of a heatmap: o.fmt = "int" | "pct" (x100, %) | "<n>f" (n decimals) | "<n>g" (n significant figures);
+// default: integers when every finite z is an integer (counts), else 3 significant figures
+export function zFormat(o) {
+  const m = typeof o.fmt === "string" && o.fmt.match(/^(\d)([fg])$/);
+  if (o.fmt === "int") return v => Math.round(v).toLocaleString("en");
+  if (o.fmt === "pct") return v => (+(100 * v).toPrecision(3)).toString() + "%";
+  if (m) return m[2] === "f" ? (v => v.toFixed(+m[1])) : (v => (+v.toPrecision(Math.max(1, +m[1]))).toString());
+  const flat = JSON.stringify(o.z).match(/-?\d+(\.\d+)?(e-?\d+)?/g) || [];
+  if (flat.length && flat.every(x => Number.isInteger(+x))) return v => Math.round(v).toLocaleString("en");
+  return v => Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en") : (+v.toPrecision(3)).toString();
 }
 async function heat(body, ds) {
   const [o, P] = await Promise.all([fromSrc(ds.src), pal()]);
   body.replaceChildren();
   const box = h("div"); body.append(box);
-  heatmap(box, { ...o, color: o.diverging ? (t => P.div(2 * t - 1)) : (t => P.seq(t)), zfmt: v => v.toFixed(3) });
-  onResize(body, () => heatmap(box, { ...o, color: o.diverging ? (t => P.div(2 * t - 1)) : (t => P.seq(t)), zfmt: v => v.toFixed(3) }));
+  const opts = { ...o, color: o.diverging ? (t => P.div(2 * t - 1)) : (t => P.seq(t)), zfmt: zFormat(o) };
+  heatmap(box, opts);
+  onResize(body, () => heatmap(box, opts));
 }
 
 // ---------------------------------------------------------------------------------------------- kernel (kappa) demo
@@ -163,16 +176,28 @@ async function kernel(body, ds) {
 }
 
 // ---------------------------------------------------------------------------------------------- strip of cells
+// explorer state from a live figure's data-* block parameters (the explorer-link parameters; see DESIGN.md)
+function blockState(ctx, ds) {
+  const { m, T, S } = ctx, num = (v, d) => (v == null || v === "" || !Number.isFinite(+v) ? d : +v);
+  const st = { fam: ds.fam === "time" ? "time" : "layer", mode: num(ds.m, m.default_mode), color: ds.c || "seba", k: num(ds.k, 1), r: num(ds.r, 4),
+    focus: ds.j != null ? num(ds.j, null) : null, at: ds.at || "own" };
+  const lim = st.fam === "layer" ? S - 1 : T - 1;
+  st.anchor = num(ds.t, st.fam === "layer" ? T - 1 : S - 1); st.a = num(ds.a, 0); st.b = num(ds.b, lim);
+  if (st.a > st.b) [st.a, st.b] = [st.b, st.a];
+  st.kind = st.color === "eig" || st.color === "nodal" ? "psi" : "set";
+  if (!m.seba_r.includes(st.r)) throw new Error(`r = ${st.r} is not one of ${m.seba_r.join(", ")}`);
+  if (st.k < 1 || st.k > m.n_vecs) throw new Error(`k = ${st.k} is outside 1..${m.n_vecs}`);
+  if (Math.min(st.a, st.anchor) < 0 || st.b > lim || st.anchor > (st.fam === "layer" ? T - 1 : S - 1)) throw new Error("block outside the grid");
+  return st;
+}
+
 async function cells(body, ds) {
   const E = await import("./explorer.js");
   const ctx = await E.context();
   const { m, T, S, N } = ctx;
-  const p = new URLSearchParams();
-  for (const k of ["fam", "t", "a", "b", "m", "c", "k", "r", "j", "at"]) if (ds[k] != null) p.set(k, ds[k]);
-  const st = { fam: p.get("fam") || "layer", anchor: +(p.get("t") ?? T - 1), a: +(p.get("a") ?? 0), b: +(p.get("b") ?? S - 1), mode: +(p.get("m") ?? m.default_mode),
-    color: p.get("c") || "seba", k: +(p.get("k") || 1), r: +(p.get("r") || 4), focus: p.get("j") != null ? +p.get("j") : null, at: p.get("at") || "own" };
-  st.kind = st.color === "eig" || st.color === "nodal" ? "psi" : "set";
+  const st = blockState(ctx, ds);
   const blk = await E.blockOf(ctx, st);
+  await E.prepare(ctx, st);            // pixel statistics (c = px:<stat>) load on first use
   const col = E.colouring(ctx, st, blk);
   const list = (ds.cells ? ds.cells.split(",").map(x => x.split(":").map(Number)) : [...Array(st.b - st.a + 1)].map((_, i) => st.fam === "layer" ? [st.anchor, st.a + i] : [st.a + i, st.anchor]));
   const coords = E.toCoords(ctx.layouts[0]);
@@ -208,4 +233,65 @@ async function cells(body, ds) {
     cv.addEventListener("pointerleave", () => { hover = -1; draw(); hideTip(); });
   });
   draw();
+}
+
+// ---------------------------------------------------------------------------------------------- probe thumbnails
+// A set (data-j, 0-based, of data-r sets) or one end of an eigenfunction (data-k with data-end = pos | neg | zero) of
+// one block. Images and their order are the explorer's representative images (build time, full precision): a set's
+// members by decreasing SEBA value (data-pick="boundary": smallest lead over the runner-up set), or psi_k's most
+// positive / most negative / nearest-zero entries. data-pick="random" draws members uniformly (fixed seed). Past the
+// stored representatives (24 per set, 12 per end of psi_k) the order is continued from the vectors in the browser.
+async function images(body, ds) {
+  const E = await import("./explorer.js");
+  const ctx = await E.context();
+  const { m, N, pal, labels } = ctx;
+  const byPsi = ds.k != null && ds.j == null;
+  const st = blockState(ctx, { ...ds, c: byPsi ? "eig" : "seba" });
+  const blk = await E.blockOf(ctx, st);
+  const want = Math.max(1, Math.min(400, +(ds.n || 12))), pick = ds.pick || "top";
+  let ids, title, colour, of = null;
+  if (byPsi) {
+    const end = { pos: 0, neg: 1, zero: 2 }[ds.end || "pos"];
+    if (end == null) throw new Error(`data-end must be pos, neg or zero`);
+    const v = D.psi(m, blk, st.k), key = [i => -v[i], i => v[i], i => Math.abs(v[i])][end];
+    ids = extend(D.reps(m, blk, "psi", st.k, end), key, N, want);
+    title = [`most positive ψ${st.k}`, `most negative ψ${st.k}`, `ψ${st.k} nearest zero`][end];
+    colour = [pal.p.diverging.pos, pal.p.diverging.neg, pal.p.diverging.mid][end];
+  } else {
+    const ri = m.seba_r.indexOf(st.r), j = st.focus ?? 0, lab = blk.lab.subarray(ri * N, (ri + 1) * N);
+    if (j < 0 || j >= st.r) throw new Error(`data-j = ${j} is outside 0..${st.r - 1}`);
+    const mem = []; for (let i = 0; i < N; i++) if (lab[i] === j) mem.push(i);
+    of = mem.length;
+    const S_ = D.sebaVectors(m, blk, ri), rp = D.reps(m, blk, "set", ri, j);
+    if (pick === "random") {
+      let seed = 2024 + 31 * j; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+      const a = mem.slice(); for (let i = a.length - 1; i > 0; i--) { const q = Math.floor(rnd() * (i + 1)); [a[i], a[q]] = [a[q], a[i]]; }
+      ids = a.slice(0, want); title = `set ${j + 1} of ${st.r}: random members`;
+    } else if (pick === "boundary") {
+      const lead = i => S_[j][i] - Math.max(0, ...S_.filter((_, q) => q !== j).map(v => v[i]));
+      ids = extend(rp.bnd, lead, N, want, mem); title = `set ${j + 1} of ${st.r}: boundary members (smallest lead over the runner-up set)`;
+    } else {
+      ids = extend(rp.top, i => -S_[j][i], N, want, mem); title = `set ${j + 1} of ${st.r}: highest SEBA value`;
+    }
+    colour = pal.set(j);
+  }
+  body.replaceChildren();
+  const size = +(ds.size || 40);
+  const grid = h("div", { class: "imgs live-imgs", style: { gridTemplateColumns: `repeat(auto-fill, minmax(${size}px, 1fr))` } });
+  for (const i of ids) {
+    const c = E.thumb(ctx, i);
+    c.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(`#${i}`, [{ name: "class", value: m.classes[labels[i]] }])));
+    c.addEventListener("pointerleave", hideTip);
+    grid.append(c);
+  }
+  const blkTxt = `${E.blockKind(st)}: ${E.blockLabel(ctx, st)}; kernel rule ${m.modes[st.mode]}`;
+  body.append(h("div", { class: "imgs-label" }, h("span", { class: "sw", style: { background: colour } }),
+    `${title}: ${ids.length}${of != null ? ` of ${of.toLocaleString("en")}` : ""} images`, h("span", { class: "mute", text: ` · ${blkTxt}` })), grid);
+}
+// stored representatives first, then the rest of `pool` (default: every image) in increasing key order
+function extend(first, key, N, want, pool = null) {
+  const out = first.slice(0, want);
+  if (out.length >= want) return out;
+  const have = new Set(out), rest = (pool || [...Array(N).keys()]).filter(i => !have.has(i)).sort((x, y) => key(x) - key(y));
+  return out.concat(rest.slice(0, want - out.length));
 }

@@ -7,14 +7,18 @@ for the pipeline figure, the float16 Gram matrices written by figdata.py to /var
 site/assets/fig/:
 
   pipeline.png         how one block is computed, on real matrices (recomputed here from the Grams: Sinkhorn,
-                       block average, eigenvectors, SEBA; cross-checked against the stored vectors when present)
-  static_dynamic.png   one layer's leading split vs the block's, painted on the block's cells, with retention strips
-  timeblock.gif/_strip.png   one site through training, coloured by a through-training block's SEBA sets
+                       block average, eigenvectors, SEBA; cross-checked against the stored vectors when present);
+                       superseded by steps.png, kept until the Overview switches over
+  steps.png, step1..5.png   the Overview's procedure in five steps, same data as pipeline.png: a strip of five
+                       numbered panels and one image per step (--only steps)
+  static_dynamic.png   psi_1 of a single-cell block vs psi_1 of a layer block containing it, with retention strips
+  timeblock.gif/_strip.png   one site through training, coloured by a time block's coherent sets
+  hero.png             1200 x 630 preview image: the time block's site at all checkpoints, coloured by its sets
   kappa.png            (Method) kernel weight and cumulative kernel mass against neighbour rank under five
                        single-kappa rules, achieved 15-NN mass per site; all from figdata.py's local recomputation
   rules.png            (Overview) label-free diagnostics from sweep.json against one global kappa, per-image rules marked
   sweep.png            (Method) the full sweep, including class agreement as validation
-  seba.png             how SEBA colours are assigned: eigen-coordinates with threshold lines, sparse vectors, colours
+  seba.png             from eigenfunctions to coherent sets: eigen-coordinates with threshold lines, sparse vectors, colours
   howto.gif/_still.png slow annotated walk through the explorer (a schematic of its layout drawn with real data)
   avgprod.png          (Method) agreement of the average with the product operator over layer pairs (avgprod.json)
 
@@ -369,7 +373,8 @@ def blockmean(a, b=8):
     return a[:n, :n].reshape(n // b, b, n // b, b).mean((1, 3))
 
 
-def fig_pipeline(d: Data, grams_path, t_idx, a, b, mode, r):
+def pipeline_data(d: Data, grams_path, t_idx, a, b, mode, r):
+    """Recompute one block from the Grams (kernel, Sinkhorn, average, eigenvectors, SEBA) for the pipeline figures."""
     grams = np.load(grams_path, mmap_mode="r")
     rule = d.modes[mode]
     kap = [d.meta["kappa"][mode][t_idx][s] for s in range(a, b + 1)]
@@ -405,6 +410,16 @@ def fig_pipeline(d: Data, grams_path, t_idx, a, b, mode, r):
     bounds = np.cumsum([len(x) for x in keys])[:-1]
     mid = a + (b - a) // 2
     cmid = np.asarray(grams[mid], dtype=np.float64)
+    return dict(rule=rule, kap=kap, ms=ms, kmats=kmats, mbar=mbar, w=w, v=v, s_vec=s_vec, lab=lab, order=order,
+                bounds=bounds, mid=mid, cmid=cmid, t_idx=t_idx, a=a, b=b, mode=mode, r=r)
+
+
+def fig_pipeline(d: Data, ctx):
+    """The original two-row pipeline figure (pipeline.png), kept until the Overview switches to the step strip."""
+    g = ctx
+    rule, kap, ms, kmats, mbar, w, v = g["rule"], g["kap"], g["ms"], g["kmats"], g["mbar"], g["w"], g["v"]
+    s_vec, lab, order, bounds, mid, cmid = g["s_vec"], g["lab"], g["order"], g["bounds"], g["mid"], g["cmid"]
+    t_idx, a, b, r = g["t_idx"], g["a"], g["b"], g["r"]
 
     fig = plt.figure(figsize=(15.5, 8.4))
     gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.05], hspace=0.42, left=0.03, right=0.965, top=0.9, bottom=0.07)
@@ -497,7 +512,7 @@ def fig_pipeline(d: Data, grams_path, t_idx, a, b, mode, r):
     ax.set_xlim(0, d.N)
     ax.spines["left"].set_visible(False)
     ax.set_title(f"SEBA: {r} sparse vectors from ψ0…ψ{r - 1}", loc="left")
-    ax.text(0, -0.06, "argmax per image gives its set; grey if all are 0", transform=ax.transAxes, va="top",
+    ax.text(0, -0.06, "argmax per image gives its coherent set; grey (unassigned) if all are 0", transform=ax.transAxes, va="top",
             fontsize=8.6, color=MUTE)
     ax = fig.add_subplot(bot[4])
     xy = d.umap()[t_idx, b]
@@ -506,13 +521,248 @@ def fig_pipeline(d: Data, grams_path, t_idx, a, b, mode, r):
     ax.text(0, -0.06, "UMAP is display only", transform=ax.transAxes, va="top", fontsize=8.6, color=MUTE)
     fig.text(0.03, 0.965, "How a block is computed, on real data", fontsize=13, weight="semibold")
     fig.text(0.03, 0.935, "Matrices are 2,000 × 2,000, block-averaged 8 × 8 for display; images ordered by the "
-             "SEBA set they end up in (the white lines).", fontsize=9.5, color=MUTE)
+             "coherent set they end up in (the white lines).", fontsize=9.5, color=MUTE)
     for x0, x1, y in [(0.255, 0.275, 0.73), (0.49, 0.51, 0.73), (0.72, 0.74, 0.73), (0.215, 0.235, 0.27),
                       (0.39, 0.41, 0.27), (0.6, 0.62, 0.27), (0.8, 0.82, 0.27)]:
         fig.patches.append(FancyArrowPatch((x0, y), (x1, y), transform=fig.transFigure, arrowstyle="-|>",
                                            mutation_scale=12, color=MUTE, lw=1.2))
     save(fig, "pipeline.png", dpi=105)
     return lab
+
+
+# ----------------------------------------------------------------------------------------------- (a2) five-step strip
+STEP_W = [1.0, 1.75, 1.85, 1.3, 1.9]  # relative panel widths of steps 1..5
+SMALL = 13  # secondary text in the step figures
+STEP_RC = {"font.size": 14, "axes.titlesize": 14, "xtick.labelsize": 12, "ytick.labelsize": 12}
+
+
+def _step_head(fig, spec, k, title, sub=None, inner=False):
+    """Number badge, title and optional subtitle above the panel occupying `spec` (offsets in points)."""
+    from matplotlib.transforms import offset_copy
+    bb = spec.get_position(fig)
+    tr = lambda dy: offset_copy(fig.transFigure, fig=fig, x=0, y=dy, units="points")  # noqa: E731
+    y0 = 24  # leave room for the panels' own sub-titles (same height for every step)
+    fig.text(bb.x0, bb.y1, f" {k} ", transform=tr(y0 + 26), fontsize=17, weight="bold", color=SURF,
+             va="bottom", bbox=dict(boxstyle="circle,pad=0.18", fc=ACC, ec="none"))
+    fig.text(bb.x0, bb.y1, "       " + title, transform=tr(y0 + 28), fontsize=17, weight="semibold",
+             va="bottom", color=FG)
+    if sub:
+        fig.text(bb.x0, bb.y1, sub, transform=tr(y0 + 4), fontsize=13, va="bottom", color=MUTE)
+
+
+def _set_bar(fig, ax, lab_sorted, side="left", w=0.045):
+    """Thin bar beside a matrix showing each (8-image) row's coherent set; the images' display order."""
+    pos = ax.get_position()
+    cols = set_colors(lab_sorted[::8][: (len(lab_sorted) // 8)])
+    if side == "left":
+        bx = fig.add_axes([pos.x0 - pos.width * (w + 0.02), pos.y0, pos.width * w, pos.height])
+    else:
+        bx = fig.add_axes([pos.x0, pos.y1 + pos.height * 0.02, pos.width, pos.height * w])
+    bx.imshow(cols[:, None, :] if side == "left" else cols[None, :, :], aspect="auto", interpolation="nearest")
+    bx.set_axis_off()
+
+
+def _mat(ax, img, bounds, **kw):
+    ax.imshow(img, interpolation="nearest", **kw)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for sp in ax.spines.values():
+        sp.set_visible(True)
+        sp.set_color(LINE)
+    for bd in bounds:
+        ax.axhline(bd / 8 - 0.5, color=SURF, lw=0.7, alpha=0.9)
+        ax.axvline(bd / 8 - 0.5, color=SURF, lw=0.7, alpha=0.9)
+
+
+def _norms(g):
+    km = g["kmats"][g["mid"] - g["a"]]
+    kpos = km[km > 0]
+    p = 2 * g["ms"][g["mid"] - g["a"]] - np.eye(len(km))
+    ppos = p[p > 0]
+    off = [m - np.diag(np.diag(m)) for m in g["ms"]]
+    mpos = off[g["mid"] - g["a"]]
+    mpos = mpos[mpos > 0]
+    return (LogNorm(vmin=np.percentile(kpos, 50), vmax=np.percentile(kpos, 99.99)),
+            LogNorm(vmin=np.percentile(ppos, 50), vmax=np.percentile(ppos, 99.99)),
+            LogNorm(vmin=np.percentile(mpos, 50), vmax=np.percentile(mpos, 99.99)), p, off)
+
+
+def _step1(fig, spec, d, g):
+    order, lab = g["order"], g["lab"]
+    ax = fig.add_subplot(spec)
+    lim = np.percentile(np.abs(g["cmid"]), 99.5)
+    _mat(ax, blockmean(g["cmid"][np.ix_(order, order)]), g["bounds"], cmap=DIV, vmin=-lim, vmax=lim)
+    ax.text(0, -0.04, "red > 0 > blue", transform=ax.transAxes, va="top", fontsize=SMALL, color=MUTE)
+    _step_head(fig, spec, 1, "Cosine Gram",
+               f"$C_{{ij}} = \\cos(h_i, h_j)$; {d.sites[g['mid']]}, {stepname(d.steps[g['t_idx']])}")
+    return [ax]
+
+
+def _step2(fig, spec, d, g):
+    order = g["order"]
+    knorm, pnorm, _, p, _ = _norms(g)
+    sub = spec.subgridspec(1, 2, wspace=0.28)
+    ka, pa = fig.add_subplot(sub[0]), fig.add_subplot(sub[1])
+    km = g["kmats"][g["mid"] - g["a"]]
+    _mat(ka, blockmean(km[np.ix_(order, order)]), g["bounds"], cmap=SEQ, norm=knorm)
+    _mat(pa, blockmean((p - np.diag(np.diag(p)))[np.ix_(order, order)]), g["bounds"], cmap=SEQ, norm=pnorm)
+    rule = g["rule"].replace("kNN graph, k = 15", "15-NN graph")
+    ka.set_title(f"kernel $K_c$ ({rule})", loc="left", fontsize=13, weight="normal", pad=5)
+    pa.set_title("walk $P_c$ = Sinkhorn($K_c$)", loc="left", fontsize=13, weight="normal", pad=5)
+    pa.text(0, -0.04, "rows, columns sum to 1", transform=pa.transAxes, va="top", fontsize=SMALL, color=MUTE)
+    ka.text(0, -0.04, "log colour", transform=ka.transAxes, va="top", fontsize=SMALL, color=MUTE)
+    _step_head(fig, spec, 2, "Kernel, then walk", "same cell; lazy walk $M_c = (I + P_c)/2$", inner=True)
+    return [ka, pa]
+
+
+def _step3(fig, spec, d, g):
+    order, a, b = g["order"], g["a"], g["b"]
+    _, _, mnorm, _, off = _norms(g)
+    sub = spec.subgridspec(1, 2, width_ratios=[0.85, 1], wspace=0.32)
+    cells = list(range(a, b + 1))
+    pick = cells if len(cells) <= 4 else [cells[i] for i in np.linspace(0, len(cells) - 1, 4).round().astype(int)]
+    small = sub[0].subgridspec(2, 2, wspace=0.12, hspace=0.3)
+    axs = []
+    for i, s in enumerate(pick):
+        ax = fig.add_subplot(small[i // 2, i % 2])
+        _mat(ax, blockmean(off[s - a][np.ix_(order, order)]), [], cmap=SEQ, norm=mnorm)
+        ax.set_title(f"$M_c$: {d.sites[s]}", loc="left", fontsize=SMALL, weight="normal", pad=3)
+        axs.append(ax)
+    ax = fig.add_subplot(sub[1])
+    mb = g["mbar"]
+    _mat(ax, blockmean((mb - np.diag(np.diag(mb)))[np.ix_(order, order)]), g["bounds"], cmap=SEQ, norm=mnorm)
+    ax.set_title("$\\bar M$ = mean of the $M_c$", loc="left", fontsize=13, weight="normal", pad=5)
+    ax.text(0, -0.04, "off-diagonal, log colour", transform=ax.transAxes, va="top", fontsize=SMALL, color=MUTE)
+    _step_head(fig, spec, 3, "Average over a block",
+               f"layer block {d.sites[a]}–{d.sites[b]}, {stepname(d.steps[g['t_idx']])}", inner=True)
+    return axs + [ax]
+
+
+def _step4(fig, spec, d, g):
+    v, w, order, ms, a, b, r = g["v"], g["w"], g["order"], g["ms"], g["a"], g["b"], g["r"]
+    sub = spec.subgridspec(2, 1, height_ratios=[1.25, 1], hspace=0.3)
+    ax = fig.add_subplot(sub[0])
+    n = len(order)
+    xs = np.arange(n)
+    for k in range(1, r):
+        off = (r - 1 - k) * 4.2
+        ax.plot(xs, v[order, k] * np.sqrt(n) + off, color=FG, lw=0.7)
+        ax.text(-n * 0.02, off, f"$\\psi_{k}$", ha="right", va="center", fontsize=14)
+    for bd in g["bounds"]:
+        ax.axvline(bd, color=LINE, lw=0.9)
+    ax.set_xlim(0, n)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines["left"].set_visible(False)
+    # retention table: rho_c(psi_k) = psi_k^T M_c psi_k for each cell of the block, and lambda_k = their mean
+    ret = np.array([[v[:, k] @ ms[c] @ v[:, k] for c in range(len(ms))] for k in range(1, r)])
+    tab = np.column_stack([ret, w[1:r]])
+    bx = fig.add_subplot(sub[1])
+    nc = ret.shape[1]
+    img = SEQ(np.clip((tab - 0.5) / 0.5, 0, 1))
+    img[:, nc] = to_rgb(BG) + (1,)
+    bx.imshow(img, aspect="auto", interpolation="nearest")
+    for i in range(tab.shape[0]):
+        for j in range(tab.shape[1]):
+            dark = j < nc and (tab[i, j] - 0.5) / 0.5 > 0.55
+            bx.text(j, i, f"{tab[i, j]:.2f}", ha="center", va="center", fontsize=SMALL,
+                    color=SURF if dark else FG, weight="semibold" if j == nc else "normal")
+    bx.axvline(nc - 0.5, color=SURF, lw=3)
+    bx.set_xticks(range(nc + 1), [d.sites[c] for c in range(a, b + 1)] + ["$\\lambda_k$"], fontsize=SMALL)
+    bx.set_yticks(range(r - 1), [f"$\\psi_{k}$" for k in range(1, r)], fontsize=13)
+    bx.tick_params(length=0)
+    bx.xaxis.tick_top()
+    for sp in bx.spines.values():
+        sp.set_visible(False)
+    bx.set_xlabel("retention $\\rho_c(\\psi_k) = \\psi_k^\\top M_c \\psi_k$;  $\\lambda_k$ = mean", fontsize=SMALL,
+                  color=MUTE)
+    _step_head(fig, spec, 4, "Eigenfunctions", "leading eigenvectors of $\\bar M$")
+    return [ax, bx], ret
+
+
+def _step5(fig, spec, d, g):
+    s_vec, lab, order, r, t_idx, b = g["s_vec"], g["lab"], g["order"], g["r"], g["t_idx"], g["b"]
+    sub = spec.subgridspec(1, 2, width_ratios=[1, 1], wspace=0.34)
+    ax = fig.add_subplot(sub[0])
+    n = len(order)
+    xs = np.arange(n)
+    nun = int((lab < 0).sum())
+    for j in range(r):
+        base = (r - 1 - j) * 1.2
+        ax.fill_between(xs, base, base + s_vec[order, j], color=PAL["sets"][j], lw=0, step="mid")
+        ax.text(-n * 0.03, base + 0.35, f"{j + 1}", ha="right", va="center", fontsize=14, color=FG)
+    ax.axvspan(n - nun, n, color=GREY, alpha=0.45, lw=0)
+    ax.text(n - nun / 2, -0.15, "unassigned", ha="right", va="top", fontsize=SMALL, color=MUTE)
+    ax.set_xlim(0, n)
+    ax.set_ylim(-0.75, r * 1.2)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines["left"].set_visible(False)
+    ax.set_title(f"SEBA vectors $s_1,\\ldots,s_{r}$", loc="left", fontsize=13, weight="normal", pad=5)
+    ax.set_xlabel("image (same order)", fontsize=SMALL, color=MUTE)
+    bx = fig.add_subplot(sub[1])
+    cell(bx, d.umap()[t_idx, b], set_colors(lab), grey_first(lab), s=4.5)
+    bx.set_title(f"coherent sets (layout: {d.sites[b]})", loc="left", fontsize=13, weight="normal", pad=5)
+    bx.text(0, -0.04, "set = largest $s_j$; grey: all 0", transform=bx.transAxes, va="top", fontsize=SMALL,
+            color=MUTE)
+    _step_head(fig, spec, 5, "Sparse vectors, coherent sets", f"SEBA on $\\psi_0,\\ldots,\\psi_{r - 1}$ (r = {r})",
+               inner=True)
+    return [ax, bx]
+
+
+STEP_DRAW = [_step1, _step2, _step3, _step4, _step5]
+
+
+def fig_steps(d: Data, g):
+    """The Overview's five-step strip (steps.png) and one image per step (step1.png .. step5.png), same data as
+    pipeline.png: images in every matrix and trace are ordered by the coherent set they end up in."""
+    with plt.rc_context(STEP_RC):
+        unit, H = 2.9, 4.7
+        gap = 0.62  # inches between panels
+        Wt = unit * sum(STEP_W) + gap * 4 + 1.1
+        fig = plt.figure(figsize=(Wt, H))
+        lefts, x = [], 0.75
+        for wd in STEP_W:
+            lefts.append(x)
+            x += unit * wd + gap
+        specs = []
+        for k in range(5):
+            gs = fig.add_gridspec(1, 1, left=lefts[k] / Wt, right=(lefts[k] + unit * STEP_W[k]) / Wt, top=0.7,
+                                  bottom=0.17)
+            specs.append(gs[0])
+            out = STEP_DRAW[k](fig, gs[0], d, g)
+            if k == 3:
+                out, ret = out
+            if k == 0:
+                _set_bar(fig, out[0], g["lab"][g["order"]])
+        for k in range(4):
+            x0 = (lefts[k] + unit * STEP_W[k] + 0.08) / Wt
+            x1 = (lefts[k + 1] - 0.22) / Wt
+            fig.patches.append(FancyArrowPatch((x0, 0.44), (x1, 0.44), transform=fig.transFigure, arrowstyle="-|>",
+                                               mutation_scale=22, color=MUTE, lw=1.8))
+        fig.text(0.75 / Wt, 0.02, "Matrices are 2,000 × 2,000, shown as means of 8 × 8 tiles. In every matrix and "
+                 "trace the images are ordered by the coherent set they end up in (colour bar in step 1; white lines).",
+                 fontsize=SMALL, color=MUTE)
+        save(fig, "steps.png", dpi=100)
+        for k in range(5):
+            wk = unit * STEP_W[k] + 1.05
+            fig = plt.figure(figsize=(wk, H))
+            gs = fig.add_gridspec(1, 1, left=0.75 / wk, right=1 - 0.3 / wk, top=0.7, bottom=0.14)
+            out = STEP_DRAW[k](fig, gs[0], d, g)
+            if k == 3:
+                out = out[0]
+            if k == 0:
+                _set_bar(fig, out[0], g["lab"][g["order"]])
+            save(fig, f"step{k + 1}.png", dpi=150)
+    a, b, r = g["a"], g["b"], g["r"]
+    if not d.fixture:
+        stored = np.array([d.retention_psi("layer", g["t_idx"], g["mode"], a, b, k)[a:b + 1] for k in range(1, r)])
+        print(f"  steps: retention recomputed vs stored, max |diff| = {np.abs(stored - ret).max():.2e}")
+    lab = g["lab"]
+    print(f"  steps: block {d.sites[a]}-{d.sites[b]}, {d.steps[g['t_idx']]}, rule {g['rule']}, r={r}; "
+          f"lambda_1..{r - 1} = {np.round(g['w'][1:r], 4)}, gap after lambda_{r - 1}: {g['w'][r - 1] - g['w'][r]:.4f}; "
+          f"retention per cell (rows psi_k, cols sites):\n{np.round(ret, 3)}\n"
+          f"  set sizes {[int((lab == j).sum()) for j in range(r)]}, unassigned {int((lab < 0).sum())}")
 
 
 # ----------------------------------------------------------------------------------------------- (c) static vs dynamic
@@ -544,8 +794,8 @@ def fig_static_dynamic(d: Data, t_idx, mode, a, b, s):
     gs = fig.add_gridspec(2, nc + 2, width_ratios=[1] * nc + [0.35, 2.2], wspace=0.08, hspace=0.22, left=0.07,
                           right=0.985, top=0.86, bottom=0.11)
     xy = d.umap()[t_idx]
-    for row, (f, name) in enumerate([(fs, f"static: ψ1 of {d.sites[s]} alone"),
-                                     (fb, f"block: ψ1 of {d.sites[a]}–{d.sites[b]}")]):
+    for row, (f, name) in enumerate([(fs, f"single-cell block {d.sites[s]}: ψ1"),
+                                     (fb, f"layer block {d.sites[a]}–{d.sites[b]}: ψ1")]):
         col = div_colors(f)
         order = np.argsort(np.abs(f))
         for i, c in enumerate(cells):
@@ -558,19 +808,22 @@ def fig_static_dynamic(d: Data, t_idx, mode, a, b, s):
     ax = fig.add_subplot(gs[:, nc + 1])
     x = np.arange(d.S)
     ax.axvspan(a - 0.5, b + 0.5, color=LINE, alpha=0.7, lw=0)
-    ax.plot(x, rs, color=MUTE, marker="o", ms=4, lw=1.6, label=f"static ψ1 of {d.sites[s]}")
-    ax.plot(x, rb, color=ACC, marker="o", ms=4, lw=1.8, label=f"block ψ1 ({d.sites[a]}–{d.sites[b]})")
+    ax.plot(x, rs, color=MUTE, marker="o", ms=4, lw=1.6, label=f"ψ1 of single-cell block {d.sites[s]}")
+    ax.plot(x, rb, color=ACC, marker="o", ms=4, lw=1.8, label=f"ψ1 of layer block {d.sites[a]}–{d.sites[b]}")
     lam = d.vals("layer", t_idx, mode, a, b)[1]
     ax.hlines(lam, a - 0.5, b + 0.5, color=ACC, lw=0.9, ls="--")
-    ax.text(a - 0.4, lam + 0.012, f"block λ1 = {lam:.3f} (its mean over the block)", color=ACC, fontsize=8,
+    ax.text(a + 0.6, lam + 0.02, f"λ1 = {lam:.3f}: mean of ρ_c over the block", color=ACC, fontsize=8,
             va="bottom")
     ax.hlines(rs[a:b + 1].mean(), a - 0.5, b + 0.5, color=MUTE, lw=0.9, ls="--")
+    ax.text(a - 0.4, rs[a:b + 1].mean() - 0.012, f"mean over the block: {rs[a:b + 1].mean():.3f}", color=MUTE,
+            fontsize=8, va="top")
     ax.set_xticks(x, d.sites, rotation=45, fontsize=8.5)
     ax.set_ylim(0.5, 1)
-    ax.set_ylabel("retention ψᵀ M_c ψ")
-    ax.set_title("Retention in every site of the checkpoint", loc="left")
+    ax.set_ylabel("retention ρ_c(ψ1) = ψ1ᵀ M_c ψ1")
+    ax.set_title(f"Retention at every site, {stepname(d.steps[t_idx])}", loc="left")
     ax.legend(fontsize=8.5, loc="lower left")
-    fig.text(0.07, 0.95, f"One layer's split vs the block's split ({stepname(d.steps[t_idx])}, rule: {d.modes[mode]})",
+    fig.text(0.07, 0.95, f"ψ1 of a single-cell block vs ψ1 of a layer block ({stepname(d.steps[t_idx])}, "
+             f"kernel rule: {d.modes[mode]})",
              fontsize=12, weight="semibold")
     save(fig, "static_dynamic.png")
     print(f"  static/dynamic: block {d.sites[a]}-{d.sites[b]}, site {d.sites[s]}; block lambda1 {lam:.4f}; "
@@ -590,10 +843,10 @@ def fig_timeblock(d: Data, site, c, dd, mode, r):
         inb = c <= t <= dd
         cell(axs[t], U[t], col, order, s=1.0, frame=ACC if inb else LINE, lw=1.6 if inb else 0.8)
         acc = d.val_acc(d.steps[t])
-        axs[t].set_title(f"{d.steps[t]:,}" + (f"\n{100 * acc:.0f}% val" if acc is not None else ""), fontsize=8.5,
+        axs[t].set_title(f"{d.steps[t]:,}" + (f"\nval acc {100 * acc:.0f}%" if acc is not None else ""), fontsize=8.5,
                          color=FG if inb else MUTE, weight="normal")
-    fig.text(0.01, 0.97, f"Site {d.sites[site]} through training, coloured by the {r} SEBA sets of the time block "
-             f"{d.steps[c]:,}–{d.steps[dd]:,} (outlined)", fontsize=10, weight="semibold", va="top")
+    fig.text(0.01, 0.97, f"Site {d.sites[site]} at each checkpoint, coloured by the coherent sets (r = {r}) of the "
+             f"time block steps {d.steps[c]:,}–{d.steps[dd]:,} (outlined)", fontsize=10, weight="semibold", va="top")
     fig.subplots_adjust(left=0.01, right=0.99, top=0.72, bottom=0.02, wspace=0.06)
     save(fig, "timeblock_strip.png")
     # gif: one large cell, layout interpolated between checkpoints (display only)
@@ -613,7 +866,8 @@ def fig_timeblock(d: Data, site, c, dd, mode, r):
             fig.text(0.04, 0.955, f"{d.sites[site]} at step {d.steps[t]:,}" + (" → …" if u > 0 else "") +
                      (f"   (val acc {100 * acc:.0f}%)" if acc is not None and u == 0 else ""), fontsize=12,
                      weight="semibold")
-            fig.text(0.04, 0.915, f"colours: {r} sets of the block {d.steps[c]:,}–{d.steps[dd]:,}, fixed throughout",
+            fig.text(0.04, 0.915, f"colours: coherent sets (r = {r}) of the time block steps {d.steps[c]:,}–"
+                     f"{d.steps[dd]:,}, fixed throughout",
                      fontsize=9, color=MUTE)
             bx = fig.add_axes([0.08, 0.06, 0.84, 0.08])
             bx.set_xlim(-0.5, d.T - 0.5)
@@ -623,7 +877,7 @@ def fig_timeblock(d: Data, site, c, dd, mode, r):
             bx.set_yticks([])
             bx.set_xticks(range(d.T), [f"{s:,}" for s in d.steps], fontsize=7.5)
             bx.spines["left"].set_visible(False)
-            bx.set_title("checkpoint (shaded: the block)", fontsize=8, color=MUTE, loc="left", weight="normal", pad=2)
+            bx.set_title("checkpoint (shaded: the time block)", fontsize=8, color=MUTE, loc="left", weight="normal", pad=2)
             frames.append(fig_to_image(fig))
             plt.close(fig)
             durs.append(1700 if u == 0 else 90)
@@ -632,6 +886,27 @@ def fig_timeblock(d: Data, site, c, dd, mode, r):
     sizes = [(lab == j).sum() for j in range(r)]
     print(f"  timeblock: site {d.sites[site]}, block {d.steps[c]}-{d.steps[dd]}, r={r}, set sizes {sizes}, "
           f"unassigned {(lab < 0).sum()}; SEBA retention per set over checkpoints:\n{np.round(ret, 3)}")
+
+
+def fig_hero(d: Data, site, c, dd, mode, r):
+    """1200 x 630 social-preview image: one site at every checkpoint (2 x 4), coloured by a time block's sets."""
+    _, lab = d.seba("time", site, mode, c, dd, r)
+    col, order = set_colors(lab), grey_first(lab)
+    U = d.umap()[:, site]
+    fig = plt.figure(figsize=(12, 6.3))
+    nc = (d.T + 1) // 2
+    gs = fig.add_gridspec(2, nc, left=0.02, right=0.98, top=0.755, bottom=0.015, wspace=0.05, hspace=0.27)
+    for t in range(d.T):
+        ax = fig.add_subplot(gs[t // nc, t % nc])
+        inb = c <= t <= dd
+        cell(ax, U[t], col, order, s=3.2, frame=ACC if inb else LINE, lw=2.2 if inb else 1)
+        ax.set_title(f"step {d.steps[t]:,}", fontsize=15, color=FG if inb else MUTE, weight="normal", pad=4)
+    fig.text(0.02, 0.965, f"One layer ({d.sites[site]}) of a ResNet-20 at {d.T} checkpoints in training",
+             fontsize=21, weight="semibold", va="top")
+    fig.text(0.02, 0.9, f"Each dot is one of the same {d.N:,} test images in every panel. Colour: its coherent set "
+             f"(r = {r}) in the time block\nsteps {d.steps[c]:,}–{d.steps[dd]:,} (outlined); grey: unassigned. "
+             "Layouts (UMAP) are for display only.", fontsize=13.5, color=MUTE, va="top", linespacing=1.4)
+    save(fig, "hero.png", dpi=100)
 
 
 # ----------------------------------------------------------------------------------------------- (f) SEBA explainer
@@ -690,9 +965,9 @@ def fig_seba(d: Data, t_idx, mode, a, b):
     ax.set_title(f"2. the {r} SEBA vectors (each scaled to max 1), images sorted by set", loc="left")
     ax = fig.add_subplot(gs[2])
     cell(ax, d.umap()[t_idx, b], set_colors(lab), o, s=2.2)
-    ax.set_title(f"3. colour = largest; grey = none ({d.sites[b]})", loc="left")
-    fig.text(0.05, 0.95, f"How SEBA colours are assigned: block {d.sites[a]}–{d.sites[b]}, {stepname(d.steps[t_idx])}, "
-             f"r = 3 (ψ0, ψ1, ψ2)", fontsize=12, weight="semibold")
+    ax.set_title(f"3. set = largest vector;\ngrey = unassigned (layout: {d.sites[b]})", loc="left")
+    fig.text(0.05, 0.95, f"From eigenfunctions to coherent sets: layer block {d.sites[a]}–{d.sites[b]}, "
+             f"{stepname(d.steps[t_idx])}, r = 3 (ψ0, ψ1, ψ2)", fontsize=12, weight="semibold")
     save(fig, "seba.png")
     print(f"  seba: block {d.sites[a]}-{d.sites[b]} r=3 sizes {[len(k) for k in keys[:-1]]} unassigned {len(un)}; "
           f"class purity of sets {[np.bincount(d.labels[k], minlength=10).max() / max(len(k), 1) for k in keys[:-1]]}")
@@ -749,7 +1024,7 @@ def fig_rules(d: Data, step=None):
     adapt = [("union kNN 15", "kNN\ngraph"), ("perplexity 100", "perp.\n100"), ("perplexity 300", "perp.\n300")]
     metrics = [("ψ1 participation number", lambda r: r["participation"][0], "log", (1.5, 3000)),
                ("1 − λ1 (lower = slower ψ1)", lambda r: r["gaps"][0], "linear", (0, 0.5)),
-               ("smallest of 8 SEBA sets (images)", lambda r: max(min(r["seba"]["8"]["sizes"]), 0.8), "log", (0.8, 1000))]
+               ("smallest of 8 coherent sets (images)", lambda r: max(min(r["seba"]["8"]["sizes"]), 0.8), "log", (0.8, 1000))]
     fig = plt.figure(figsize=(13.6, 4.6))
     gs = fig.add_gridspec(1, 3, wspace=0.32, left=0.06, right=0.99, top=0.8, bottom=0.2)
     for mi, (name, fn_, scale, lim) in enumerate(metrics):
@@ -790,8 +1065,8 @@ def fig_rules(d: Data, step=None):
                bbox_to_anchor=(0.06, 0.93))
     fig.text(0.99, 0.02, "kNN graph = default rule; perp. = per-image perplexity; a smallest set of 0 is drawn at the "
              "floor", ha="right", fontsize=8, color=MUTE)
-    fig.text(0.06, 0.975, f"Which kernel rules give spread, slow modes? Final checkpoint ({stepname(step)}), one cell "
-             "per site, no labels used", fontsize=11.5, weight="semibold", va="top")
+    fig.text(0.06, 0.975, f"Label-free diagnostics against one global κ, one cell per site ({stepname(step)}); "
+             "per-image kernel rules at right", fontsize=11.5, weight="semibold", va="top")
     save(fig, "rules.png")
 
 
@@ -838,7 +1113,7 @@ def fig_sweep(d: Data, step=None):
     axs[1].set_ylim(0, 0.5)
     axs[1].set_ylabel("1 − λ1 of M\n(lower = slower leading mode)")
     axs[2].set_ylim(0, 1)
-    axs[2].set_ylabel("8 SEBA sets vs classes\n(matched Jaccard; validation)")
+    axs[2].set_ylabel("8 coherent sets vs classes\n(matched Jaccard; validation)")
     fig.legend(*axs[0].get_legend_handles_labels(), ncol=len(sites), loc="upper right", fontsize=9.5,
                bbox_to_anchor=(0.99, 0.995), title="site", title_fontsize=9)
     starts = [i for i in range(len(rules)) if i == 0 or rules[i][0] != rules[i - 1][0]]
@@ -850,7 +1125,8 @@ def fig_sweep(d: Data, step=None):
         axs[0].text((st + en - 1) / 2, 2600, lab[rules[st][0]], ha="center", va="bottom", fontsize=9.5, color=FG)
     axs[2].set_xticks(x, short, fontsize=8.5)
     axs[2].set_xlabel("rule parameter")
-    fig.suptitle(f"Kernel-rule sweep at {stepname(step)}: which rules give spread, slow modes?", x=0.01, ha="left",
+    fig.suptitle(f"Kernel-rule sweep at {stepname(step)}: label-free diagnostics (top two), agreement with classes "
+                 "(validation, bottom)", x=0.01, ha="left",
                  fontsize=12, weight="semibold")
     fig.subplots_adjust(left=0.1, right=0.99, top=0.88, bottom=0.08, hspace=0.12)
     save(fig, "sweep.png")
@@ -950,8 +1226,8 @@ def fig_howto(d: Data, mode, t_idx, a, b, site_time, c_time, d_time, hover_img, 
     lb = lambda t, s: t == t_idx and a <= s <= b  # noqa: E731
     tb = lambda t, s: s == site_time and c_time <= t <= d_time  # noqa: E731
     bl = f"{d.sites[a]}–{d.sites[b]} at step {d.steps[t_idx]:,}"
-    spec_l = spectrum(vals, f"block spectrum ({bl})", hk=1)
-    spec_s = spectrum(vals, f"block spectrum ({bl})", nsel=r)
+    spec_l = spectrum(vals, f"spectrum of the block\n{bl}", hk=1)
+    spec_s = spectrum(vals, f"spectrum of the block\n{bl}", nsel=r)
     strip_l = strip(ret, d.sites, a, b, "retention of ψ1 in each site")
     steps_ = [  # (colors, order, block, text, sub, highlight, hover, side, ms)
         (neutral, None, None, "How to read the explorer (slowly)",
@@ -966,26 +1242,26 @@ def fig_howto(d: Data, mode, t_idx, a, b, site_time, c_time, d_time, hover_img, 
          "The class labels never enter the computation; they only colour plots and check results.",
          None, False, None, 5500),
         (cls, None, lb, f"Pick a block: sites {bl}.",
-         "Their random walks are averaged into one operator M̄. Its eigenvectors have the lowest average penalty.",
+         "Their walks M_c are averaged into the block operator M̄. Its eigenfunctions ψ_k vary least, on average.",
          None, False, spec_l, 7000),
         (eig, eig_order, lb, "Colour by eigenfunction ψ1: red > 0, blue < 0, grey ≈ 0.",
          "Computed from the outlined block only, then painted on every cell. Its sign is a convention.",
          None, False, spec_l, 7000),
-        (eig, eig_order, lb, "Check the retention strip: ψᵀ M_c ψ for each site.",
-         "The eigenvalue is the strip's mean over the block. High and even = carried across; a dip marks a rougher cell.",
+        (eig, eig_order, lb, "Retention strip: ρ_c(ψ1) = ψ1ᵀ M_c ψ1 for each site.",
+         "The eigenvalue λ1 is its mean over the block. A lower ρ_c: ψ1 varies more between that cell's neighbours.",
          None, False, both(spec_l, strip_l), 8000),
-        (sebc, grey_first(slab), lb, f"Colour by SEBA sets (here r = {r}).",
-         f"ψ0…ψ{r - 1} are rotated into {r} sparse vectors; each image takes its largest one; grey = none.",
+        (sebc, grey_first(slab), lb, f"Colour by coherent sets (SEBA, here r = {r}).",
+         f"ψ0…ψ{r - 1} are rotated into {r} sparse vectors; each image takes its largest one; grey = unassigned.",
          None, False, spec_s, 7500),
-        (sebc, grey_first(slab), lb, "Now read outward from the block.",
-         "Along the row: where in depth the grouping holds. Up the columns: since when in training.",
+        (sebc, grey_first(slab), lb, "The block's colours are painted on every cell.",
+         "Along the row: the other sites at this checkpoint. Up a column: the same site at earlier checkpoints.",
          [(0, b, t_idx, b), (t_idx, 0, t_idx, S - 1)], False, spec_s, 8000),
-        (tc, grey_first(tlab), tb, f"Through training: fix a site ({d.sites[site_time]}), average over checkpoints.",
+        (tc, grey_first(tlab), tb, f"Time block: fix a site ({d.sites[site_time]}), average over checkpoints.",
          f"Here steps {d.steps[c_time]:,}–{d.steps[d_time]:,}. The retention strip then runs over checkpoints.",
          None, False, both(spectrum(tvals, f"spectrum ({d.sites[site_time]}, steps {d.steps[c_time]:,}–{d.steps[d_time]:,})", nsel=r),
                            strip(tret, [f"{s:,}" for s in d.steps], c_time, d_time, "retention of ψ1 per checkpoint")), 8000),
         (tc, grey_first(tlab), tb, "Your turn: open the Explorer tab.",
-         "Also try the κ rule, r, and the channel-loadings panel. Colours are always from the selected block.",
+         "Also try the kernel rule, r, and the channel-loadings panel. Colours are always from the selected block.",
          None, False, None, 5000),
     ]
     frames, durs = [], []
@@ -1053,9 +1329,17 @@ def main():
         if not gp.exists():
             gp = Path(f"/var/tmp/cm-figs/grams_r20s0_{d.steps[T]}.npy")
         if gp.exists():
-            fig_pipeline(d, gp, T, ba, bb, a.mode, 4)
+            fig_pipeline(d, pipeline_data(d, gp, T, ba, bb, a.mode, 4))
         else:
             print("  pipeline: no Gram file; run figdata.py first")
+    if want("steps"):
+        gp = Path(a.grams) if a.grams else Path(f"/var/tmp/cm-figs/grams_{a.tag}_{d.steps[T]}.npy")
+        if not gp.exists():
+            gp = Path(f"/var/tmp/cm-figs/grams_r20s0_{d.steps[T]}.npy")
+        if gp.exists():
+            fig_steps(d, pipeline_data(d, gp, T, ba, bb, a.mode, 4))
+        else:
+            print("  steps: no Gram file; run figdata.py --grams-only first")
     if want("static_dynamic"):
         if a.sd == "auto":
             gap, sa, sb, ss = pick_static_dynamic(d, T, a.mode)
@@ -1066,6 +1350,9 @@ def main():
     if want("timeblock"):
         ts, tc, td = map(int, a.tblock.split(","))
         fig_timeblock(d, ts, tc, td, a.mode, 4)
+    if want("hero"):
+        ts, tc, td = map(int, a.tblock.split(","))
+        fig_hero(d, ts, tc, td, a.mode, 4)
     if want("seba"):
         fig_seba(d, T, a.mode, ba, bb)
     if want("avgprod") and (d.root / "avgprod.json").exists():

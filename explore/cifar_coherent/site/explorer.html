@@ -3,8 +3,8 @@
     <div class="ctl">
       <span class="ctl-label">Block</span>
       <div class="seg" id="ex-fam" role="radiogroup" aria-label="Block family">
-        <button type="button" data-v="layer" title="A block is a run of consecutive sites at one checkpoint">across layers</button>
-        <button type="button" data-v="time" title="A block is a run of consecutive checkpoints at one site">through training</button>
+        <button type="button" data-v="layer" title="Layer block: a run of consecutive sites at one checkpoint (one row of the grid)">layer block</button>
+        <button type="button" data-v="time" title="Time block: a run of consecutive checkpoints at one site (one column of the grid)">time block</button>
       </div>
       <label class="ctl-sub" for="ex-anchor" id="ex-anchor-label">at</label>
       <select id="ex-anchor"></select>
@@ -12,17 +12,17 @@
       <select id="ex-a" aria-label="Block start"></select><span class="ctl-sub">to</span><select id="ex-b" aria-label="Block end"></select>
     </div>
     <div class="ctl">
-      <label class="ctl-label" for="ex-mode">Kernel</label>
+      <label class="ctl-label" for="ex-mode">Kernel rule</label>
       <select id="ex-mode"></select>
       <button type="button" class="info-btn" id="ex-kappa-btn" aria-expanded="false" aria-controls="ex-kappa-help" title="What are the kernel rules?">?</button>
     </div>
     <div class="ctl">
       <label class="ctl-label" for="ex-color">Colour by</label>
       <select id="ex-color">
-        <optgroup label="Block structure (from the selected block)">
+        <optgroup label="From the selected block">
           <option value="seba">coherent sets (SEBA)</option>
-          <option value="nodal">nodal domains (sign of &psi;)</option>
-          <option value="eig">eigenfunction &psi;</option>
+          <option value="eig">eigenfunction &psi;&#8342;</option>
+          <option value="nodal">sign of &psi;&#8342; (nodal domains)</option>
         </optgroup>
         <optgroup label="Labels (validation only)">
           <option value="class">CIFAR class</option>
@@ -36,7 +36,7 @@
         </optgroup>
       </select>
       <span class="ctl-sub" id="ex-k-label" hidden title="The side panel (spectrum, images, retention, loadings) describes this selection">side panel</span>
-      <select id="ex-k" aria-label="Eigenfunction or number of sets"></select>
+      <select id="ex-k" aria-label="Eigenfunction k, or number of coherent sets r"></select>
       <div class="seg" id="ex-at" role="radiogroup" aria-label="Diagnostics measured at">
         <button type="button" data-v="own" title="Each row shows the diagnostic at that row's checkpoint">each row's checkpoint</button>
         <button type="button" data-v="final" title="Every row shows the diagnostic at the final checkpoint">final</button>
@@ -49,9 +49,14 @@
         <button type="button" data-v="1" title="UMAP of a second network (seed 1); colours still come from seed 0">seed 1</button>
       </div>
     </div>
+    <div class="ctl ctl-end ctl-guide">
+      <label class="ctl-label" for="ex-tour-sel">Tours</label>
+      <select id="ex-tour-sel"><option value="">choose a view…</option></select>
+      <button type="button" class="guide-btn" id="ex-howto-btn" aria-controls="ex-howto" aria-expanded="false">How to use</button>
+    </div>
     <span class="status" id="ex-status" aria-live="polite"></span>
     <div class="ex-help" id="ex-kappa-help" hidden>
-      <p>The <b>kernel rule</b> decides which images count as neighbours in each cell before the operator is built. With cosine similarity $C$ and distance $d = 1 - C$, a temperature rule uses $K_{ij} = e^{-\kappa d_{ij}}$; $\kappa$ is the inverse temperature. The answer depends on the rule, so it is exposed here rather than hidden.</p>
+      <p>The <b>kernel rule</b> decides which probe images count as neighbours in each cell before the walk $P_c$ is built. With cosine similarity $C$ and distance $d = 1 - C$, a temperature rule uses $K_{ij} = e^{-\kappa d_{ij}}$; $\kappa$ is the inverse temperature. The answer depends on the rule, so it is exposed here rather than hidden.</p>
       <ul>
         <li><b>kNN graph, k = 15</b> (default): link $i$ and $j$ if either is among the other's 15 nearest neighbours. Rank-based, no $\kappa$; the same neighbourhood size as the UMAP layouts.</li>
         <li><b>per-point perplexity 100 / 300</b>: each image gets its own $\kappa_i$ so that its neighbour distribution has perplexity 100 (or 300, coarser); the t-SNE affinity. Expect results close to the kNN graph.</li>
@@ -63,6 +68,26 @@
   </div>
   <div class="ex-body" id="ex-body">
     <div class="ex-main" id="ex-main">
+      <div class="ex-tour" id="ex-tour" hidden role="note" aria-live="polite">
+        <div class="ex-tour-head"><span class="ex-tour-tag">Tour</span><b id="ex-tour-label"></b>
+          <button type="button" class="link-btn" id="ex-tour-reset" hidden>back to this tour's view</button>
+          <button type="button" class="ex-tour-close" id="ex-tour-close" aria-label="Close the tour note">&times;</button></div>
+        <div class="ex-tour-note" id="ex-tour-note"></div>
+      </div>
+      <details class="ex-howto" id="ex-howto">
+        <summary>How to use the explorer</summary>
+        <div class="ex-howto-body">
+          <figure class="ex-howto-fig">
+            <img class="gif" loading="lazy" decoding="async" src="assets/fig/howto.gif" data-still="assets/fig/howto_still.png" alt="A slow, annotated walk through the explorer: the grid, a block, its eigenfunction and coherent-set colourings, the spectrum and retention strip, and a time block.">
+          </figure>
+          <div class="ex-howto-text">
+            <p><b>The grid.</b> Rows are checkpoints (training step and validation accuracy), columns are sites, from the stem to the logits. Each cell shows the same probe images, placed by a 2-d UMAP of that cell's activations. Positions are for display only; no number on this page is computed from them.</p>
+            <p><b>The block</b> (outlined) is a run of cells along one row (a <i>layer block</i>) or one column (a <i>time block</i>); one cell alone is a <i>single-cell block</i>. Its block operator $\bar M$ averages the lazy walks $M_c$ of its cells. The colouring comes from that block only and is painted on every cell, so you can follow the same images to other layers and checkpoints.</p>
+            <p><b>The side panel</b> describes the selection: the spectrum of $\bar M$, representative images, retention $\rho_c$ in every cell of the row or column, the cell under the pointer enlarged, channel loadings, and per-cell numbers.</p>
+            <p><b>Extras.</b> <i>Layout: seed 1</i> places the points by a second network's UMAP while colours still come from the first. The per-image diagnostics (loss, input-Jacobian norm, gradient alignment) and CIFAR class only colour; none enters the kernel or the sets. Definitions: <a href="#method/glossary">glossary</a>.</p>
+          </div>
+        </div>
+      </details>
       <div class="ex-head">
         <ol class="ex-steps" id="ex-hint">
           <li><b>Pick a block.</b> <span class="mouse-only">Click a cell to end the block there; shift-click or drag along the row (or column) to set its start.</span><span class="touch-only">Tap a cell to set the block's
@@ -100,7 +125,7 @@
         <div id="img-body"></div>
       </section>
       <section class="card" id="card-ret">
-        <h3 class="card-title">Retention in every cell</h3>
+        <h3 class="card-title" id="ret-title">Retention &rho;<sub>c</sub> in every cell</h3>
         <div id="ret-body" class="chart"></div>
         <div class="card-note" id="ret-note"></div>
       </section>

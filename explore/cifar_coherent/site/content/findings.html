@@ -1,0 +1,340 @@
+<p class="lede" id="read-a-finding">These are readings of one network (ResNet-20, CIFAR-10, one seed) made with the
+procedure in the <a href="#overview/procedure">Overview</a>. They are also worked examples of how to think with the
+tool. Each finding opens with a claim and a tag: <em>observed</em> is a direct reading of a measured quantity,
+<em>reading</em> is an interpretation I would defend, and <em>speculation</em> is a guess worth checking. Then come the
+evidence, with captions that only say what is plotted; how I read it, and what else it could be; and what to change
+in the explorer to test it yourself. Class names appear here, in the prose, to describe sets that the method found
+without them.</p>
+
+<!-- ============================================================ 1 -->
+<h2 id="f-end-sets">1. Four sets at the end of training, and what is in them</h2>
+
+<p><b>Claim</b> <em>(observed).</em> At the last checkpoint, the layer block b7 to pool splits the probe into four
+coherent sets of {{fact:q.f1.b7_pool.final.r4.set1.size}}, {{fact:q.f1.b7_pool.final.r4.set2.size}},
+{{fact:q.f1.b7_pool.final.r4.set3.size}} and {{fact:q.f1.b7_pool.final.r4.set4.size}} images, with
+{{fact:q.f1.b7_pool.final.r4.n_unassigned}} unassigned, and every set's SEBA vector keeps a retention between
+{{fact:q.f1.b7_pool.final.r4.retention_min}} and {{fact:q.f1.b7_pool.final.r4.retention_max}} in each of the
+block's four cells. Here they are, from the top of each set.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="0" data-n="22">
+  <figcaption><b>Plotted:</b> set 1 of layer block b7 to pool, step {{fact:final_step}}, {{fact:default_mode}},
+  $r = 4$: the 22 members with the largest SEBA value. <b>Values:</b> {{fact:q.f1.b7_pool.final.r4.set1.size}}
+  images; retention {{fact:q.f1.b7_pool.final.r4.set1.retention_min}} to
+  {{fact:q.f1.b7_pool.final.r4.set1.retention_max}}.</figcaption>
+</figure>
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="1" data-n="22">
+  <figcaption><b>Plotted:</b> set 2, same block and settings. <b>Values:</b>
+  {{fact:q.f1.b7_pool.final.r4.set2.size}} images; retention {{fact:q.f1.b7_pool.final.r4.set2.retention_min}} to
+  {{fact:q.f1.b7_pool.final.r4.set2.retention_max}}.</figcaption>
+</figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="2" data-n="22">
+  <figcaption><b>Plotted:</b> set 3, same block and settings. <b>Values:</b>
+  {{fact:q.f1.b7_pool.final.r4.set3.size}} images; retention {{fact:q.f1.b7_pool.final.r4.set3.retention_min}} to
+  {{fact:q.f1.b7_pool.final.r4.set3.retention_max}}.</figcaption>
+</figure>
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="3" data-n="22">
+  <figcaption><b>Plotted:</b> set 4, same block and settings. <b>Values:</b>
+  {{fact:q.f1.b7_pool.final.r4.set4.size}} images; retention {{fact:q.f1.b7_pool.final.r4.set4.retention_min}} to
+  {{fact:q.f1.b7_pool.final.r4.set4.retention_max}}.</figcaption>
+</figure>
+</div>
+
+<p><b>What is in them</b> <em>(reading).</em> Counting classes (200 images each), set 1 holds
+{{fact:q.f1.b7_pool.final.r4.set1.top_classes}}; set 2, {{fact:q.f1.b7_pool.final.r4.set2.top_classes}}; set 3,
+{{fact:q.f1.b7_pool.final.r4.set3.top_classes}}; set 4, {{fact:q.f1.b7_pool.final.r4.set4.top_classes}}. So at the
+end of training the late layers group the ten classes into four unions: small animals, road vehicles, the vehicles of
+sky and water, and horses with the largest share of the deer. Every class but deer has most of its images in a single set. The matched Jaccard of the sets
+against the ten classes is {{fact:q.f1.b7_pool.final.r4.vs_classes}}, against
+{{fact:q.f1.b7_pool.final.r4.vs_classes_ceiling}} for the best that four sets of these sizes could do: it nearly reaches the
+size ceiling of the matched Jaccard. The class counts below are the stronger evidence. That is the network's own coarse ontology at this depth, found without labels, and
+it is a plausible one; a person sorting these pictures into four piles might well do the same.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.layer_t7_b7-pool_r4">
+  <figcaption><b>Plotted:</b> the number of probe images in each SEBA set (rows, reliability order, then unassigned)
+  of each CIFAR class (columns), for layer block b7 to pool, step {{fact:final_step}}, {{fact:default_mode}},
+  $r = 4$. Colour from 0 to 200, the images per class.</figcaption>
+</figure>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>Four is my choice.</b> The gaps where $r = 2, 3, 4$ cut the spectrum are
+{{fact:q.f1.b7_pool.final.r2.gap_after_lambda1}}, {{fact:q.f1.b7_pool.final.r3.gap_after_lambda2}} and
+{{fact:q.f1.b7_pool.final.r4.gap_after_lambda3}}; none dominates. At $r = 3$, horse and deer join the small animals
+(that set's largest classes: {{fact:q.f1.b7_pool.final.r3.set1.top_classes}}), so set 4 is the least canonical of
+the four.</li>
+<li><b>The readout seen from below.</b> The block includes pool, which is one linear map away from the logits, so the
+sets could be the classifier's geometry propagated back. Against this, the sets agree more with b9's own late-training
+sets (time block steps 2,560 to {{fact:final_step}}: matched Jaccard {{fact:q.f1.b7_pool.final.r4.vs_b9_time_late}})
+than with b9's single cell ({{fact:q.f1.b7_pool.final.r4.vs_b9_alone}}).</li>
+<li><b>The kernel rule.</b> The same block under perplexity 100, perplexity 300 and kNN scale gives sets matching
+these at {{fact:q.f1.b7_pool.final.r4.vs_rule1}}, {{fact:q.f1.b7_pool.final.r4.vs_rule2}} and
+{{fact:q.f1.b7_pool.final.r4.vs_rule3}}; half-mass, the rule that fails in the middle layers
+(<a href="#method/kernel">Method</a>), gives {{fact:q.f1.b7_pool.final.r4.vs_rule4}}.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=late-layers">this block in the explorer</a>.
+Switch the colouring to class to see the make-up on the layouts; set $r$ to 3, then 6, and watch which sets merge or
+split; move the block's start from b7 down to b4.</p>
+
+<!-- ============================================================ 2 -->
+<h2 id="f-looking-back">2. Looking back: when the two-set split becomes vehicles against animals</h2>
+
+<p>Now fix one site, b9, and ask what its own two-set split (the single-cell block, $r = 2$) looks like at each
+checkpoint. I score it against the class grouping {airplane, automobile, ship, truck} versus the other six, with the
+matched Jaccard, its permutation null, and the ceiling that the set sizes allow
+(<a href="#measurements/va">Measurements</a>).</p>
+
+<p><b>Claim</b> <em>(observed).</em> By step {{fact:q.va.b9.half_step}}, when validation accuracy is {{fact:q.train.step64.val_acc}}, b9's
+two-set split is already the best match to vehicles against animals among all 511 ways of splitting the ten classes
+in two, and it has half of the alignment its sizes allow. By step {{fact:q.va.b9.most_step}} it has 80% of its final excess over the null
+and keeps it, ending at {{fact:q.va.b9.final.score}} against a ceiling of {{fact:q.va.b9.final.ceiling}}. Over the
+same stretch, airplanes leave the vehicle set.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.2.b9">
+  <figcaption><b>Plotted:</b> the number of probe images in each SEBA set (rows: sets 1 and 2 in reliability order,
+  then unassigned) of each CIFAR class (columns), for the single-cell block b9, {{fact:default_mode}}, $r = 2$; the
+  slider selects the checkpoint. Colour from 0 to 200, the images per class.</figcaption>
+</figure>
+
+<p>Step through the slider:</p>
+<ul>
+<li><b>Step 0.</b> The split beats its null (score {{fact:q.va.b9.step0.score}} against a null maximum of
+{{fact:q.va.b9.step0.null_max}}), but vehicles against animals ranks only {{fact:q.va.b9.step0.va_rank}} of 511, and
+a split of the same sizes by a single pixel statistic does better ({{fact:q.va.b9.step0.pixel_best}}, by mean blue).
+In this probe, vehicles are {{fact:q.img.vehicle_contrast.mean_b}} standard deviations bluer than animals, and a
+linear fit on twelve pixel statistics explains $R^2$ = {{fact:q.img.step0.b9.r2_psi1}} of b9's $\psi_1$ at step
+0. Beating the null
+happens at step {{fact:q.va.onset_step.all_sites}} at every site, so it cannot date anything; I use the effect size instead.</li>
+<li><b>Step 64.</b> Vehicles against animals is the best-matching class split (rank
+{{fact:q.va.b9.step64.va_rank}}); normalised excess {{fact:q.va.b9.step64.norm_excess}}, and it stays above one half
+from here on; {{fact:q.va.b9.step64.airplane_in_vehicle_set}} of the airplanes are in the vehicle set.</li>
+<li><b>Step 1,024.</b> Score {{fact:q.va.b9.step1024.score}}, with agreement {{fact:q.va.b9.step1024.agree}} on the
+assigned images. Airplanes in the vehicle set: {{fact:q.va.b9.step1024.airplane_in_vehicle_set}}.</li>
+<li><b>Later.</b> Airplanes in the vehicle set fall to {{fact:q.va.b9.step6400.airplane_in_vehicle_set}} at step
+6,400 and {{fact:q.va.b9.step64000.airplane_in_vehicle_set}} at the end, with
+{{fact:q.va.b9.step64000.airplane_unassigned}} unassigned, while every other class has at least
+{{fact:q.va.b9.step64000.min_class_in_matched_excl_airplane}} of its images in its own side's set.</li>
+</ul>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.by_mode.0.lines_norm_excess">
+  <figcaption><b>Plotted:</b> for each site (one line, light for the stem to dark for the logits) and checkpoint
+  ($x$, symlog in steps), the normalised excess $(s - \mu_0)/(s_{\max} - \mu_0)$, where $s$ is the matched Jaccard
+  between the $r = 2$ sets of that single-cell block and the grouping {airplane, automobile, ship, truck} against the
+  other six classes, $\mu_0$ its mean over 200 permutations of the set labels, and $s_{\max}$ the largest value two
+  sets of these sizes can reach. {{fact:default_mode}}. 0 is the null mean; 1 is as aligned as the sizes
+  allow.</figcaption>
+</figure>
+
+<p><b>Across depth</b> <em>(observed).</em> b7 to logits pass one half at step {{fact:q.va.b7.half_step}} and stay
+there, b6 at step {{fact:q.va.b6.half_step}}, b3 to b5 at step {{fact:q.va.b3.half_step}}, and the stem, b1 and b2
+never do. Yet at the end, vehicles against animals is the best-matching class split even at the stem (rank
+{{fact:q.va.stem.final.va_rank}}; score {{fact:q.va.stem.final.score}}, agreement {{fact:q.va.stem.final.agree}} on
+the assigned images).</p>
+
+<p><b>How I read it</b> <em>(reading).</em> The deep layers draw a vehicle-like split from step {{fact:q.va.b7.half_step}}, well before the
+network is any good at the task, and it is mostly in place by step {{fact:q.va.b9.most_step}}. The early layers lean the same way but stay
+weak. The precise end-of-training split at b9 is animals against automobile, truck and ship, with airplanes left in
+between. My guess <em>(speculation)</em>: airplanes start out grouped with the other vehicles by colour (sky and water
+are blue), and as the network learns what an airplane is, it stops treating airplanes like cars, while still pairing
+them with ships when given four sets (finding 1).</p>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>Colour or background carries the early split.</b> The single-statistic baseline beats b9's split at step 0
+({{fact:q.va.b9.step0.pixel_best}} against {{fact:q.va.b9.step0.score}}) but not from step
+{{fact:q.va.b9.above_pixel_from_step}} on ({{fact:q.va.b9.step64.pixel_best}} against {{fact:q.va.b9.step64.score}}
+at step 64; it reaches {{fact:q.va.b9.final.pixel_best}} at the end, against
+{{fact:q.va.b9.final.score}}).</li>
+<li><b>Matched Jaccard depends on set sizes and on the unassigned count.</b> That is why I read the normalised excess
+and the agreement on assigned images alongside it.</li>
+<li><b>Eight checkpoints are coarse.</b> They cannot place an onset inside steps 0 to 64 or 256 to 1,024; 73
+checkpoints were saved. The perplexity-100 rule gives the same milestones at b9.</li>
+<li><b>Airplanes may be unassigned because they sit between the two sets</b> rather than because they are pushed out
+of one; the SEBA values of airplane images would tell.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> Open b9 alone at <a class="explore-link" href="#explorer?fam=layer&amp;t=0&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=2">step 0</a>,
+<a class="explore-link" href="#explorer?fam=layer&amp;t=1&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=2">step 64</a>,
+<a class="explore-link" href="#explorer?fam=layer&amp;t=3&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=2">step 1,024</a> and
+<a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=2">the end</a>, and
+switch to the class colouring at each. Or take <a class="explore-link" href="#explorer?tour=b9-two-sets">b9's
+late-training sets</a> and look up the column to see where they sat earlier.</p>
+
+<!-- ============================================================ 3 -->
+<h2 id="f-depth">3. Where depth redraws the grouping</h2>
+
+<p><b>Claim</b> <em>(observed).</em> At the last checkpoint, the $r = 4$ sets of single-cell blocks at adjacent sites
+agree with matched Jaccard {{fact:q.carry.r4.final.adjacent_min}} to {{fact:q.carry.r4.final.adjacent_max}} (the
+permutation null for adjacent pairs at this checkpoint is at most {{fact:q.carry.r4.final.adjacent_null_hi_max}}). The grouping changes most at
+{{fact:q.carry.r4.final.adjacent_min_pair}} ({{fact:q.carry.r4.final.b2_b3}}), then stem to b1
+({{fact:q.carry.r4.final.stem_b1}}), b6 to b7 ({{fact:q.carry.r4.final.b6_b7}}) and b8 to b9
+({{fact:q.carry.r4.final.b8_b9}}), and least at {{fact:q.carry.r4.final.adjacent_max_pair}}. But training does not
+create this agreement: the mean over adjacent pairs is {{fact:q.carry.r4.step0.mean_adjacent}} at step 0 and
+{{fact:q.carry.r4.step64000.mean_adjacent}} at the end.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_carry.0_4.matrix">
+  <figcaption><b>Plotted:</b> matched Jaccard between the hard sets of the single-cell blocks at the row site and the
+  column site, {{fact:default_mode}}, $r = 4$, unassigned images in no set; the slider selects the checkpoint.
+  <b>Values</b> (step {{fact:final_step}}): stem against logits {{fact:q.carry.r4.final.stem_logits}}, b9 against
+  logits {{fact:q.carry.r4.final.b9_logits}}; permutation null for adjacent pairs at step {{fact:final_step}} at
+  most {{fact:q.carry.r4.final.adjacent_null_hi_max}}.</figcaption>
+</figure>
+
+<p><b>How I read it</b> <em>(reading).</em> At step 0 the leading eigenfunctions share a strong image-statistics
+component, with luminance prominent. A linear fit on twelve pixel statistics explains $R^2$ =
+{{fact:q.img.step0.stem.r2_psi1}} of $\psi_1$ at the stem and {{fact:q.img.step0.b9.r2_psi1}} at b9; luminance alone
+gives a squared correlation of {{fact:q.img.step0.stem.corr2_psi1_luminance}} at the stem and
+{{fact:q.img.step0.pool.corr2_psi1_luminance}} at pool; and the stem's step-0 $\psi_1$ has |cos|
+{{fact:q.step0.psi1_abs_cos_with_stem.b9}} with b9's, {{fact:q.step0.psi1_abs_cos_with_stem.pool}} with pool's and
+{{fact:q.step0.psi1_abs_cos_with_stem.logits}} with the logits'. So at step 0 neighbouring sites agree largely because
+the untrained network carries the same image statistics through. Training changes <em>what</em> is carried and <em>where</em> it
+is redrawn. By the end the stem and the logits share little, b9 and the logits share nearly everything, and the
+largest breaks cut the network into five stretches: stem; b1 and b2; b3 to b6; b7 and b8; b9 to logits.</p>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>Residual shortcuts copy their input</b>, so some adjacent agreement is architecture, not learning. The stage
+boundaries, where the shortcut subsamples with stride 2 and zero-pads the new channels, are sharper tests: b6 to b7 is a low point, b3 to b4
+({{fact:q.carry.r4.final.b3_b4}}) is not. The lowest point, b2 to b3, lies inside the first stage, and I have no
+account of it yet.</li>
+<li><b>The stretches depend on where I cut.</b> The five above come from the four lowest adjacent values; "where the
+grouping changes most" is the robust statement.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> <a class="explore-link" href="#explorer?tour=b2-b3">Colour every site by b2's own sets</a> and
+compare the b2 and b3 columns; then select <a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=3&amp;b=3&amp;m=0&amp;c=seba&amp;r=4">b3
+alone</a>. For contrast, look at <a class="explore-link" href="#explorer?fam=layer&amp;t=0&amp;a=5&amp;b=5&amp;m=0&amp;c=seba&amp;r=4">b5
+at step 0</a>.</p>
+
+<!-- ============================================================ 4 -->
+<h2 id="f-block-vs-cell">4. One cell's split against a block's</h2>
+
+<p><b>Claim</b> <em>(observed).</em> At the end of training, the leading eigenfunction of the layer block b1 to
+logits is not b1's own (|cos| {{fact:q.f5.b1_vs_b1-logits.final.abs_cos_psi1}} between the two $\psi_1$); it is
+closest to the single-cell $\psi_1$ of {{fact:q.f5.b1_vs_b1-logits.final.block_psi1_best_static_site}} (|cos|
+{{fact:q.f5.b1_vs_b1-logits.final.block_psi1_best_static_abs_cos}}). Averaging trades retention at b1 for retention
+in the later layers.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/static_dynamic.png" alt="The leading eigenfunction of the single-cell block b1 and of the layer block b1 to logits, each painted on five sites, with their retention at every site.">
+  <figcaption><b>Plotted:</b> step {{fact:final_step}}, {{fact:default_mode}}. Top row: $\psi_1$ of the single-cell
+  block b1; bottom row: $\psi_1$ of the layer block b1 to logits; each painted on the UMAP layouts of b1, b3, b6, b9
+  and logits (red positive, blue negative, scaled by $\max_i |\psi_1(i)|$). Right: retention $\rho_c(\psi_1)$ of each
+  at every site, block shaded; dashed lines are the means over the block. <b>Values:</b> single-cell $\psi_1$:
+  {{fact:q.f5.b1_vs_b1-logits.final.static_ret_own}} at b1, {{fact:q.f5.b1_vs_b1-logits.final.static_ret_b9}} at b9,
+  mean {{fact:q.f5.b1_vs_b1-logits.final.static_ret_block_mean}}; block $\psi_1$: $\lambda_1$ =
+  {{fact:q.f5.b1_vs_b1-logits.final.block_lambda1}}, retention {{fact:q.f5.b1_vs_b1-logits.final.block_ret_own}} at
+  b1 and {{fact:q.f5.b1_vs_b1-logits.final.block_ret_pool}} at pool.</figcaption>
+</figure>
+
+<p><b>How I read it</b> <em>(reading).</em> Half of this holds by construction. The block's $\psi_1$ maximises mean
+retention over the block and b1's own $\psi_1$ maximises retention at b1, so the block's must retain less at b1; it
+does at {{fact:q.f5.final.n_sites_block_ret_own_below_static}} of {{fact:q.f5.final.n_sites}} start sites. The
+informative half is <em>which</em> split the average picks: not a compromise blurred across the layers, but the split
+that b6 draws on its own and that b6 to pool keep. A split that only early layers draw loses. That is what a block is
+for: asked "what does the network treat alike from b1 to the logits?", the average answers with b6's split. The
+agreement with the start site's own $\psi_1$ rises as the block starts later (b5:
+{{fact:q.f5.b5_vs_b5-logits.final.abs_cos_psi1}}, b7: {{fact:q.f5.b7_vs_b7-logits.final.abs_cos_psi1}}; median
+{{fact:q.f5.final.median_abs_cos_psi1}}).</p>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>$\psi_1$ may not be canonical.</b> If $\lambda_1$ and $\lambda_2$ are close, the single direction is arbitrary
+within their span. The leading three-dimensional spans also differ (mean $\cos^2$
+{{fact:q.f5.b1_vs_b1-logits.final.span3_mean_cos2}}), so this is not only a rotation within a span.</li>
+<li><b>Average against product.</b> The theory's object is the product of the walks, which weights cells differently;
+the comparison is in <a href="#method/avgprod">Method</a>.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=b1-block-psi1">the block's $\psi_1$</a>, then
+<a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=1&amp;b=1&amp;m=0&amp;c=eig&amp;r=4&amp;k=1">b1's own</a>
+and <a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=6&amp;b=6&amp;m=0&amp;c=eig&amp;r=4&amp;k=1">b6's
+own</a>, and compare the retention strips.</p>
+
+<!-- ============================================================ 5 -->
+<h2 id="f-gradients">5. The sets and the training signal</h2>
+
+<p><b>Claim</b> <em>(observed).</em> On the images the sets assign, the within-minus-between gradient cosine of b9's
+label-free sets at the last checkpoint is {{fact:q.grad.r2.b9.all.final.sets_over_class_union_assigned}} times that of
+the matching class-union grouping with two sets, and {{fact:q.grad.r4.b9.all.final.sets_over_class_union_assigned}}
+times with four ({{fact:q.grad.r4.b9.late.final.sets_over_class_union_assigned}} for the late-training block).</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_grad.0_4_9_all.lines">
+  <figcaption><b>Plotted:</b> at each checkpoint ($x$, symlog in steps), the mean cosine between per-image
+  cross-entropy loss gradients (all parameters) for pairs of images in the same group, minus the mean for pairs in
+  different groups. Groups: the $r = 4$ coherent sets of the time block b9, all {{fact:n_checkpoints}} checkpoints,
+  {{fact:default_mode}}; the ten CIFAR classes; and 100 size-preserving random relabellings of the sets (band, 2.5 to
+  97.5 percentiles).</figcaption>
+</figure>
+
+<p>Against the ten classes the sets score low: their within-minus-between cosine goes from
+{{fact:q.grad.r4.b9.all.first.sets_diff}} at step 0 to {{fact:q.grad.r4.b9.all.final.sets_diff}} at the end, against
+{{fact:q.grad.classes.first.diff}} to {{fact:q.grad.classes.final.diff}} for the classes; at the last checkpoint
+the sets reach at most {{fact:q.grad.r4.all.final.ratio_to_classes_max}} of the classes' value at any site. But the
+classes are the wrong yardstick for a grouping that merges classes. In logit space the negative cross-entropy
+gradient of image $i$ is $e_{y_i} - p_i$, so two images of different classes push their own logits in opposite
+directions however alike they are otherwise. That is the reason to compare the sets with the <em>class-union</em>
+grouping, which gives each class wholly to the set holding most of it and so merges the same classes. The plotted
+gradients are with respect to all parameters, $g_i = J_\theta z_i^\top (p_i - e_{y_i})$, so the logit-space fact
+motivates the reference; the measurement below does the rest.</p>
+
+<figure class="fig">
+<table class="data">
+<thead><tr><th>time block b9</th><th class="num">class union</th><th class="num">sets</th><th class="num">sets / union</th><th class="num">sets / union, late block</th></tr></thead>
+<tbody>
+<tr><td>$r = 2$</td><td class="num">{{fact:q.grad.r2.b9.all.final.class_union_assigned_diff}}</td><td class="num">{{fact:q.grad.r2.b9.all.final.sets_diff}}</td><td class="num">{{fact:q.grad.r2.b9.all.final.sets_over_class_union_assigned}}</td><td class="num">{{fact:q.grad.r2.b9.late.final.sets_over_class_union_assigned}}</td></tr>
+<tr><td>$r = 4$</td><td class="num">{{fact:q.grad.r4.b9.all.final.class_union_assigned_diff}}</td><td class="num">{{fact:q.grad.r4.b9.all.final.sets_diff}}</td><td class="num">{{fact:q.grad.r4.b9.all.final.sets_over_class_union_assigned}}</td><td class="num">{{fact:q.grad.r4.b9.late.final.sets_over_class_union_assigned}}</td></tr>
+</tbody>
+</table>
+  <figcaption><b>Plotted:</b> within-minus-between cosine of per-image loss gradients at step {{fact:final_step}},
+  computed on the images the sets assign ({{fact:q.grad.r2.b9.all.n_assigned}} at $r = 2$,
+  {{fact:q.grad.r4.b9.all.n_assigned}} at $r = 4$), for the coherent sets of the time block b9 over all checkpoints
+  ({{fact:default_mode}}) and for their class-union groupings on the same images ($r = 2$:
+  {{fact:q.grad.r2.b9.all.class_union_groups}}; $r = 4$: {{fact:q.grad.r4.b9.all.class_union_groups}}). Last column:
+  the ratio for the time block b9, steps 2,560 to {{fact:final_step}}.</figcaption>
+</figure>
+
+<p><b>How I read it</b> <em>(reading).</em> Measured on the same images against the grouping that merges the same
+classes, the sets are about as gradient-coherent as that grouping with two sets, and about half as coherent with
+four. The low ratio to the ten classes mostly reflects that the sets merge classes. What the network treats alike in
+its activations, it also, to a good extent, trains alike.</p>
+
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li><b>One site.</b> The class-union reference is computed at b9 only so far.</li>
+<li><b>The loss itself.</b> Any label-based loss builds the label into the gradient. Gradients of a label-free loss
+on the same images would show how much of this coherence remains without the label term.</li>
+</ul>
+</details>
+
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=b9-all-training">b9's sets over all of
+training</a> and switch the colouring to the gradient cosine with the mean gradient, checkpoint by checkpoint.</p>
+
+<!-- ============================================================ stub -->
+<h2 id="qualitative">Readings from the images themselves (coming)</h2>
+
+<p>The findings above read sets through their class make-up. Some of the more interesting readings come from looking
+at the images: whether a set follows colour, background, texture or pose, within a class as well as across classes.
+Those readings are coming, written up separately. The tools for them are the image grids above (any set or either end
+of any $\psi_k$, in the explorer's representative-images panel), the image-statistics colourings in the
+<a href="#explorer">explorer</a>, and the image-statistics charts in <a href="#measurements/imgstats">Measurements</a>.</p>
+
+<!-- ============================================================ checks -->
+<h2 id="next-checks">Checks I'd like to run</h2>
+
+<ul>
+<li>Split-half resampling of the probe, to see which sets survive.</li>
+<li>A second seed's sets (only its layouts exist now), and other probes.</li>
+<li>Denser checkpoints (73 were saved) to place the onsets in finding 2.</li>
+<li>The product operator in place of the average, for findings 3 and 4.</li>
+<li>The class-union gradient reference at every site, a within-class null, and a label-free loss.</li>
+<li>Whether airplanes at b9 are unassigned because they sit between the two sets.</li>
+<li>From the method side: a kernel on centred but unnormalised activations (which sets depend on dropping the norm), and a probe drawn without labels (removing the one label use before the sets exist).</li>
+</ul>
