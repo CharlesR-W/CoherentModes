@@ -55,6 +55,7 @@
       <div class="seg" id="ex-lay" role="radiogroup" aria-label="Which network's UMAP lays out the points">
         <button type="button" data-v="0" title="UMAP of the network whose sets are shown">seed 0</button>
         <button type="button" data-v="1" title="UMAP of a second network (seed 1); colours still come from seed 0">seed 1</button>
+        <button type="button" data-v="spectral" id="ex-lay-spec" title="UMAP of each snapshot's own diffusion coordinates (its kNN-graph walk's leading eigenfunctions), not of its activations">spectral</button>
       </div>
     </div>
     <div class="ctl ctl-end ctl-guide">
@@ -92,7 +93,7 @@
             <p><b>The grid.</b> Rows are checkpoints (training step and validation accuracy), columns are sites, from the stem to the logits. Each panel shows the same probe images at one snapshot (a checkpoint and a site), placed by a 2-d UMAP of that snapshot's activations. Positions are for display only; no number on this page is computed from them.</p>
             <p><b>The block</b> (outlined) is a run of snapshots along one row (a <i>layer block</i>) or one column (a <i>time block</i>); one snapshot alone is a <i>single-snapshot block</i>. Its block operator $\bar M$ averages the lazy walks $M_c$ of its snapshots. The colouring comes from that block only and is painted on every panel, so you can follow the same images to other layers and checkpoints.</p>
             <p><b>The side panel</b> describes the selection: the spectrum of $\bar M$, representative images, retention $\rho_c$ in every snapshot of the row or column, the panel under the pointer enlarged, and per-snapshot numbers.</p>
-            <p><b>Extras.</b> <i>Layout: seed 1</i> places the points by a second network's UMAP while colours still come from the first. The per-image diagnostics (loss, input-Jacobian norm, gradient alignment) and CIFAR class only colour; none enters the kernel or the sets. Definitions: <a href="#method/glossary">glossary</a>.</p>
+            <p><b>Extras.</b> <i>Layout: seed 1</i> places the points by a second network's UMAP while colours still come from the first; <i>spectral</i> places them by a UMAP of each snapshot's diffusion coordinates (the leading eigenfunctions of that snapshot's own walk), so you see the geometry the construction sees. The per-image diagnostics (loss, input-Jacobian norm, gradient alignment) and CIFAR class only colour; none enters the kernel or the sets. Definitions: <a href="#method/glossary">glossary</a>.</p>
           </div>
         </div>
       </details>

@@ -316,6 +316,35 @@ def embed(step:int,tag:str='r20s1b'):
     return finished(work,name,start,cpu=4,mem=8,gpu=False)
 
 
+@app.function(image=image,cpu=4,memory=8192,timeout=1800,max_containers=8,retries=0,volumes=VOLS)
+def spectral_embed(step:int,tag:str=TAG,mode:int=0,n_coords:int=32):
+    """Display layout from each snapshot's own diffusion coordinates (rule `mode`).
+
+    Coordinates lambda_k psi_k, k=1..n_coords, of that snapshot's lazy walk M (diffusion map
+    at t=1, constant excluded), then AlignedUMAP across the 12 sites exactly as `embed`.
+    Display only; nothing on the page is computed from it.
+    """
+    import numpy as np
+    import torch
+    import umap
+    from coherent import block_modes
+    torch.set_num_threads(4)
+    vol.reload();root,work=paths(tag);start=time.time();name=f'specembed_{step}'
+    cached=cached_completion(work/f'timing_{name}.json',[root/f'umapspec_{step}.npy'],require_fingerprint=False)
+    if cached:return cached
+    coords=[]
+    for si in range(12):
+        m=torch.tensor(np.load(work/f'operators_{step}_{si}.npy',mmap_mode='r')[mode],dtype=torch.float64)
+        vals,vecs=block_modes([m],n_coords+1,shared_stationary=True)
+        coords.append((vecs[:,1:]*vals[1:]*2000**.5).numpy().astype('f4'))
+    relations=[{i:i for i in range(2000)} for _ in range(11)]
+    model=umap.AlignedUMAP(n_neighbors=15,min_dist=.1,random_state=0,alignment_regularisation=.02)
+    model.fit(coords,relations=relations)
+    np.save(root/f'umapspec_{step}.npy',np.stack(model.embeddings_).astype('f4'))
+    np.save(work/f'diffcoords_{step}.npy',np.stack(coords))
+    return finished(work,name,start,cpu=4,mem=8,gpu=False,mode=mode,n_coords=n_coords)
+
+
 @app.function(image=image,cpu=2,memory=4096,timeout=1800,volumes=VOLS)
 def validation(tag=TAG,require_derivatives=True):
     from schema_v2 import validate
@@ -449,6 +478,8 @@ def coordinate(stage='all'):
         say('product (composition) block spectra')
         jobs=[('layer',i,TAG) for i in range(8)]+[('time',i,TAG) for i in range(12)]
         list(prodspectra.starmap(jobs));guard()
+    if stage=='specembed':
+        say('spectral (diffusion-coordinate) layouts');list(spectral_embed.map(STEPS));guard()
     if stage=='derivatives':
         say('per-sample derivatives and gradient cosine Grams');list(derivatives.map(STEPS));guard()
     if stage=='layouts':

@@ -250,6 +250,14 @@ class Builder:
                 log(f"layout from {self.layout_tag} added")
             else:
                 log(f"warning: --layout-tag {self.layout_tag}: missing umap files, seed-1 layout skipped")
+        # spectral layout: AlignedUMAP of each snapshot's own diffusion coordinates (measure_v2.spectral_embed)
+        files = [self.src / f"umapspec_{s}.npy" for s in self.steps]
+        if all(f.exists() for f in files):
+            es = procrustes_chain(np.stack([np.load(f) for f in files]), ref=e0)
+            k = len(self.layout_info)
+            write(self.d / f"umap_{k}.bin", quantise_layout(es).tobytes())
+            self.layout_info.append({"seed": 0, "tag": self.tag, "kind": "spectral", "mode": 0, "n_coords": 32})
+            log("spectral layout added")
 
     # ------------------------------------------------------------------ per-image diagnostics
     def points(self):

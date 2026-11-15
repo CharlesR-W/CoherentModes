@@ -302,6 +302,10 @@ export class Explorer {
       segInit("ex-lay", () => this.st.lay, v => this.setLayout(+v)),
       segInit("ex-tap", () => this.st.tap, v => { this.st.tap = v; }),
     ];
+    // layout buttons: index into m.layouts; the spectral one finds its own index
+    const specIdx = m.layouts.findIndex(l => l.kind === "spectral");
+    $("ex-lay-spec").dataset.v = String(specIdx); $("ex-lay-spec").hidden = specIdx < 0;
+    $("ex-lay").querySelectorAll("button").forEach(b => { if (+b.dataset.v >= m.layouts.length || (+b.dataset.v > 0 && b !== $("ex-lay-spec") && m.layouts[+b.dataset.v]?.kind)) b.hidden = true; });
     if (m.layouts.length < 2) { $("ex-lay-ctl").hidden = true; }
     if (!m.vals.layerprodR) { $("ex-op-ctl").hidden = true; }   // product blocks not in this build
     m.modes.forEach((name, i) => $("ex-mode").add(new Option(name, i)));
@@ -686,7 +690,7 @@ export class Explorer {
     st.cmp = null;
     st.j = int("j", 0, 15); st.focus = st.color === "seba" ? st.j : null;
     if (p.get("at") === "final" || p.get("at") === "own") st.at = p.get("at");
-    const lay = int("lay", 0, 1) ?? 0; if (lay < m.layouts.length && lay !== st.lay) this.setLayout(lay);
+    const lay = int("lay", 0, m.layouts.length - 1) ?? 0; if (lay < m.layouts.length && lay !== st.lay) this.setLayout(lay);
     this.update();
   }
 
@@ -1099,7 +1103,10 @@ export function captionParts(ctx, st, col) {
     gcos: `cosine between the image's loss gradient (all parameters) and the mean gradient over the probe images, ${at}. The block sets only the side panel (${side}).`,
     gdot: `dot product of the image's loss gradient with the mean gradient, ${at}. The block sets only the side panel (${side}).`,
   }[st.color] || (isPx(st.color) ? `image statistic ${ctx.imgstats?.labels[st.color.slice(3)] || IMGSTATS[st.color.slice(3)]?.label || st.color.slice(3)}: ${pxDef(st.color.slice(3))} The same per-image value in every panel (a property of the probe image, not of the network). The block sets only the side panel (${side}).` : st.color);
-  const lay = m.layouts.length > 1 && st.lay ? `UMAP of seed ${st.lay} (a second network; colours from seed 0)` : "UMAP of each snapshot (AlignedUMAP across sites, Procrustes across checkpoints)";
+  const L = m.layouts[st.lay] || {};
+  const lay = !st.lay ? "UMAP of each snapshot (AlignedUMAP across sites, Procrustes across checkpoints)"
+    : L.kind === "spectral" ? `UMAP of each snapshot's diffusion coordinates λ_kψ_k, k = 1..${L.n_coords}, from that snapshot's own walk under the ${m.modes[L.mode]} rule, whatever rule colours the points (AlignedUMAP across sites, Procrustes across checkpoints)`
+    : `UMAP of seed ${L.seed ?? st.lay} (a second network; colours from seed 0)`;
   const part = (label, text) => [h("b", { text: label + " " }), text + " "];
   return [
     ...part("Block:", `${blockKind(st).toLowerCase()}, ${blk}.`),

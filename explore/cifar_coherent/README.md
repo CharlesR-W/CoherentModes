@@ -182,6 +182,14 @@ start .29 (r = 8: .61, .74, .38). The explorer's **Operator** switch (average / 
 product·end) shows them; the retention strip adds step gains. The build ships all four product
 families or none. The site grew from 135 MB to 362 MB.
 
+## Spectral layout (added 2026-11-15)
+
+Third explorer layout, "spectral": per snapshot, diffusion coordinates λ_kψ_k (k = 1..32) of
+that snapshot's own lazy walk under rule 0 (kNN graph), then the same AlignedUMAP
+(n_neighbors 15, min_dist .1, alignment .02) across sites and Procrustes across checkpoints
+as the activation layouts. Modal stage `specembed` (`measure_v2.spectral_embed`, CPU,
+about $0.07); outputs `umapspec_<step>.npy`. Display only.
+
 ## Reproduce and validate
 
 ```bash

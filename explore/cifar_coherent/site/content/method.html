@@ -431,6 +431,12 @@ change.</li>
 <li><b>Seed 1</b> ("layout from"). A second ResNet-20, identical recipe, training seed 1; only its activations' top-50
 PCs and its own AlignedUMAP and Procrustes layouts are computed, for the same probe images and steps. Colours always
 come from seed 0's blocks. Seed 1's layouts are aligned along its own checkpoints, not onto seed 0's.</li>
+<li><b>Spectral</b> layout. For each snapshot, the diffusion coordinates $\lambda_k \psi_k$, $k = 1..32$, of that
+snapshot's own lazy walk $M_c$ under the {{fact:mode_name.rule0}} rule (diffusion map at $t = 1$; constant excluded;
+the same single-snapshot eigenfunctions the explorer shows for $a = b$, extended to 32), then the same AlignedUMAP and
+Procrustes steps as above. Where the activation layout shows the cosine geometry, this one shows the geometry the
+construction actually uses: two images are close when the walk's slow modes cannot tell them apart. It is fixed per
+snapshot and does not change with the selected block or kernel rule. Display only, like the others.</li>
 </ul>
 
 <h2 id="perimage">Per-image diagnostics</h2>
