@@ -315,8 +315,8 @@ export class Explorer {
     $("ex-b").addEventListener("change", e => { this.st.b = +e.target.value; if (this.st.a > this.st.b) this.st.a = this.st.b; this.st.focus = null; this.update(); });
     // disable diagnostics that the data do not have
     const have = new Set(m.points_fields);
-    for (const [c, f] of Object.entries(DIAG)) if (!have.has(f)) { const o = $("ex-color").querySelector(`option[value=${c}]`); if (o) { o.disabled = true; o.textContent += " (not in data)"; } }
-    const og = document.createElement("optgroup"); og.label = "Image statistics (pixels)";
+    for (const [c, f] of Object.entries(DIAG)) if (!have.has(f)) { const o = $("ex-color").querySelector(`option[value=${c}]`); if (o) { o.disabled = true; o.dataset.missing = "1"; o.textContent += " (not in data)"; } }
+    const og = document.createElement("optgroup"); og.label = "Image statistics (pixels)"; og.dataset.dev = "1";
     for (const [k, d] of Object.entries(IMGSTATS)) og.append(new Option(d.label, "px:" + k));
     $("ex-color").append(og);
     $("ex-color").addEventListener("change", e => this.setColor(e.target.value));
@@ -331,7 +331,29 @@ export class Explorer {
     kb.addEventListener("click", () => setHelp(kb.getAttribute("aria-expanded") !== "true"));
     document.addEventListener("keydown", e => { if (e.key === "Escape") setHelp(false); });
     document.addEventListener("pointerdown", e => { if (!$("ex-kappa-help").hidden && !e.target.closest("#ex-kappa-help, #ex-kappa-btn")) setHelp(false); });
+    // "more options": kernel rules, nodal domains, diagnostics, image statistics, seed-1 layout, per-snapshot table
+    let dev = false; try { dev = localStorage.getItem("cm.explorer.dev") === "1"; } catch (e) { /* private mode */ }
+    $("ex-dev").checked = dev; this.setDev(dev, false);
+    $("ex-dev").addEventListener("change", e => { this.setDev(e.target.checked, true); this.update(); });
     this.buildGuide();
+  }
+  // dev-only state: anything a plain view cannot show (used to switch dev mode on for shared links and tours)
+  needsDev() {
+    const st = this.st, m = this.ctx.m, L = m.layouts[st.lay] || {};
+    const c = $("ex-color").querySelector(`option[value="${CSS.escape(st.color)}"]`);
+    return st.mode !== m.default_mode || (st.lay > 0 && L.kind !== "spectral") || !!(c && (c.dataset.dev || c.parentElement.dataset.dev));
+  }
+  setDev(on, remember) {
+    const st = this.st, m = this.ctx.m;
+    this.dev = on; $("ex").classList.toggle("dev", on); $("ex-dev").checked = on;
+    // <option>/<optgroup> cannot be hidden by CSS everywhere: set hidden + disabled
+    $("ex-color").querySelectorAll("[data-dev]").forEach(e => { e.hidden = !on; e.disabled = !on || e.dataset.missing === "1"; });
+    if (remember) try { localStorage.setItem("cm.explorer.dev", on ? "1" : "0"); } catch (e) { /* private mode */ }
+    if (!on && this.needsDev()) {
+      if (st.mode !== m.default_mode) st.mode = m.default_mode;
+      const L = m.layouts[st.lay] || {}; if (st.lay > 0 && L.kind !== "spectral") this.setLayout(0);
+      if (this.needsDev()) { st.color = st.kind === "psi" ? "eig" : "seba"; st.focus = null; }
+    }
   }
 
   // ---------------------------------------------------------------- tours and the how-to
@@ -683,7 +705,7 @@ export class Explorer {
     st.a = int("a", 0, lim) ?? Math.min(st.a, lim); st.b = int("b", 0, lim) ?? Math.min(st.b, lim);
     if (st.a > st.b) [st.a, st.b] = [st.b, st.a];
     st.mode = int("m", 0, m.modes.length - 1) ?? st.mode;
-    const c = p.get("c"); if (c && $("ex-color").querySelector(`option[value="${c}"]:not([disabled])`)) st.color = c;
+    const c = p.get("c"); if (c && $("ex-color").querySelector(`option[value="${CSS.escape(c)}"]:not([data-missing])`)) st.color = c;
     if (st.color === "seba") st.kind = "set"; if (st.color === "nodal" || st.color === "eig") st.kind = "psi";
     if (p.has("k")) { st.k = int("k", 1, m.n_vecs) ?? st.k; if (!BLOCK_KINDS.has(st.color)) st.kind = "psi"; }
     if (p.has("r")) { const r = int("r", 1, 99); if (m.seba_r.includes(r)) st.r = r; if (!BLOCK_KINDS.has(st.color)) st.kind = "set"; }
@@ -691,6 +713,7 @@ export class Explorer {
     st.j = int("j", 0, 15); st.focus = st.color === "seba" ? st.j : null;
     if (p.get("at") === "final" || p.get("at") === "own") st.at = p.get("at");
     const lay = int("lay", 0, m.layouts.length - 1) ?? 0; if (lay < m.layouts.length && lay !== st.lay) this.setLayout(lay);
+    if (!this.dev && this.needsDev()) this.setDev(true, false);   // a link into an extra option opens the extras
     this.update();
   }
 

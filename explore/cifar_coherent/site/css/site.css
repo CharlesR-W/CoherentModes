@@ -253,6 +253,9 @@ input[type=range] { accent-color: var(--fg); width: 84px; vertical-align: middle
 .ctl-label .nocase { text-transform: none; font: italic 500 14px/1 var(--serif); letter-spacing: 0; }
 .ctl-sub { font-size: 12.5px; color: var(--mute); }
 .ctl-end { margin-left: auto; }
+.ex:not(.dev) .dev-only { display: none !important; }
+.dev-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; user-select: none; }
+.dev-toggle input { margin: 0; accent-color: var(--fg); }
 .guide-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 3px 10px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
 .guide-btn:hover, .guide-btn[aria-expanded="true"] { color: var(--fg); border-color: var(--mute-2); }
 .link-btn { border: 0; background: none; padding: 0; color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font-size: 12.5px; }
