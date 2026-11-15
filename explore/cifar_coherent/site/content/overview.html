@@ -195,8 +195,9 @@ checkpoints at one site (a <em>time block</em>). Its operator $\bar M$ is the pl
 linear in the walk, so</p>
 <div class="eq" id="eq-block" data-num="2">$$ f^\top (I - \bar P)\, f \;=\; \frac{1}{|B|} \sum_{c \in B} f^\top (I - P_c)\, f . $$</div>
 <p>This is Froyland's dynamic Laplacian, and Banisch and Koltai's space-time diffusion maps, with depth or training
-in place of time. The product $M_b \cdots M_a$ is the theory's natural object; the average is what I use, and the
-two agree closely here (<a href="#method/avgprod">average versus product</a>). Checkpoints count equally, and they
+in place of time. The product $M_b \cdots M_a$ is the theory's natural object, and it respects the order of the layers; the average is
+the default, the explorer's <b>Operator</b> switch shows the product, and the two agree closely on short blocks but not
+on long ones (<a href="#method/avgprod">average versus product</a>). Checkpoints count equally, and they
 are roughly geometric in steps.</p>
 </details>
 </div>

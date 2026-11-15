@@ -12,7 +12,7 @@ import sys
 import subprocess
 import time
 import modal
-from construction import FINGERPRINT,SWEEP_FINGERPRINT,cached_completion
+from construction import FINGERPRINT,SWEEP_FINGERPRINT,PRODUCT_FINGERPRINT,cached_completion
 
 HERE=Path(__file__).resolve().parent
 APP='cm-cifar-coherent-v2'
@@ -25,7 +25,7 @@ image=(modal.Image.debian_slim(python_version='3.12')
        .pip_install('torch','numpy','scipy','umap-learn')
        .env({'PYTHONPATH':'/root/src:/root/cc','OMP_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1'})
        .add_local_dir(str(Path.home()/'code/ModelZoo/src'),remote_path='/root/src'))
-for name in ('coherent.py','seba.py','schema_v2.py','decodability.py','sweep_math.py','construction.py'):
+for name in ('coherent.py','seba.py','schema_v2.py','decodability.py','sweep_math.py','construction.py','product.py'):
     image=image.add_local_file(str(HERE/name),remote_path='/root/cc/'+name)
 app=modal.App(APP)
 vol=modal.Volume.from_name('cm-cifar-coherent')
@@ -191,6 +191,39 @@ def products(step:int,tag:str=TAG):
                                      product_sigma_r=float(sv[r-1]),end_sigma_r=float(se[r-1])))
     (work/f'avgprod_{step}.json').write_text(json.dumps(rows,allow_nan=False))
     return finished(work,name,start)
+
+
+@app.function(image=image,gpu='A100-40GB',cpu=2,memory=12288,timeout=2400,max_containers=10,retries=0,volumes=VOLS)
+def prodspectra(family:str,index:int,tag:str=TAG):
+    """Product blocks (product.py): <family>prodR_<name>.npz and <family>prodL_<name>.npz."""
+    import numpy as np
+    import torch
+    from schema_v2 import pairs,put_record
+    from product import allocate_product,centred,product_record,validate_product
+    environment();vol.reload();root,work=paths(tag);start=time.time()
+    name=STEPS[index] if family=='layer' else SITES[index];unit=f'prod_{family}_{name}'
+    outs={side:root/f'{family}prod{side}_{name}.npz' for side in 'RL'}
+    cached=cached_completion(work/f'timing_{unit}.json',list(outs.values()),expected_fingerprint=PRODUCT_FINGERPRINT)
+    if cached:return cached
+    nc=12 if family=='layer' else 8
+    ps=pairs(nc);arrays={side:allocate_product(5,len(ps),2000,nc) for side in 'RL'}
+    for mi in range(5):
+        ms=[]
+        for j in range(nc):
+            step,si=(STEPS[index],j) if family=='layer' else (STEPS[j],index)
+            ms.append(torch.tensor(np.load(work/f'operators_{step}_{si}.npy',mmap_mode='r')[mi],device='cuda',dtype=torch.float64))
+        cs=[centred(m) for m in ms]
+        for a in range(nc):
+            q=cs[a]
+            for b in range(a,nc):
+                if b>a:q=cs[b]@q
+                for side in 'RL':put_record(arrays[side],mi,ps.index((a,b)),product_record(ms,cs,a,b,side,q=q))
+        print(unit,'mode',mi,'seconds',time.time()-start,flush=True)
+    worst={}
+    for side in 'RL':
+        worst[side]=validate_product(arrays[side],nc,len(ps))
+        np.savez_compressed(outs[side],**arrays[side])
+    return finished(work,unit,start,construction_fingerprint=PRODUCT_FINGERPRINT,worst_gain_identity_error=worst)
 
 
 @app.function(image=image,gpu='A100-40GB',cpu=2,memory=12288,timeout=1800,max_containers=1,retries=0,volumes=VOLS)
@@ -412,6 +445,10 @@ def coordinate(stage='all'):
         results=[json.loads((work/f'decod_{step}.json').read_text()) for step in DECODE_STEPS]
         (root/'decod.json').write_text(json.dumps(dict(steps=DECODE_STEPS,sites=SITES,views=['flat','gap'],results=results,
             protocol=results[0]['protocol'],validation_only=True),allow_nan=False));vol.commit()
+    if stage=='prodspectra':
+        say('product (composition) block spectra')
+        jobs=[('layer',i,TAG) for i in range(8)]+[('time',i,TAG) for i in range(12)]
+        list(prodspectra.starmap(jobs));guard()
     if stage=='derivatives':
         say('per-sample derivatives and gradient cosine Grams');list(derivatives.map(STEPS));guard()
     if stage=='layouts':

@@ -144,11 +144,12 @@ class Builder:
         self.d = OUT / "d"
 
     # -- layout of one block chunk (byte offsets); X = number of cells along the retention axis
-    def block_layout(self, X: int):
+    def block_layout(self, X: int, product: bool = False):
         n, R = self.n, self.R
         SR, SR2 = sum(self.seba_r), sum(r * r for r in self.seba_r)
         parts = [("scale", "f32", N_VECS), ("vals", "f32", N_VECS + 1), ("pn", "f32", N_VECS), ("rot", "f32", SR2),
                  ("ret_psi", "f32", N_VECS * X), ("ret_seba", "f32", SR * X), ("bcorr", "f32", SR),
+                 *([("gain_psi", "f32", N_VECS * X), ("gain_seba", "f32", SR * X)] if product else []),
                  ("reps", "u16", N_VECS * 3 * REP_PSI + sum(self.seba_r) * (REP_TOP + REP_BND)),
                  ("vecs", "i8", N_VECS * n), ("labels", "u4", R * ((n + 1) // 2)), ("perm", "i8", R * 8)]
         size = {"f32": 4, "u16": 2, "i16": 2, "i8": 1, "u8": 1, "u4": 1}
@@ -280,14 +281,23 @@ class Builder:
     # ------------------------------------------------------------------ blocks
     def blocks(self):
         n, R = self.n, self.R
-        self.vals_all = {"layer": [], "time": []}
         fams = [("layer", self.steps, self.meta["layer_pairs"], self.S), ("time", self.sites, self.meta["time_pairs"], self.T)]
+        # product (composition) blocks, product.py: right (start-of-block) and left (end-of-block) singular vectors
+        # all four product families or none: the explorer's Operator switch assumes every one exists
+        prod = [(f + "prod" + side, names, prs, X) for f, names, prs, X in list(fams) for side in "RL"]
+        have = [all((self.src / f"{f}_{nm}.npz").exists() for nm in names) for f, names, _, _ in prod]
+        if all(have):
+            fams += prod
+        elif any(have):
+            log("  product families incomplete: building without the Operator switch")
+        self.vals_all = {f[0]: [] for f in fams}
         worst_agree = 1.0
         self.browser_corr = []
         self.layouts_blk = {}
         total_bytes = raw_bytes = 0
         for fam, names, pairs, X in fams:
-            lay, size = self.block_layout(X)
+            product = "prod" in fam
+            lay, size = self.block_layout(X, product)
             self.layouts_blk[fam] = {"fields": lay, "bytes": size, "X": X}
             for idx, name in enumerate(names):
                 t0 = time.time()
@@ -319,6 +329,7 @@ class Builder:
                 vecs8 = np.clip(q8, -127, 127).astype(np.int8)
                 lab, rot, perm = z["seba_label"], z["seba_rot"], z["seba_perm"]
                 rpsi, rseba = z["retention_psi"], z["retention_seba"]
+                gpsi, gseba = (z["gain_psi"], z["gain_seba"]) if product else (None, None)
                 self.vals_all[fam].append(np.round(vals.astype(np.float64), 6).tolist())
                 for mi in range(self.M):
                     P = len(pairs)
@@ -355,8 +366,11 @@ class Builder:
                     for pi in range(P):
                         rot_c = np.concatenate([rot[mi, pi, ri, :r, :r].ravel() for ri, r in enumerate(self.seba_r)])
                         ret_c = np.concatenate([rseba[mi, pi, ri, :r].ravel() for ri, r in enumerate(self.seba_r)])
+                        gains = []
+                        if product:
+                            gains = [f32(gpsi[mi, pi]), f32(np.concatenate([gseba[mi, pi, ri, :r].ravel() for ri, r in enumerate(self.seba_r)]))]
                         parts = [f32(scale[mi, pi]), f32(vals[mi, pi]), f32(pn_all[pi]), f32(rot_c), f32(rpsi[mi, pi]), f32(ret_c), f32(bc_all[pi]),
-                                 rep_all[pi], vecs8[mi, pi], pack_nibbles(lab[mi, pi]), perm[mi, pi].astype(np.int8)]
+                                 *gains, rep_all[pi], vecs8[mi, pi], pack_nibbles(lab[mi, pi]), perm[mi, pi].astype(np.int8)]
                         blob = b"".join(np.ascontiguousarray(a).tobytes() for a in parts)
                         assert len(blob) == size, (len(blob), size)
                         gz = gzip.compress(blob, compresslevel=6, mtime=0)   # decompressed in the browser (DecompressionStream)
@@ -380,7 +394,7 @@ class Builder:
 
     # ------------------------------------------------------------------ JSON copies + derived
     def small_json(self):
-        for name in ["decod.json", "curves.json", "avgprod.json", "normalisation_compare.json", "sweep.json"]:
+        for name in ["decod.json", "curves.json", "avgprod.json", "normalisation_compare.json", "sweep.json", "product_summary.json"]:
             p = self.src / name
             if p.exists():
                 obj = json.loads(p.read_text())

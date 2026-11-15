@@ -72,7 +72,12 @@ function diagRanges(ctx) {
 }
 
 export function pairOf(ctx, st) { return ctx.pairIdx[st.fam][st.a + "," + st.b]; }
-export function blockOf(ctx, st) { return D.block(st.fam, st.anchor, st.mode, pairOf(ctx, st)); }
+// data key of the block operator: average (layer/time) or ordered product, right (start) or left (end) singular vectors
+export const dkey = (st, op = st.op) => !op || op === "avg" ? st.fam : st.fam + (op === "end" ? "prodL" : "prodR");
+export const isProd = st => !!st.op && st.op !== "avg";
+export const sym = st => isProd(st) ? "σ" : "λ";
+export const opName = st => !isProd(st) ? "average M̄" : st.op === "start" ? "ordered product Q, start (right singular vectors)" : "ordered product Q, end (left singular vectors)";
+export function blockOf(ctx, st) { return D.block(dkey(st), st.anchor, st.mode, pairOf(ctx, st)); }
 // "Layer block" / "Time block" / "Single-snapshot block" (glossary terms)
 export const blockKind = st => st.a === st.b ? "Single-snapshot block" : st.fam === "layer" ? "Layer block" : "Time block";
 export function blockLabel(ctx, st) {
@@ -265,7 +270,7 @@ export class Explorer {
     const { m, T, S } = ctx;
     this.st = {
       fam: "layer", anchor: T - 1, a: 0, b: S - 1, mode: m.default_mode, color: "seba", k: 1, r: m.seba_r.includes(4) ? 4 : m.seba_r[0],
-      kind: "set", focus: null, j: null, at: "own", lay: 0, ps: 1.6, cmp: null, tap: "end",
+      kind: "set", focus: null, j: null, at: "own", lay: 0, ps: 1.6, cmp: null, tap: "end", op: "avg",
     };
     this.coords = { 0: toCoords(ctx.layouts[0]) };
     this.cur = this.coords[0];
@@ -292,11 +297,13 @@ export class Explorer {
     };
     this.segs = [
       segInit("ex-fam", () => this.st.fam, v => this.setFamily(v)),
+      segInit("ex-op", () => this.st.op, v => { this.st.op = v; this.st.focus = null; this.st.j = null; }),
       segInit("ex-at", () => this.st.at, v => this.st.at = v),
       segInit("ex-lay", () => this.st.lay, v => this.setLayout(+v)),
       segInit("ex-tap", () => this.st.tap, v => { this.st.tap = v; }),
     ];
     if (m.layouts.length < 2) { $("ex-lay-ctl").hidden = true; }
+    if (!m.vals.layerprodR) { $("ex-op-ctl").hidden = true; }   // product blocks not in this build
     m.modes.forEach((name, i) => $("ex-mode").add(new Option(name, i)));
     $("ex-mode").addEventListener("change", e => { this.st.mode = +e.target.value; this.st.focus = null; this.update(); });
     $("ex-anchor").addEventListener("change", e => { this.st.anchor = +e.target.value; this.st.focus = null; this.update(); });
@@ -528,7 +535,7 @@ export class Explorer {
     } else { this._tipKey = null; hideTip(); }
     this.canvas.title = "";
     // prefetch the block a click here would select
-    if (!this.drag) { const nb = this.clickTarget(hc, e.shiftKey); if (nb) D.block(nb.fam, nb.anchor, nb.mode, pairOf(this.ctx, nb)).catch(() => {}); }
+    if (!this.drag) { const nb = this.clickTarget(hc, e.shiftKey); if (nb) D.block(dkey(nb), nb.anchor, nb.mode, pairOf(this.ctx, nb)).catch(() => {}); }
   }
   onDown(e) {
     if (e.button !== 0) return;
@@ -559,7 +566,7 @@ export class Explorer {
     this.update();
   }
   clickTarget(hc, shift) {
-    const st = this.st, out = { fam: st.fam, mode: st.mode };
+    const st = this.st, out = { fam: st.fam, mode: st.mode, op: st.op };
     const [anc, pos] = st.fam === "layer" ? [hc.t, hc.s] : [hc.s, hc.t];
     out.anchor = anc;
     if (shift) { out.a = pos; out.b = Math.max(st.b, pos); }
@@ -635,7 +642,7 @@ export class Explorer {
   prefetch() {
     const st = this.st, ctx = this.ctx, lim = st.fam === "layer" ? ctx.S : ctx.T;
     const near = [[st.a, st.b + 1], [st.a + 1, st.b], [st.a - 1, st.b], [st.a, st.b - 1]].filter(([a, b]) => a >= 0 && b < lim && a <= b);
-    const go = () => near.forEach(([a, b]) => D.block(st.fam, st.anchor, st.mode, ctx.pairIdx[st.fam][a + "," + b]).catch(() => {}));
+    const go = () => near.forEach(([a, b]) => D.block(dkey(st), st.anchor, st.mode, ctx.pairIdx[st.fam][a + "," + b]).catch(() => {}));
     setTimeout(go, 250);
   }
   writeHash() {
@@ -645,6 +652,7 @@ export class Explorer {
     if (st.j != null) p.set("j", st.j);
     if (st.color in DIAG || st.color === "correct") p.set("at", st.at);
     if (st.lay) p.set("lay", st.lay);
+    if (isProd(st)) p.set("op", st.op);
     let hsh = "#explorer?" + p.toString();
     if (this.tour) {
       if (this.tour.base == null) this.tour.base = hsh;     // the first state written after the tour was applied
@@ -665,6 +673,7 @@ export class Explorer {
     if (tid != null && !tour) setTimeout(() => { $("ex-status").textContent = `no tour called "${tid}"`; }, 0);
     const int = (k, lo, hi) => { const v = parseInt(p.get(k), 10); return Number.isFinite(v) && v >= lo && v <= hi ? v : null; };
     if (p.get("fam") === "time" || p.get("fam") === "layer") st.fam = p.get("fam");
+    st.op = ["start", "end"].includes(p.get("op")) && m.vals.layerprodR ? p.get("op") : "avg";
     const lim = st.fam === "layer" ? S - 1 : T - 1, alim = st.fam === "layer" ? T - 1 : S - 1;
     st.anchor = int("t", 0, alim) ?? Math.min(st.anchor, alim);
     st.a = int("a", 0, lim) ?? Math.min(st.a, lim); st.b = int("b", 0, lim) ?? Math.min(st.b, lim);
@@ -781,18 +790,20 @@ export class Explorer {
       const on = sel(k), c = on ? "#16161a" : "#b9b8b1";
       el("line", { x1: X(k), x2: X(k), y1: Y(lo), y2: Y(vals[k]), stroke: c, "stroke-width": on ? 2 : 1.5 }, svg);
       el("circle", { cx: X(k), cy: Y(vals[k]), r: on ? 4.5 : 3.5, fill: c, stroke: "#fff", "stroke-width": 1.5 }, svg);
-      const t = el("text", { x: X(k), y: H - 24, "text-anchor": "middle" }, svg); t.textContent = `λ${k}`;
+      const t = el("text", { x: X(k), y: H - 24, "text-anchor": "middle" }, svg); t.textContent = `${sym(st)}${k}`;
       if (on) t.setAttribute("style", "fill:#16161a;font-weight:600");
       const tp = el("text", { x: X(k), y: H - 7, "text-anchor": "middle", style: pn[k] < LOC ? `fill:${m.palette.accent};font-weight:650;font-size:10px` : "font-size:10px" }, svg);
       tp.textContent = pn[k] >= 1000 ? (pn[k] / 1000).toFixed(1) + "k" : String(Math.round(pn[k]));
       const hit = el("rect", { x: X(k) - 12, y: mt, width: 24, height: H - mt, fill: "transparent", style: "cursor:pointer" }, svg);
-      hit.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(null, [{ name: `λ${k}`, value: vals[k].toFixed(4) }, { name: "average penalty 1 − λ", value: (1 - vals[k]).toFixed(4) },
+      hit.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(null, [{ name: `${sym(st)}${k}`, value: vals[k].toFixed(4) }, isProd(st) ? { name: `per-snapshot geometric mean ${sym(st)}^(1/n)`, value: Math.pow(vals[k], 1 / (st.b - st.a + 1)).toFixed(4) } : { name: "average penalty 1 − λ", value: (1 - vals[k]).toFixed(4) },
         { name: "participation number", value: `${Math.round(pn[k])} of ${N}` + (pn[k] < LOC ? " (localised)" : "") }])));
       hit.addEventListener("pointerleave", hideTip);
       hit.addEventListener("click", () => { st.kind = "psi"; st.k = k; if (st.color === "seba") st.color = "eig"; st.focus = null; this.update(); });
     }
     const locNote = nLoc ? ` <span style="color:${m.palette.accent};font-weight:600">${nLoc} localised mode${nLoc > 1 ? "s" : ""}</span> (PN below ${LOC}): a mode carried by a handful of images, not a grouping; sets built from it are suspect.` : "";
-    $("blk-spec-note").innerHTML = `Spectrum of the block operator M̄, the mean of the lazy walks M<sub>c</sub> over the block's ${st.b - st.a + 1} snapshot${st.a === st.b ? "" : "s"}: λ<sub>1</sub>..λ<sub>8</sub> (λ<sub>0</sub> = 1, the constant ψ<sub>0</sub>, not shown). 1 − λ<sub>k</sub> is ψ<sub>k</sub>'s average variation across the block's walks.`
+    $("blk-spec-note").innerHTML = (isProd(st)
+      ? `Singular values of the <b>ordered product</b> Q = M<sub>b</sub>⋯M<sub>a</sub> of the block's ${st.b - st.a + 1} lazy walk${st.a === st.b ? "" : "s"} (first snapshot applied first; constant projected out): σ<sub>1</sub>..σ<sub>8</sub> (σ<sub>0</sub> = 1, the constant, not shown). ψ<sub>k</sub> here is the ${st.op === "start" ? "right singular vector v<sub>k</sub>: the function at the start of the block that keeps fraction σ<sub>k</sub> of its norm after being smoothed by every snapshot in turn" : "left singular vector u<sub>k</sub> = Qv<sub>k</sub>/σ<sub>k</sub>: what the best-surviving start function has become after the last snapshot"}. A product is multiplicative: one snapshot that erases a split is enough to sink it.`
+      : `Spectrum of the block operator M̄, the mean of the lazy walks M<sub>c</sub> over the block's ${st.b - st.a + 1} snapshot${st.a === st.b ? "" : "s"}: λ<sub>1</sub>..λ<sub>8</sub> (λ<sub>0</sub> = 1, the constant ψ<sub>0</sub>, not shown). 1 − λ<sub>k</sub> is ψ<sub>k</sub>'s average variation across the block's walks.`)
       + (st.kind === "psi" ? ` Click a bar to colour by that ψ.` : ` The r = ${st.r} coherent sets come from SEBA on ψ<sub>0</sub>..ψ<sub>${st.r - 1}</sub> (dark).`)
       + ` PN: participation number (Σψ²)²/Σψ⁴, roughly how many images a mode is spread over.` + locNote;
     this.renderBlockMap();
@@ -800,7 +811,7 @@ export class Explorer {
   renderBlockMap() {
     const st = this.st, { m, pal } = this.ctx;
     const pairs = st.fam === "layer" ? m.layer_pairs : m.time_pairs, n = st.fam === "layer" ? m.sites.length : m.steps.length;
-    const vals = m.vals[st.fam][st.anchor][st.mode], kk = st.kind === "psi" ? st.k : st.r - 1;
+    const vals = m.vals[dkey(st)][st.anchor][st.mode], kk = st.kind === "psi" ? st.k : st.r - 1;
     $("blk-map-anchor").textContent = st.fam === "layer" ? "checkpoint" : "site";
     const box = $("blk-map"); box.replaceChildren();
     const W = box.clientWidth || 300, ml = 34, mt = 4, cw = Math.min(22, (W - ml - 50) / n), H = mt + n * cw + 26;
@@ -811,7 +822,7 @@ export class Explorer {
       const on = a === st.a && b === st.b;
       const r = el("rect", { x: ml + b * cw + .5, y: mt + a * cw + .5, width: cw - 1, height: cw - 1, rx: 2, fill: pal.seq((v[p] - lo) / (hi - lo + 1e-12)), style: "cursor:pointer" }, svg);
       if (on) { r.setAttribute("stroke", "#16161a"); r.setAttribute("stroke-width", 2); }
-      r.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(`${names[a]} → ${names[b]}`, [{ name: `λ${kk}`, value: v[p].toFixed(4) }])));
+      r.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(`${names[a]} → ${names[b]}`, [{ name: `${sym(st)}${kk}`, value: v[p].toFixed(4) }])));
       r.addEventListener("pointerleave", hideTip);
       r.addEventListener("click", () => { hideTip(); st.a = a; st.b = b; st.focus = null; st.j = null; this.update(); });
     });
@@ -820,7 +831,7 @@ export class Explorer {
       const t1 = el("text", { x: ml - 4, y: mt + i * cw + cw / 2 + 3.5, "text-anchor": "end" }, svg); t1.textContent = nm;
       const t2 = el("text", { x: ml + i * cw + cw / 2, y: mt + n * cw + 12, "text-anchor": "middle" }, svg); t2.textContent = nm;
     });
-    $("blk-map-note").innerHTML = `Every block at this ${st.fam === "layer" ? "checkpoint" : "site"}: row = first ${st.fam === "layer" ? "site" : "checkpoint"}, column = last; colour = λ<sub>${kk}</sub> (darker = closer to 1; range ${lo.toFixed(3)} to 1). Click to select.`;
+    $("blk-map-note").innerHTML = `Every block at this ${st.fam === "layer" ? "checkpoint" : "site"}: row = first ${st.fam === "layer" ? "site" : "checkpoint"}, column = last; colour = ${sym(st)}<sub>${kk}</sub> (darker = closer to 1; range ${lo.toFixed(3)} to 1). Click to select.`;
     $("blk-map-wrap").open = this._mapOpen ?? (window.innerWidth >= 1100);
     $("blk-map-wrap").ontoggle = () => { this._mapOpen = $("blk-map-wrap").open; };
   }
@@ -878,7 +889,7 @@ export class Explorer {
   async renderJaccard() {
     const st = this.st, ctx = this.ctx, { m, labels, N } = ctx, box = $("leg-jac");
     const ri = m.seba_r.indexOf(st.r), A = this.blk.lab.subarray(ri * N, (ri + 1) * N);
-    const key = `${st.fam}/${st.anchor}/${st.mode}/${st.a},${st.b}/${st.r}`;
+    const key = `${dkey(st)}/${st.anchor}/${st.mode}/${st.a},${st.b}/${st.r}`;
     const vsC = this._jc && this._jc.key === key ? this._jc.res : matchedJaccard(A, st.r, labels, 10);
     this._jc = { key, res: vsC };
     box.replaceChildren(
@@ -887,21 +898,23 @@ export class Explorer {
     );
     // comparison block (same family, same r, same kappa rule)
     const lim = st.fam === "layer" ? m.steps.length : m.sites.length;
-    if (!st.cmp || st.cmp.fam !== st.fam) {
-      const anc = st.fam === "layer" ? (st.anchor === lim - 1 ? lim - 2 : lim - 1) : (st.anchor === lim - 1 ? lim - 2 : st.anchor + 1);
-      st.cmp = { fam: st.fam, anchor: anc, a: st.a, b: st.b };
+    if (!st.cmp || st.cmp.fam !== st.fam || st.cmp.from !== st.op) {
+      // product views compare against the average operator on the same block by default
+      const anc = isProd(st) ? st.anchor : st.fam === "layer" ? (st.anchor === lim - 1 ? lim - 2 : lim - 1) : (st.anchor === lim - 1 ? lim - 2 : st.anchor + 1);
+      st.cmp = { fam: st.fam, anchor: anc, a: st.a, b: st.b, op: isProd(st) ? "avg" : st.op, from: st.op };
     }
     const c = st.cmp;
     const sel = (opts, val, on) => { const s = h("select"); opts.forEach((o, i) => s.add(new Option(o, i))); s.value = val; s.addEventListener("change", () => { on(+s.value); this.renderJaccard(); }); return s; };
     const ancNames = st.fam === "layer" ? m.steps.map(s => "step " + s.toLocaleString("en")) : m.sites;
     const posNames = st.fam === "layer" ? m.sites : m.steps.map(s => s.toLocaleString("en"));
     const out = h("span", { class: "jv", text: "…" }), nul = h("span", { class: "jnull" });
-    box.append(h("div", { class: "jcmp" }, h("span", { text: "vs block" }), sel(ancNames, c.anchor, v => c.anchor = v), sel(posNames, c.a, v => { c.a = v; if (c.b < v) c.b = v; }), h("span", { text: "to" }), sel(posNames, c.b, v => { c.b = v; if (c.a > v) c.a = v; })),
+    const OPS = ["avg", "start", "end"], opSel = m.vals.layerprodR ? [sel(["average", "product · start", "product · end"], OPS.indexOf(c.op), v => c.op = OPS[v])] : [];
+    box.append(h("div", { class: "jcmp" }, h("span", { text: "vs block" }), sel(ancNames, c.anchor, v => c.anchor = v), sel(posNames, c.a, v => { c.a = v; if (c.b < v) c.b = v; }), h("span", { text: "to" }), sel(posNames, c.b, v => { c.b = v; if (c.a > v) c.a = v; }), ...opSel),
       h("div", { class: "jrow" }, h("span", { text: `same kernel rule, r = ${st.r}` }), h("span", {}, out, nul)));
     const per = h("div", { class: "leg-note" }); box.append(per);
     box.append(h("div", { class: "leg-note", text: "Hard SEBA sets matched one-to-one by the Hungarian assignment maximising total Jaccard; mean over this block's sets. Null: same set sizes, random members (30 draws)." }));
     try {
-      const other = await D.block(st.fam, c.anchor, st.mode, ctx.pairIdx[st.fam][c.a + "," + c.b]);
+      const other = await D.block(dkey(st, c.op), c.anchor, st.mode, ctx.pairIdx[st.fam][c.a + "," + c.b]);
       const B = other.lab.subarray(ri * N, (ri + 1) * N);
       const res = matchedJaccard(A, st.r, B, st.r);
       out.textContent = res.mean.toFixed(2); nul.textContent = `  null ${res.nullMean.toFixed(2)}`;
@@ -991,20 +1004,26 @@ export class Explorer {
     const st = this.st, { m, pal } = this.ctx, blk = this.blk, tg = this.target(), X = blk.X, R = m.seba_r.length;
     const xs = [...Array(X).keys()], names = st.fam === "layer" ? m.sites : m.steps.map(fmtStep);
     let series = [];
-    if (tg.kind === "psi") series = [{ name: `ψ${tg.k}`, y: Array.from(blk.ret_psi.subarray((tg.k - 1) * X, tg.k * X)), color: "#16161a", dots: 2.5 }];
+    const prod = isProd(st);
+    // product blocks: solid = step gain g_c (in-block only), dashed = retention ρ_c (every snapshot)
+    const two = (name, ret, gain, color) => prod
+      ? [{ name: `${name} gain`, y: Array.from(gain), color, dots: 2.5 }, { name: `${name} ρ`, y: Array.from(ret), color, dash: true, width: 1.2 }]
+      : [{ name, y: Array.from(ret), color, dots: 2.5 }];
+    if (tg.kind === "psi") series = two(`ψ${tg.k}`, blk.ret_psi.subarray((tg.k - 1) * X, tg.k * X), prod ? blk.gain_psi.subarray((tg.k - 1) * X, tg.k * X) : null, "#16161a");
     else {
       const js = tg.j == null ? [...Array(st.r).keys()] : [tg.j];
       const so = m.seba_r.slice(0, tg.ri).reduce((x, y) => x + y, 0);
-      series = js.map(j => ({ name: `set ${j + 1}`, y: Array.from(blk.ret_seba.subarray((so + j) * X, (so + j + 1) * X)), color: pal.set(j), dots: 2.5 }));
+      series = js.flatMap(j => two(`set ${j + 1}`, blk.ret_seba.subarray((so + j) * X, (so + j + 1) * X), prod ? blk.gain_seba.subarray((so + j) * X, (so + j + 1) * X) : null, pal.set(j)));
     }
     const all = series.flatMap(s => s.y).filter(Number.isFinite);
     const lo = Math.min(.8, Math.floor((Math.min(...all) - .01) * 10) / 10);
     lineChart($("ret-body"), {
       x: xs, series, yrange: [lo, 1.0], height: 150, xticks: xs.filter(i => X <= 8 || (X - 1 - i) % 2 === 0), xfmt: i => names[i], shade: [st.a - .45, st.b + .45],
-      yfmt: v => v.toFixed(2), refline: tg.kind === "psi" ? { y: blk.vals[tg.k], label: `λ${tg.k} (block mean)` } : null, ml: 36, xname: st.fam === "layer" ? "site" : "step",
+      yfmt: v => v.toFixed(2), ml: 36, xname: st.fam === "layer" ? "site" : "step",
+      refline: tg.kind !== "psi" ? null : prod ? { y: Math.pow(blk.vals[tg.k], 1 / (st.b - st.a + 1)), label: `σ${tg.k}^(1/${st.b - st.a + 1}) (geometric-mean gain)` } : { y: blk.vals[tg.k], label: `λ${tg.k} (block mean)` },
     });
-    $("ret-title").innerHTML = `Retention ρ<sub>c</sub>(${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : tg.j == null ? "SEBA vectors" : `SEBA vector ${tg.j + 1}`}) in every snapshot`;
-    $("ret-note").innerHTML = `ρ<sub>c</sub>(f) = f<sup>T</sup>M<sub>c</sub>f / f<sup>T</sup>f for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}, with f = ${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : "each SEBA vector (colours as the sets)"}; the block's snapshots are shaded. ${tg.kind === "psi" ? `λ<sub>${tg.k}</sub> (dashed) is the mean of ρ<sub>c</sub> over the shaded snapshots: an <b>average</b>, not a value in every snapshot.` : "The spectrum is an <b>average</b> of retention over the shaded snapshots, not a value in every snapshot."}`;
+    $("ret-title").innerHTML = `${prod ? "Step gain g<sub>c</sub> and retention ρ<sub>c</sub>" : "Retention ρ<sub>c</sub>"}(${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : tg.j == null ? "SEBA vectors" : `SEBA vector ${tg.j + 1}`}) in every snapshot`;
+    $("ret-note").innerHTML = (prod ? `Solid: step gain g<sub>c</sub> = |C<sub>c</sub>w<sub>c−1</sub>| / |w<sub>c−1</sub>|, where w is f (constant removed) pushed through the block's snapshots in order (${st.op === "start" ? "first to last" : "last to first, the adjoint direction"}); defined inside the block only, and the gains multiply to σ exactly for ψ. A dip marks the snapshot that erases the function. Dashed: ` : ``) + `ρ<sub>c</sub>(f) = f<sup>T</sup>M<sub>c</sub>f / f<sup>T</sup>f for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}, with f = ${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : "each SEBA vector (colours as the sets)"}; the block's snapshots are shaded. ${prod ? "" : tg.kind === "psi" ? `λ<sub>${tg.k}</sub> (dashed) is the mean of ρ<sub>c</sub> over the shaded snapshots: an <b>average</b>, not a value in every snapshot.` : "The spectrum is an <b>average</b> of retention over the shaded snapshots, not a value in every snapshot."}`;
   }
 
   renderStats() {
@@ -1012,14 +1031,16 @@ export class Explorer {
     const ri = tg.kind === "set" ? tg.ri : 0, j = tg.kind === "set" ? (tg.j ?? 0) : 0;
     $("stats-title").textContent = st.fam === "layer" ? `Sites at step ${m.steps[st.anchor].toLocaleString("en")}` : `Checkpoints at ${m.sites[st.anchor]}`;
     const tb = h("table", { class: "mini" });
-    tb.append(h("tr", {}, h("th", { text: st.fam === "layer" ? "site" : "step" }), h("th", { text: "κ" }), h("th", { text: "15-NN mass" }), h("th", { text: "ρ_c" })));
+    tb.append(h("tr", {}, h("th", { text: st.fam === "layer" ? "site" : "step" }), h("th", { text: "κ" }), h("th", { text: "15-NN mass" }), h("th", { text: "ρ_c" }), ...(isProd(st) ? [h("th", { text: "gain g_c" })] : [])));
     const X = blk.X;
     for (let x = 0; x < X; x++) {
       const [t, s] = st.fam === "layer" ? [st.anchor, x] : [x, st.anchor];
-      const ret = tg.kind === "psi" ? blk.ret_psi[(tg.k - 1) * X + x] : blk.ret_seba[(m.seba_r.slice(0, ri).reduce((p, q) => p + q, 0) + j) * X + x];
+      const fi = tg.kind === "psi" ? (tg.k - 1) * X + x : (m.seba_r.slice(0, ri).reduce((p, q) => p + q, 0) + j) * X + x;
+      const ret = tg.kind === "psi" ? blk.ret_psi[fi] : blk.ret_seba[fi];
+      const gain = !isProd(st) ? null : tg.kind === "psi" ? blk.gain_psi[fi] : blk.gain_seba[fi];
       const tr = h("tr", { class: inBlock(st, t, s) ? "inb" : "" },
         h("td", { text: st.fam === "layer" ? m.sites[s] : m.steps[t].toLocaleString("en") }), h("td", { text: m.kappa?.[st.mode]?.[t]?.[s] != null ? m.kappa[st.mode][t][s].toPrecision(3) : "–" }),
-        h("td", { text: pct(m.nn_mass?.[st.mode]?.[t]?.[s] ?? NaN) }), h("td", { text: fmt(ret, 3) }));
+        h("td", { text: pct(m.nn_mass?.[st.mode]?.[t]?.[s] ?? NaN) }), h("td", { text: fmt(ret, 3) }), ...(gain == null ? [] : [h("td", { text: Number.isFinite(gain) ? fmt(gain, 3) : "–" })]));
       tb.append(tr);
     }
     body.replaceChildren(tb, h("div", { class: "card-note", text: `κ (per-image median for perplexity rules; none for the kNN graph) and median 15-NN kernel mass under ${m.modes[st.mode]}; retention ρ_c of ${tg.kind === "psi" ? "ψ" + tg.k : "SEBA vector " + (j + 1)}. Bold rows are in the block.` }));
@@ -1063,13 +1084,14 @@ export function captionParts(ctx, st, col) {
   else blk = st.a === st.b ? `site ${m.sites[st.anchor]} at ${step(st.a)}`
     : `site ${m.sites[st.anchor]}, checkpoints ${step(st.a)} to ${step(st.b)} (${n} snapshots)`;
   const fromBlk = "computed on the outlined block only and painted on every panel; ";
+  const opM = isProd(st) ? `Q = M_b⋯M_a (ordered product, ${st.op === "start" ? "right" : "left"} singular vectors)` : "M̄";
   const focus = col && col.groups && st.focus != null && st.focus < col.groups.n ? ` Only ${col.groups.names[st.focus]} is coloured; the rest are light grey.` : "";
   const at = st.at === "final" ? `at the final checkpoint (${step(T - 1)}) in every row` : "at each row's own checkpoint";
   const side = st.kind === "psi" ? `side panel: ψ${st.k}` : `side panel: r = ${st.r} coherent sets`;
   const colour = {
-    seba: `coherent sets, r = ${st.r}. Each image's hard label is the largest of the ${st.r} SEBA vectors from ψ0..ψ${st.r - 1} of the block operator M̄; grey = unassigned (no positive entry); ${fromBlk}points drawn in order of membership value, largest on top.`,
-    eig: `ψ${st.k} / max|ψ${st.k}|, where ψ${st.k} is the eigenfunction of the block operator M̄ for λ${st.k}, eigenvalues in decreasing order from λ0 = 1 (the constant); diverging scale, sign fixed so the largest-magnitude entry is positive; ${fromBlk}largest |ψ| on top.`,
-    nodal: `sign of ψ${st.k} of the block operator M̄ (ψ${st.k} > 0, < 0, = 0); ${fromBlk}largest |ψ| on top.`,
+    seba: `coherent sets, r = ${st.r}. Each image's hard label is the largest of the ${st.r} SEBA vectors from ψ0..ψ${st.r - 1} of the block operator ${opM}; grey = unassigned (no positive entry); ${fromBlk}points drawn in order of membership value, largest on top.`,
+    eig: `ψ${st.k} / max|ψ${st.k}|, where ψ${st.k} is ${isProd(st) ? `the ${st.op === "start" ? "right" : "left"} singular vector of the ordered product Q for σ${st.k}, singular values in decreasing order from σ0 = 1 (the constant)` : `the eigenfunction of the block operator M̄ for λ${st.k}, eigenvalues in decreasing order from λ0 = 1 (the constant)`}; diverging scale, sign fixed so the largest-magnitude entry is positive; ${fromBlk}largest |ψ| on top.`,
+    nodal: `sign of ψ${st.k} of the block operator ${opM} (ψ${st.k} > 0, < 0, = 0); ${fromBlk}largest |ψ| on top.`,
     class: `CIFAR-10 class label (validation only). The block sets only the side panel (${side}).`,
     loss: `per-image cross-entropy loss ${at}, log scale, range fixed across rows (1st to 99th percentile over all checkpoints). The block sets only the side panel (${side}).`,
     correct: `whether the network's prediction is correct, ${at}. The block sets only the side panel (${side}).`,
@@ -1082,6 +1104,7 @@ export function captionParts(ctx, st, col) {
   return [
     ...part("Block:", `${blockKind(st).toLowerCase()}, ${blk}.`),
     ...part("Kernel rule:", `${m.modes[st.mode]}.`),
+    ...part("Operator:", `${opName(st)}.`),
     ...part("Colour:", colour + focus),
     ...part("Positions:", `${lay}; display only, no number on this page is computed from them. Rows: checkpoints (step, validation accuracy); columns: sites; ${T * S} panels, one per snapshot, of the same ${m.n.toLocaleString("en")} probe images.`),
   ];

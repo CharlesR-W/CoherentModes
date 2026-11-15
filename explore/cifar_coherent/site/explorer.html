@@ -11,6 +11,14 @@
       <label class="ctl-sub" for="ex-a" id="ex-range-label">sites</label>
       <select id="ex-a" aria-label="Block start"></select><span class="ctl-sub">to</span><select id="ex-b" aria-label="Block end"></select>
     </div>
+    <div class="ctl" id="ex-op-ctl">
+      <span class="ctl-label">Operator</span>
+      <div class="seg" id="ex-op" role="radiogroup" aria-label="Block operator">
+        <button type="button" data-v="avg" title="Average: eigenvectors of the mean walk M̄ over the block's snapshots (order ignored)">average</button>
+        <button type="button" data-v="start" title="Ordered product Q = M_b…M_a: right singular vectors, the functions at the start of the block that survive every snapshot in order">product · start</button>
+        <button type="button" data-v="end" title="Ordered product Q = M_b…M_a: left singular vectors, what those functions become after the last snapshot">product · end</button>
+      </div>
+    </div>
     <div class="ctl">
       <label class="ctl-label" for="ex-mode">Kernel rule</label>
       <select id="ex-mode"></select>

@@ -32,3 +32,5 @@ def cached_completion(path, required_outputs=(), require_fingerprint=True, expec
     if require_fingerprint and row.get('construction_fingerprint')!=expected_fingerprint:
         return None
     return row
+PRODUCT_FINGERPRINT=hashlib.sha256((FINGERPRINT+'|product:v1:centred-chronological-C_b..C_a:float64-eigh-QtQ-and-QQt:'
+    'same-SEBA-export-as-average:gains-norm-ratios-on-centred-functions').encode()).hexdigest()

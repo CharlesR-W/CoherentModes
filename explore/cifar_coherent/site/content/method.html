@@ -17,7 +17,7 @@ images at that site and checkpoint. In the explorer grid each snapshot is drawn 
 <li id="glossary-activation-cell"><b>Activation cell.</b> A region of a layer's activation space on which the rest of
 the network computes nearly the same thing (after an observation by Stefan Heimersheim and collaborators); on
 this site "cell" means only this.</li>
-<li id="glossary-block"><b>Block.</b> A run of consecutive snapshots whose operators are averaged. A <b>layer block</b> is
+<li id="glossary-block"><b>Block.</b> A run of consecutive snapshots whose operators are averaged (or, with the explorer's Operator switch, composed in order: <a href="#method/product-blocks">product blocks</a>). A <b>layer block</b> is
 sites $a..b$ at one checkpoint; a <b>time block</b> is checkpoints $c..d$ at one site.</li>
 <li id="glossary-single-snapshot-block"><b>Single-snapshot block.</b> A block of one snapshot ($a = b$ or $c = d$). Its
 eigenfunctions are ordinary spectral clustering (diffusion maps) of that snapshot alone.</li>
@@ -321,7 +321,7 @@ time series $y$, a Hankel matrix $H_{ij} = y_{i+j}$ has windows of the past as r
 for linear systems its leading singular vectors give a small state through which the past influences the future;
 $Q$ plays that role between layer $a$ and layer $b$.</p>
 
-<p>The explorer uses $\bar M$. To first order in the step size the two agree: if $M_c = I - \varepsilon L_c$, then
+<p>The explorer defaults to $\bar M$. To first order in the step size the two agree: if $M_c = I - \varepsilon L_c$, then
 $Q^\top Q = I - 2\varepsilon \sum_c L_c + O(\varepsilon^2)$ and $\bar M = I - \tfrac{\varepsilon}{|B|}\sum_c L_c$,
 so they share leading vectors up to $O(\varepsilon)$ when the relevant eigenvalues of $\sum_c L_c$ are simple. Beyond
 first order they differ: $(\tfrac12(M_a + M_b))^2$ contains $\tfrac14(M_aM_b + M_bM_a)$, while $Q^\top Q$ does not
@@ -334,6 +334,37 @@ non-trivial right and left singular vectors of $Q$ and of the two-end product $M
 0.991 (0.881) for the left singular vectors of $Q$, and 0.973 (0.632) and 0.975 (0.641) for the two-end product;
 perplexity 100, 0.993 (0.645) and 0.995 (0.649), and 0.979 (0.664) and 0.981 (0.661). With $r = 6$ the medians are
 0.96 to 0.99.</p>
+
+<h3 id="product-blocks">Product blocks in the explorer</h3>
+
+<p>The explorer's <b>Operator</b> switch replaces $\bar M$ by the ordered product, for every layer and time block and
+every kernel rule. With $C_c = M_c - \mathbf 1\mathbf 1^\top/N$ (the constant projected out; each $M_c$ is symmetric
+and doubly stochastic, so $C_c = M_c(I - \mathbf 1\mathbf 1^\top/N)$), the block operator is $Q = C_b \cdots C_a$,
+first snapshot applied first, with singular value decomposition $Q = \sum_k \sigma_k u_k v_k^\top$. <b>Product ·
+start</b> shows the right singular vectors $v_k$: the functions on the probe images that keep the largest share
+$\sigma_k = |Q v_k|$ of their norm after being smoothed by every snapshot of the block in turn. <b>Product · end</b>
+shows $u_k = Q v_k / \sigma_k$, what they have become after the last snapshot. Both are exported in exactly the
+average's format ($\sigma_0 = 1$ for the constant, SEBA on $v_0..v_{r-1}$ or $u_0..u_{r-1}$), from a float64 eigensolve
+of $Q^\top Q$ or $QQ^\top$.</p>
+
+<p>Two properties differ from the average. The product is <em>multiplicative</em>: a function's survival is the
+product of its <b>step gains</b> $g_c = |C_c w_{c-1}| / |w_{c-1}|$ ($w$ the function pushed through the block so far,
+from first to last snapshot for $v$, from last to first for $u$), so one snapshot that erases a split sinks it,
+where the average only dilutes it. The retention strip shows these gains (solid) next to $\rho_c$ (dashed); for
+$\psi_k$ they multiply to $\sigma_k$ exactly (checked to $1.4\times10^{-7}$ on every exported block). The product is
+<em>order-sensitive</em>, but only up to reversal: each $M_c$ is symmetric, so reversing the snapshots transposes $Q$,
+which keeps the singular values and swaps start and end. The average ignores order entirely.</p>
+
+<p>Measured, at step {{fact:final_step}}, {{fact:mode_name.rule0}}, $r = 4$, matched Jaccard between the average's and
+the product's hard sets on the same block, mean over layer blocks of each length: 0.99 for two sites, 0.95 for four,
+0.90 for six, 0.83 for eight, 0.76 for ten, and 0.64 (start) and 0.77 (end) for the full stem–logits block. The leading
+spans agree more than the sets (full block, mean $\cos^2$: 0.84 start, 0.88 end). For the full block the singular
+values are $\sigma_{1..3}$ = 0.38, 0.20, 0.14, against $\lambda_{1..3}$ = 0.91, 0.85, 0.82: averaging and composing
+twelve walks give very different scales, so compare $\sigma$ only with $\sigma$. Against CIFAR classes (validation
+only; matched Jaccard, full block) the end sets align about as well as the average's at $r = 4$ (0.42 against 0.41)
+and better at $r = 8$ (0.74 against 0.61); the start sets less (0.29 and 0.38). Read naively, functions that survive
+the whole network in order are class-like by the time they reach the logits, but at the stem they are not yet the
+average's groups. One network, one seed; <code>product_summary.json</code> has every block, rule and $r$.</p>
 
 <figure class="fig wide">
   <img src="assets/fig/avgprod.png" alt="Heatmaps of agreement between the averaged operator's leading span and the product operator's singular vectors, for every pair of first and last site.">

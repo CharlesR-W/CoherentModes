@@ -238,7 +238,7 @@ and writer may alter this list with reasons.
 4.3 Hankel, as an analogy only. The Hankel matrix of a process is the past x future cross matrix; its SVD gives a
     state that mediates the two. The cross-layer relative is the *product* of layer operators Q = M_b ... M_a
     (diffuse at layer a, then at the next, ...), whose singular vectors are Froyland-style coherent pairs; THEORY.md
-    builds on that product. This explorer uses the *average* instead; note ((M_a + M_b)/2)^2 contains the symmetrised
+    builds on that product. This explorer defaults to the *average*; since 2026-11-15 an Operator switch also shows product blocks (README, "Product blocks"); note ((M_a + M_b)/2)^2 contains the symmetrised
     cross term M_a M_b + M_b M_a. Report the measured agreement from `avgprod.json`. Do not claim the two are the same
     object, do not call the average a Hankel estimator, and the title must not assert which one is computed falsely.
 4.4 Kernel rule (the selector the first explorer called kappa). kappa is the kernel's inverse temperature on cosine.

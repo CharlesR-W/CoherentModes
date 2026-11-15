@@ -157,6 +157,31 @@ construction. The unchanged protocol uses 10k train images for fit/GCV and all
 | pool | .9093 | .9150 | .9093 | .9150 |
 | logits | .9104 | .9153 | .9104 | .9153 |
 
+## Product blocks (added 2026-11-15)
+
+Alongside the average M̄, every layer and time block now has the **ordered product**
+Q = C_b⋯C_a, C = M − 11ᵀ/N (first snapshot applied first; `product.py`). Files
+`<family>prodR_<name>.npz` (right singular vectors v_k: start of block) and
+`<family>prodL_<name>.npz` (left, u_k = Qv_k/σ_k: end of block) have the average files'
+schema, with `vals` = σ (σ_0 = 1 for the constant), plus `gain_psi (5,P,8,X)` and
+`gain_seba (5,P,5,8,X)`: per-snapshot norm ratios of the function pushed through the block
+(start: first→last; end: last→first), NaN outside the block, multiplying to σ for ψ.
+Float64 eigh of QᵀQ / QQᵀ, then the unchanged SEBA/export path (`schema_v2.block_record`).
+Fingerprint `construction.PRODUCT_FINGERPRINT`. All 40 files pass `product.validate_product`;
+worst gain-product identity error 1.4e-7. Modal stage `prodspectra`: 20 units, about **$1.10**
+(completed seed-0 estimate now $3.78). `test_product.py`: single cell = eigenmodes; gains;
+reversal transposes Q (same σ, sides swap), other permutations change σ; a planted split that
+is strong in all but one cell beats a moderate persistent split under the average and loses
+under the product; planted three-group clouds.
+
+`product_analysis.py` writes `product_summary.json` (every block, rule, r: average↔product set
+Jaccard, span agreement, class Jaccard, minimum-gain snapshot). At step 64,000, kNN graph, r = 4,
+average↔product matched Jaccard falls with block length: .99 (2 sites), .95 (4), .90 (6), .83 (8),
+.76 (10), .64 start / .77 end for stem→logits. Full-block class Jaccard: average .41, end .42,
+start .29 (r = 8: .61, .74, .38). The explorer's **Operator** switch (average / product·start /
+product·end) shows them; the retention strip adds step gains. The build ships all four product
+families or none. The site grew from 135 MB to 362 MB.
+
 ## Reproduce and validate
 
 ```bash
@@ -164,6 +189,7 @@ construction. The unchanged protocol uses 10k train images for fit/GCV and all
 export TMPDIR=/var/tmp/cm-pipeline
 mkdir -p "$TMPDIR"
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 uv run --with torch --with numpy python test_coherent.py
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 uv run --with torch --with numpy python test_product.py
 python3 test_provenance.py
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 uv run --with torch --with numpy python schema_v2.py fixture data/_fixture
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 uv run --with torch --with numpy python schema_v2.py validate data/_fixture

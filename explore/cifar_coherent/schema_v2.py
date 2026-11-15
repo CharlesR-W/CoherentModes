@@ -75,6 +75,7 @@ def block_record(ms, a, b, eigen=None):
     at=8
     for ri,r in enumerate(RANKS):
         result['retention_seba'][ri,:r]=ret[at:at+r];at+=r
+    result['_seba']=ss  # SEBA vectors (CPU); not an exported field, used by product.py
     return result, vectors
 
 
