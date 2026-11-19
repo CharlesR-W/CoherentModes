@@ -1,24 +1,5 @@
 <div class="ex" id="ex">
   <div class="ex-bar" id="ex-bar">
-    <div class="ctl">
-      <span class="ctl-label">Block</span>
-      <div class="seg" id="ex-fam" role="radiogroup" aria-label="Block family">
-        <button type="button" data-v="layer" title="Layer block: a run of consecutive sites at one checkpoint (one row of the grid)">layer block</button>
-        <button type="button" data-v="time" title="Time block: a run of consecutive checkpoints at one site (one column of the grid)">time block</button>
-      </div>
-      <label class="ctl-sub" for="ex-anchor" id="ex-anchor-label">at</label>
-      <select id="ex-anchor"></select>
-      <label class="ctl-sub" for="ex-a" id="ex-range-label">sites</label>
-      <select id="ex-a" aria-label="Block start"></select><span class="ctl-sub">to</span><select id="ex-b" aria-label="Block end"></select>
-    </div>
-    <div class="ctl" id="ex-op-ctl">
-      <span class="ctl-label">Operator</span>
-      <div class="seg" id="ex-op" role="radiogroup" aria-label="Block operator">
-        <button type="button" data-v="avg" title="Average: eigenvectors of the mean walk M̄ over the block's snapshots (order ignored)">average</button>
-        <button type="button" data-v="start" title="Ordered product Q = M_b…M_a: right singular vectors, the functions at the start of the block that survive every snapshot in order">product · start</button>
-        <button type="button" data-v="end" title="Ordered product Q = M_b…M_a: left singular vectors, what those functions become after the last snapshot">product · end</button>
-      </div>
-    </div>
     <div class="ctl dev-only">
       <label class="ctl-label" for="ex-mode">Kernel rule</label>
       <select id="ex-mode"></select>
@@ -34,27 +15,25 @@
     <div class="ctl">
       <label class="ctl-label" for="ex-color">Colour by</label>
       <select id="ex-color">
-        <optgroup label="From the selected block">
-          <option value="seba">coherent sets (SEBA)</option>
-          <option value="eig">eigenfunction &psi;&#8342;</option>
-          <option value="nodal" data-dev="1">sign of &psi;&#8342; (nodal domains)</option>
-          <option value="km" id="ex-color-km">spectral k-means partition (k blocks)</option>
+        <optgroup label="Found by the method (from the outlined block)">
+          <option value="seba">groups of images (coherent sets)</option>
+          <option value="eig">one eigenvector (pick which)</option>
+          <option value="km" id="ex-color-km">k-means groups on the eigenvectors</option>
         </optgroup>
-        <optgroup label="Labels (validation only)">
+        <optgroup label="Labels (for checking only)">
           <option value="class">CIFAR class</option>
+          <option value="correct" data-dev="1">correct / wrong</option>
         </optgroup>
-        <optgroup label="Per-image diagnostics" data-dev="1">
+        <optgroup label="Per-image measurements" data-dev="1">
           <option value="loss">loss</option>
-          <option value="correct">correct / wrong</option>
-          <option value="jac">input-Jacobian norm (log)</option>
-          <option value="gcos">gradient alignment (cosine)</option>
-          <option value="gdot">gradient alignment (dot product)</option>
+          <option value="jac">sensitivity to the input (Jacobian norm)</option>
+          <option value="gcos">gradient agrees with the average gradient</option>
         </optgroup>
       </select>
-      <select id="ex-kmk" aria-label="Number of k-means blocks k" hidden title="Number of blocks k of the spectral k-means partition (Lloyd on the top k − 1 spectral coordinates of the selected layer block)"></select>
+      <select id="ex-kmk" aria-label="Number of k-means groups" hidden title="Number of groups for k-means on the leading eigenvectors of the outlined block"></select>
       <div class="seg" id="ex-kms" role="radiogroup" aria-label="Which end of the chain is partitioned" hidden>
-        <button type="button" data-v="start" title="Partition of the images at the first site of the block (right singular vectors of the ordered product)">start</button>
-        <button type="button" data-v="end" title="Partition of the images at the last site of the block (left singular vectors of the ordered product)">end</button>
+        <button type="button" data-v="start" title="Group the images as they are at the first site of the block">at first site</button>
+        <button type="button" data-v="end" title="Group the images as they are at the last site of the block">at last site</button>
       </div>
       <span class="ctl-sub" id="ex-k-label" hidden title="The side panel (spectrum, images, retention) describes this selection">side panel</span>
       <select id="ex-k" aria-label="Eigenfunction k, or number of coherent sets r"></select>
@@ -66,7 +45,7 @@
     <div class="ctl" id="ex-src-ctl">
       <label class="ctl-label" for="ex-src">Sets from</label>
       <select id="ex-src" title="Which source's sets colour every panel (the block stays the same)"></select>
-      <button type="button" class="info-btn" id="ex-src-btn" aria-expanded="false" aria-controls="ex-src-help" title="What are the sources and their status tags?">?</button>
+      <button type="button" class="info-btn" id="ex-src-btn" aria-expanded="false" aria-controls="ex-src-help" title="What are the sources?">?</button>
       <span class="ctl-sub" id="ex-src-note" hidden></span>
     </div>
     <div class="ctl" id="ex-lay-ctl">
@@ -87,8 +66,7 @@
     <span class="status" id="ex-status" aria-live="polite"></span>
     <div class="ex-help" id="ex-src-help" hidden>
       <p><b>Sets from</b> keeps the selected block and chooses whose sets colour every panel: the method (default), a simpler method run on the same block, the method on other data (pixels, the untrained network, a second training seed), the class labels, or one stored draw of a null. Each source gives hard labels for the same probe images; the side panel shows their sizes, class make-up and images, and their agreement with the method's sets for the same block and $r$, with its permutation value. Sources that do not exist for the current block are greyed out with the reason.</p>
-      <p><b>Status tags.</b> <b>S</b>: a label-free spectral object built from dot products (an eigenvector computation on the images). <b>P</b>: post-processing, a diagnostic or a null generator (SEBA rounding, a vote, a shuffle). <b>B</b>: a fitted baseline outside the construction (k-means and spherical k-means are fits). <b>V</b>: uses the CIFAR class labels (validation, or a null whose strata are classes). "S+P" means an S object rounded by a P step.</p>
-      <p>Every source except the method itself was computed for kernel rule 0 (kNN graph, $k = 15$) and the average operator $\bar M$; with another kernel rule or a product operator only the method is available. Definitions and charts over all blocks: <a href="#baselines">Baselines and nulls</a>.</p>
+      <p>Every source except the method itself was computed for kernel rule 0 (kNN graph, $k = 15$); with another kernel rule only the method is available. Definitions and charts over all blocks: <a href="#baselines">Baselines and nulls</a>.</p>
     </div>
     <div class="ex-help" id="ex-kappa-help" hidden>
       <p>The <b>kernel rule</b> decides which probe images count as neighbours in each snapshot before the walk $P_c$ is built. With cosine similarity $C$ and distance $d = 1 - C$, a temperature rule uses $K_{ij} = e^{-\kappa d_{ij}}$; $\kappa$ is the inverse temperature. The answer depends on the rule, so it is exposed here rather than hidden.</p>
@@ -118,17 +96,17 @@
           <div class="ex-howto-text">
             <p><b>The grid.</b> Rows are checkpoints (training step and validation accuracy), columns are sites, from the stem to the logits. Each panel shows the same probe images at one snapshot (a checkpoint and a site), placed by a 2-d UMAP of that snapshot's activations. Positions are for display only; no number on this page is computed from them.</p>
             <p><b>The block</b> (outlined) is a run of snapshots along one row (a <i>layer block</i>) or one column (a <i>time block</i>); one snapshot alone is a <i>single-snapshot block</i>. Its block operator $\bar M$ averages the lazy walks $M_c$ of its snapshots. The colouring comes from that block only and is painted on every panel, so you can follow the same images to other layers and checkpoints.</p>
-            <p><b>The side panel</b> describes the selection: the spectrum of $\bar M$, representative images, retention $\rho_c$ in every snapshot of the row or column, the panel under the pointer enlarged, and per-snapshot numbers.</p>
-            <p><b>Extras.</b> Tick <i>more options</i> for the kernel rules, nodal domains, per-image diagnostics, image statistics, a second network's layout and the per-snapshot table. <i>Layout: seed 1</i> places the points by a second network's UMAP while colours still come from the first; <i>spectral</i> places them by a UMAP of each snapshot's diffusion coordinates (the leading eigenfunctions of that snapshot's own walk), so you see the geometry the construction sees. The per-image diagnostics (loss, input-Jacobian norm, gradient alignment) and CIFAR class only colour; none enters the kernel or the sets. Definitions: <a href="#method/glossary">glossary</a>.</p>
+            <p><b>The side panel</b> describes the selection: representative images, the eigenvalues of $\bar M$, how much grouping into $k$ groups keeps, retention $\rho_c$ in every snapshot of the row or column, and per-snapshot numbers.</p>
+            <p><b>Extras.</b> Tick <i>more options</i> for the kernel rules, per-image diagnostics, image statistics, a second network's layout and the per-snapshot table. <i>Layout: seed 1</i> places the points by a second network's UMAP while colours still come from the first; <i>spectral</i> places them by a UMAP of each snapshot's diffusion coordinates (the leading eigenfunctions of that snapshot's own walk), so you see the geometry the construction sees. The per-image diagnostics (loss, input-Jacobian norm, gradient alignment) and CIFAR class only colour; none enters the kernel or the sets. Definitions: <a href="#method/glossary">glossary</a>.</p>
           </div>
         </div>
       </details>
       <div class="ex-head">
         <ol class="ex-steps" id="ex-hint">
-          <li><b>Pick a block.</b> <span class="mouse-only">Click a panel to end the block there; shift-click or drag along the row (or column) to set its start.</span><span class="touch-only">Tap a panel to set the block's
+          <li><b>Pick a block.</b> <span class="mouse-only">Drag along a row (sites at one checkpoint) or a column (checkpoints at one site). Click a panel to move the block's end there, shift-click to move its start.</span><span class="touch-only">Tap a panel to set the block's
             <span class="seg" id="ex-tap" role="radiogroup" aria-label="What a tap sets"><button type="button" data-v="end">end</button><button type="button" data-v="start">start</button></span></span></li>
           <li><b>Hover a point.</b> <span class="mouse-only">The same image is ringed in every panel.</span><span class="touch-only">Tap a point: the same image is ringed in every panel.</span></li>
-          <li><b>Read the panel.</b> Spectrum, sets and their images, retention.</li>
+          <li><b>Read the side panel.</b> Groups and their images, eigenvalues, retention.</li>
         </ol>
         <label class="ex-ps"><span>dot size</span><input type="range" id="ex-ps" min="0.8" max="3.2" step="0.2" value="1.6"></label>
       </div>
@@ -147,33 +125,29 @@
       <section class="card" id="card-block">
         <h3 class="card-title" id="blk-title">Block</h3>
         <div class="card-sub" id="blk-sub"></div>
+        <div class="sub-h" id="blk-spec-title">Eigenvalues</div>
         <div id="blk-spec" class="chart"></div>
         <div class="card-note" id="blk-spec-note"></div>
-        <div id="blk-strip-wrap" hidden>
-          <div class="sub-h" id="blk-strip-title">Top 64</div>
-          <div id="blk-strip" class="chart"></div>
-          <div class="card-note" id="blk-strip-note"></div>
-        </div>
         <details class="card-more" id="blk-map-wrap">
-          <summary>All blocks at this <span id="blk-map-anchor">checkpoint</span></summary>
+          <summary>Compare every block at this <span id="blk-map-anchor">checkpoint</span></summary>
           <div id="blk-map" class="chart"></div>
           <div class="card-note" id="blk-map-note"></div>
         </details>
       </section>
       <section class="card" id="card-coarse" hidden>
-        <h3 class="card-title" id="cg-title">Coarse-graining: what a k-block partition keeps</h3>
+        <h3 class="card-title" id="cg-title">How much does sorting the images into k groups keep?</h3>
         <div class="card-sub" id="cg-sub"></div>
         <div class="cg-ctl">
-          <div class="seg" id="cg-side" role="radiogroup" aria-label="Which information is scored"></div>
-          <div class="seg" id="cg-view" role="radiogroup" aria-label="Absolute or relative to the ceiling">
-            <button type="button" data-v="abs" title="Retained χ² information, log scale">absolute</button>
-            <button type="button" data-v="eff" title="Efficiency: retained information divided by the ceiling F at the partition's number of occupied blocks">I / F<sub>k</sub></button>
+          <div class="seg" id="cg-side" role="radiogroup" aria-label="Which images are grouped"></div>
+          <div class="seg" id="cg-view" role="radiogroup" aria-label="Amount kept, or share of the best possible">
+            <button type="button" data-v="abs" title="Information kept (χ² information), log scale">amount kept</button>
+            <button type="button" data-v="eff" title="Information kept divided by the most any k groups could keep">share of best possible</button>
           </div>
         </div>
         <div id="cg-chart" class="chart"></div>
         <div class="card-note" id="cg-note"></div>
         <div id="cg-cell" hidden>
-          <div class="sub-h">Leakage against its spectral bounds (single cell)</div>
+          <div class="sub-h">How leaky are the groups, against the best possible?</div>
           <div id="cg-cell-chart" class="chart"></div>
           <div class="card-note" id="cg-cell-note"></div>
         </div>
@@ -187,11 +161,6 @@
         <h3 class="card-title" id="ret-title">Retention &rho;<sub>c</sub> in every snapshot</h3>
         <div id="ret-body" class="chart"></div>
         <div class="card-note" id="ret-note"></div>
-      </section>
-      <section class="card" id="card-lens">
-        <h3 class="card-title" id="lens-title">Panel</h3>
-        <div class="lens-wrap"><canvas id="lens"></canvas></div>
-        <div class="card-note">Hovered panel, enlarged (or the last clicked one).</div>
       </section>
       <section class="card dev-only" id="card-stats">
         <h3 class="card-title" id="stats-title">Sites at this checkpoint</h3>

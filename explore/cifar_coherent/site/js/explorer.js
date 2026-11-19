@@ -25,6 +25,10 @@ export const IMGSTATS = {
   bc_dist: { label: "|border − centre| RGB", def: "Euclidean norm of the border − centre differences of (R, G, B)" },
   hf_frac: { label: "high-frequency share of Y", def: "share of the DFT energy of Y − mean(Y) at radius > 8 cycles per image among all non-zero frequencies" },
 };
+// image statistics offered in the colour menu (a few that are distinct and readable)
+const PX_MENU = ["luminance", "contrast", "saturation", "bc_lum", "hf_frac"];
+// "Sets from" menu: the sources worth comparing in the explorer (the Baselines tab keeps the full list)
+const SRC_MENU = new Set(["M0", "L1", "L2", "G1", "G2", "C1first", "C1last", "I1", "I2", "I3", "Y1", "Y2", "N3"]);
 const isPx = c => typeof c === "string" && c.startsWith("px:");
 // load what a colouring needs beyond the shared context (the pixel statistics); call before colouring()
 export async function prepare(ctx, st) {
@@ -165,7 +169,7 @@ export function colouring(ctx, st, blk) {
     out = { ...same(ci, orderBy(key)), cols, groups: { ids: ci, n: r + 1, names: [...Array(r)].map((_, j) => `set ${j + 1}`).concat(["unassigned"]), unassigned: r } };
   } else if (c === "km" && st._km) {
     const K = st._km, ci = Uint8Array.from(K.lab), cols = [...Array(K.k)].map((_, j) => kmColour(pal, j));
-    out = { ...same(ci, hashOrder), cols, groups: { ids: ci, n: K.k, names: [...Array(K.k)].map((_, j) => `block ${j + 1}`) } };
+    out = { ...same(ci, hashOrder), cols, groups: { ids: ci, n: K.k, names: [...Array(K.k)].map((_, j) => `group ${j + 1}`) } };
   } else if (c === "nodal" || c === "eig") {
     const v = D.psi(m, blk, st.k);
     let mx = 0; for (let i = 0; i < N; i++) mx = Math.max(mx, Math.abs(v[i]));
@@ -344,8 +348,6 @@ export class Explorer {
       return seg;
     };
     this.segs = [
-      segInit("ex-fam", () => this.st.fam, v => this.setFamily(v)),
-      segInit("ex-op", () => this.st.op, v => { this.st.op = v; this.st.focus = null; this.st.j = null; }),
       segInit("ex-at", () => this.st.at, v => this.st.at = v),
       segInit("ex-lay", () => this.st.lay, v => this.setLayout(+v)),
       segInit("ex-tap", () => this.st.tap, v => { this.st.tap = v; }),
@@ -372,17 +374,13 @@ export class Explorer {
     $("ex-lay-spec").dataset.v = String(specIdx); $("ex-lay-spec").hidden = specIdx < 0;
     $("ex-lay").querySelectorAll("button").forEach(b => { if (+b.dataset.v >= m.layouts.length || (+b.dataset.v > 0 && b !== $("ex-lay-spec") && m.layouts[+b.dataset.v]?.kind)) b.hidden = true; });
     if (m.layouts.length < 2) { $("ex-lay-ctl").hidden = true; }
-    if (!m.vals.layerprodR) { $("ex-op-ctl").hidden = true; }   // product blocks not in this build
     m.modes.forEach((name, i) => $("ex-mode").add(new Option(name, i)));
     $("ex-mode").addEventListener("change", e => { this.st.mode = +e.target.value; this.st.focus = null; this.update(); });
-    $("ex-anchor").addEventListener("change", e => { this.st.anchor = +e.target.value; this.st.focus = null; this.update(); });
-    $("ex-a").addEventListener("change", e => { this.st.a = +e.target.value; if (this.st.b < this.st.a) this.st.b = this.st.a; this.st.focus = null; this.update(); });
-    $("ex-b").addEventListener("change", e => { this.st.b = +e.target.value; if (this.st.a > this.st.b) this.st.a = this.st.b; this.st.focus = null; this.update(); });
     // disable diagnostics that the data do not have
     const have = new Set(m.points_fields);
     for (const [c, f] of Object.entries(DIAG)) if (!have.has(f)) { const o = $("ex-color").querySelector(`option[value=${c}]`); if (o) { o.disabled = true; o.dataset.missing = "1"; o.textContent += " (not in data)"; } }
     const og = document.createElement("optgroup"); og.label = "Image statistics (pixels)"; og.dataset.dev = "1";
-    for (const [k, d] of Object.entries(IMGSTATS)) og.append(new Option(d.label, "px:" + k));
+    for (const k of PX_MENU) og.append(new Option(IMGSTATS[k].label, "px:" + k));
     $("ex-color").append(og);
     $("ex-color").addEventListener("change", e => this.setColor(e.target.value));
     this.buildSources();
@@ -391,7 +389,7 @@ export class Explorer {
       if (BLOCK_KINDS.has(this.st.color) || this.st.color === "seba") this.st.focus = null;
       this.update();
     });
-    $("ex-ps").addEventListener("input", e => { this.st.ps = +e.target.value; this.draw(); this.drawLens(); });
+    $("ex-ps").addEventListener("input", e => { this.st.ps = +e.target.value; this.draw(); });
     const kb = $("ex-kappa-btn");
     const setHelp = open => { kb.setAttribute("aria-expanded", String(open)); $("ex-kappa-help").hidden = !open; };
     kb.addEventListener("click", () => setHelp(kb.getAttribute("aria-expanded") !== "true"));
@@ -409,9 +407,9 @@ export class Explorer {
     const sel = $("ex-src");
     if (!this.srcIdx) { $("ex-src-ctl").hidden = true; return; }
     let og = null;
-    for (const s of SR.SOURCES) {
+    for (const s of SR.SOURCES.filter(s => SRC_MENU.has(s.id))) {
       if (!og || og.label !== s.group) { og = document.createElement("optgroup"); og.label = s.group; sel.append(og); }
-      const o = new Option(`${s.label} · ${s.status}`, s.id); o.dataset.base = o.textContent; o.title = s.def; og.append(o);
+      const o = new Option(s.label, s.id); o.dataset.base = o.textContent; o.title = s.def; og.append(o);
     }
     sel.addEventListener("change", e => this.setSource(e.target.value));
     const btn = $("ex-src-btn"), help = $("ex-src-help");
@@ -463,7 +461,7 @@ export class Explorer {
       st.k = m.n_vecs; st.focus = null;
     }
     if (st.color === "km" && !kmOn(ctx, st)) {
-      out.push(`Spectral k-means partitions: ${why}; showing coherent sets.`);
+      out.push(`k-means groups: ${why}; showing coherent sets.`);
       st.color = "seba"; st.kind = "set"; st.focus = null;
     }
     if (st.color === "km" && !m.coarse.ks.includes(st.kmk)) st.kmk = m.coarse.ks[0];
@@ -559,7 +557,7 @@ export class Explorer {
       const u = Math.min(1, (now - t0) / dur), e = u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
       for (let i = 0; i < N; i++) tmp[i] = from[i] + (to[i] - from[i]) * e;
       this.cur = u < 1 ? tmp : to;
-      if (this.col && this.geom) { this.draw(); this.drawOverlay(); this.drawLens(); }
+      if (this.col && this.geom) { this.draw(); this.drawOverlay(); }
       if (u < 1) this._anim = requestAnimationFrame(step);
     };
     this._anim = requestAnimationFrame(step);
@@ -575,30 +573,15 @@ export class Explorer {
       const av = this.srcAvail(), sel = $("ex-src");
       sel.querySelectorAll("option").forEach(o => { const why = av[o.value]; o.disabled = !!why; o.textContent = o.dataset.base + (why ? ` (n/a: ${why})` : ""); });
       sel.value = st.src;
-      $("ex-src-note").hidden = st.mode === this.srcIdx.kernel_rule && !isProd(st) && ctx.kernel === "cos";
-      $("ex-src-note").textContent = ctx.kernel !== "cos" ? "Other sources: cosine kernel only" : st.mode !== this.srcIdx.kernel_rule ? `Other sources: kernel rule ${this.ctxCos.m.modes[this.srcIdx.kernel_rule]} only` : "Other sources: average operator only";
+      $("ex-src-note").hidden = st.mode === this.srcIdx.kernel_rule && ctx.kernel === "cos";
+      $("ex-src-note").textContent = ctx.kernel !== "cos" ? "Other sources: cosine kernel only" : `Other sources: kernel rule ${this.ctxCos.m.modes[this.srcIdx.kernel_rule]} only`;
     }
-    const anc = $("ex-anchor"), a = $("ex-a"), b = $("ex-b");
-    const key = st.fam + T + S;
-    if (anc._key !== key) {
-      anc._key = key; anc.innerHTML = ""; a.innerHTML = ""; b.innerHTML = "";
-      if (st.fam === "layer") {
-        m.steps.forEach((s, i) => anc.add(new Option(`step ${s.toLocaleString("en")}`, i)));
-        m.sites.forEach((s, i) => { a.add(new Option(s, i)); b.add(new Option(s, i)); });
-        $("ex-anchor-label").textContent = "checkpoint"; $("ex-range-label").textContent = "sites";
-      } else {
-        m.sites.forEach((s, i) => anc.add(new Option(s, i)));
-        m.steps.forEach((s, i) => { a.add(new Option(s.toLocaleString("en"), i)); b.add(new Option(s.toLocaleString("en"), i)); });
-        $("ex-anchor-label").textContent = "site"; $("ex-range-label").textContent = "steps";
-      }
-    }
-    anc.value = st.anchor; a.value = st.a; b.value = st.b;
     const ks = $("ex-k");
     const want = st.kind === "psi" ? "psi" + maxK(ctx, st) : "set";
     if (ks._kind !== want) {
       ks._kind = want; ks.innerHTML = "";
-      if (st.kind === "psi") for (let k = 1; k <= maxK(ctx, st); k++) ks.add(new Option(`ψ${k}`, k));
-      else m.seba_r.forEach(r => ks.add(new Option(`r = ${r} sets`, r)));
+      if (st.kind === "psi") for (let k = 1; k <= maxK(ctx, st); k++) ks.add(new Option(`eigenvector ${k}`, k));
+      else m.seba_r.forEach(r => ks.add(new Option(`${r} groups`, r)));
     }
     // spectral k-means colouring: layer blocks of the cosine root that ship partitions (a chain: start or end side)
     const km = st.color === "km", kmo = $("ex-color-km");
@@ -621,7 +604,6 @@ export class Explorer {
       o.textContent = cm.modes[i] + (off ? " (not shipped for dot)" : "");
     });
     $("ex-lay").querySelectorAll("button").forEach(b => { if (!b.hidden) dis(b, this.layIndex(ctx, +b.dataset.v) < 0, `Not available for ${kname}: only the seed-0 network was measured with it`); });
-    $("ex-op").querySelectorAll("button").forEach(b => dis(b, b.dataset.v !== "avg" && !m.vals.layerprodR, `No product blocks for ${kname}`));
     if (this.srcIdx) dis($("ex-src"), dot, "Sets from uses the baselines study, computed for the cosine kernel only");
     $("ex-kern-badge").hidden = !dot;
     if (dot) $("ex-kern-badge").textContent = `kernel: ${ctx.kernelLabel || "dot"}`;
@@ -649,9 +631,6 @@ export class Explorer {
     cv.addEventListener("pointerleave", () => { this.setHover(-1); this.dragPrev = null; hideTip(); this.drawOverlay(); });
     cv.addEventListener("pointerdown", e => this.onDown(e));
     window.addEventListener("pointerup", e => this.onUp(e));
-    const lens = $("lens");
-    lens.addEventListener("pointermove", e => this.onLensMove(e));
-    lens.addEventListener("pointerleave", () => { this.setHover(-1); hideTip(); });
   }
 
   layout() {
@@ -722,12 +701,12 @@ export class Explorer {
     if (!hc) return;
     if (this.drag) {
       const st = this.st, d = this.drag;
-      const along = st.fam === "layer" ? (hc.t === d.t) : (hc.s === d.s);
-      if (along && (hc.t !== d.t || hc.s !== d.s)) { d.moved = true; d.end = hc; this.dragPrev = d; this.drawOverlay(); }
+      const along = hc.t === d.t || hc.s === d.s;
+      if (along && (hc.t !== d.t || hc.s !== d.s)) { d.moved = true; d.end = hc; d.fam = hc.t === d.t ? "layer" : "time"; this.dragPrev = d; this.drawOverlay(); }
     }
     const cr = this.cellRect(hc.t, hc.s);
     const i = this.nearest(hc.t, hc.s, hc.x, hc.y, cr, Math.max(6, this.geom.cell * .07));
-    if (this.lensCell[0] !== hc.t || this.lensCell[1] !== hc.s) { this.lensCell = [hc.t, hc.s]; this.drawLens(); }
+    this.lensCell = [hc.t, hc.s];
     this.setHover(i, hc.t);
     if (i >= 0) {
       const key = `${i}/${hc.t}/${hc.s}/${this._tok}`;
@@ -749,6 +728,7 @@ export class Explorer {
     if (!d) return;
     const st = this.st;
     if (d.moved && d.end) {
+      if (d.fam !== st.fam) { st.fam = d.fam; st.cmp = null; }
       if (st.fam === "layer") { st.anchor = d.t; st.a = Math.min(d.s, d.end.s); st.b = Math.max(d.s, d.end.s); }
       else { st.anchor = d.s; st.a = Math.min(d.t, d.end.t); st.b = Math.max(d.t, d.end.t); }
     } else {
@@ -774,17 +754,10 @@ export class Explorer {
     else { out.b = pos; out.a = Math.min(st.a, pos); }
     return out;
   }
-  onLensMove(e) {
-    const [t, s] = this.lensCell, c = $("lens"), r = c.getBoundingClientRect(), pad = 10;
-    const cr = { x: pad, y: pad, w: r.width - 2 * pad };
-    const i = this.nearest(t, s, e.clientX - r.left, e.clientY - r.top, cr, 10);
-    this.setHover(i, t);
-    if (i >= 0) showTip(e.clientX, e.clientY, this.pointTip(i, t, s)); else hideTip();
-  }
   setHover(i, t) {
     if (i === this.hover) return;
     this.hover = i; this.hoverT = t;
-    this.drawOverlay(); this.drawLensOverlay();
+    this.drawOverlay();
     document.querySelectorAll(".imgs canvas.hl").forEach(c => c.classList.remove("hl"));
     if (i >= 0) document.querySelectorAll(`.imgs canvas[data-i="${i}"]`).forEach(c => c.classList.add("hl"));
   }
@@ -806,12 +779,12 @@ export class Explorer {
         rows.push({ name: `the method (r = ${st.r})`, value: l0 < 0 ? "unassigned" : `set ${l0 + 1}`, color: l0 < 0 ? this.ctx.pal.unassigned : this.ctx.pal.set(l0) });
       } else if (st.kind === "set") {
         const ri = m.seba_r.indexOf(st.r), l = blk.lab[ri * N + i], v = D.sebaVectors(m, blk, ri);
-        rows.push({ name: `SEBA (r = ${st.r})`, value: l < 0 ? "unassigned" : `set ${l + 1} (${fmt(v[l][i])})`, color: l < 0 ? this.ctx.pal.unassigned : this.ctx.pal.set(l) });
+        rows.push({ name: `group (of ${st.r})`, value: l < 0 ? "unassigned" : `set ${l + 1} (membership ${fmt(v[l][i])})`, color: l < 0 ? this.ctx.pal.unassigned : this.ctx.pal.set(l) });
       } else {
         const p = D.psi(m, blk, st.k); let mx = 0; for (const x of p) mx = Math.max(mx, Math.abs(x));
-        rows.push({ name: `ψ${st.k} / max|ψ|`, value: fmt(p[i] / mx) });
+        rows.push({ name: `eigenvector ${st.k} (scaled to ±1)`, value: fmt(p[i] / mx) });
       }
-      if (st.color === "km" && st._km) rows.push({ name: `spectral k-means, k = ${st._km.k}${st.a === st.b ? "" : `, ${st._km.side} side`}`, value: `block ${st._km.lab[i] + 1}`, color: this.col?.cols[st._km.lab[i]] });
+      if (st.color === "km" && st._km) rows.push({ name: `k-means, ${st._km.k} groups${st.a === st.b ? "" : `, ${st._km.side === "end" ? "last" : "first"} site`}`, value: `group ${st._km.lab[i] + 1}`, color: this.col?.cols[st._km.lab[i]] });
       if (st.color in DIAG && st.color !== "loss") { const f = DIAG[st.color]; rows.push({ name: f, value: pts[f][tt * N + i].toPrecision(3) }); }
       if (isPx(st.color) && this.ctx.imgstats) { const k = st.color.slice(3); rows.push({ name: this.ctx.imgstats.labels[k] || k, value: this.ctx.imgstats.per[k][i].toFixed(3) }); }
     }
@@ -893,7 +866,7 @@ export class Explorer {
   }
   renderAll() {
     if (!this.col || !this.geom || this.blk?.root !== this.ctx.root) return;
-    this.draw(); this.drawOverlay(); this.drawLens(); this.decorate();
+    this.draw(); this.drawOverlay(); this.decorate();
     this.renderBlockCard(); this.renderLegend(); this.renderImages(); this.renderRetention(); this.renderStats(); this.renderCaption(); this.renderCoarse();
   }
   prefetch() {
@@ -933,7 +906,7 @@ export class Explorer {
     if (tid != null && !tour) setTimeout(() => { $("ex-status").textContent = `no tour called "${tid}"`; }, 0);
     const int = (k, lo, hi) => { const v = parseInt(p.get(k), 10); return Number.isFinite(v) && v >= lo && v <= hi ? v : null; };
     if (p.get("fam") === "time" || p.get("fam") === "layer") st.fam = p.get("fam");
-    st.op = ["start", "end"].includes(p.get("op")) && m.vals.layerprodR ? p.get("op") : "avg";
+    st.op = "avg";      // the operator switch was removed: the explorer shows the block average only
     const lim = st.fam === "layer" ? S - 1 : T - 1, alim = st.fam === "layer" ? T - 1 : S - 1;
     st.anchor = int("t", 0, alim) ?? Math.min(st.anchor, alim);
     st.a = int("a", 0, lim) ?? Math.min(st.a, lim); st.b = int("b", 0, lim) ?? Math.min(st.b, lim);
@@ -985,27 +958,6 @@ export class Explorer {
       g.strokeStyle = "#16161a"; g.lineWidth = 1.4; g.stroke();
     }
   }
-  drawLens() {
-    const c = $("lens"); if (!c || !this.col) return;
-    const [t, s] = this.lensCell, { N, S, m } = this.ctx;
-    const w = c.clientWidth; if (!w) return;
-    const dpr = this.dpr || 1;
-    if (c.width !== Math.round(w * dpr)) { c.width = c.height = Math.round(w * dpr); }
-    const g = c.getContext("2d"), img = g.createImageData(c.width, c.height), buf = new Uint32Array(img.data.buffer), pad = 10 * dpr;
-    paint(buf, c.width, c.height, [{ t, s, S, x: pad, y: pad, w: c.width - 2 * pad }], this.cur, this.col, N, Math.max(2.2, this.st.ps * 1.6) * dpr / 2 + .3);
-    g.putImageData(img, 0, 0);
-    this._lensImg = img;
-    $("lens-title").textContent = `${m.sites[s]} at step ${m.steps[t].toLocaleString("en")}` + (inBlock(this.st, t, s) ? " (in the block)" : "");
-    this.drawLensOverlay();
-  }
-  drawLensOverlay() {
-    const c = $("lens"); if (!c || !this._lensImg) return;
-    const g = c.getContext("2d"); g.putImageData(this._lensImg, 0, 0);
-    const i = this.hover; if (i < 0) return;
-    const [t, s] = this.lensCell, { N, S } = this.ctx, dpr = this.dpr || 1, pad = 10 * dpr, w = c.width - 2 * pad, base = (t * S + s) * N * 2;
-    const x = pad + w * this.cur[base + 2 * i], y = pad + w * (1 - this.cur[base + 2 * i + 1]);
-    g.beginPath(); g.arc(x, y, 6 * dpr, 0, 2 * Math.PI); g.strokeStyle = "#fff"; g.lineWidth = 3 * dpr; g.stroke(); g.strokeStyle = "#16161a"; g.lineWidth = 1.5 * dpr; g.stroke();
-  }
   decorate() {
     const st = this.st, { T, S } = this.ctx, g = this.geom;
     this.cellbg.forEach((e, i) => e.classList.toggle("inb", inBlock(st, Math.floor(i / S), i % S)));
@@ -1038,40 +990,7 @@ export class Explorer {
     const kap = ks.length ? (perPoint ? `median per-image κ ${rng(ks)}` : `κ ${rng(ks)}`) : "rank-based, no κ";
     const mass = ms.length ? (() => { const lo = Math.min(...ms), hi = Math.max(...ms); return `, median 15-NN kernel mass ${hi - lo < .005 ? pct(lo) : pct(lo) + "–" + pct(hi)}`; })() : "";
     $("blk-sub").textContent = `${m.modes[st.mode]}: ${kap}${mass} over the ${n} snapshot${n > 1 ? "s" : ""}`;
-    // spectrum: lambda_1..8 as lollipops
-    const vals = Array.from(blk.vals), box = $("blk-spec");
-    box.replaceChildren();
-    const W = box.clientWidth || 300, H = 136, ml = 34, mr = 8, mt = 8, mb = 40;
-    // participation number (sum psi^2)^2 / sum psi^4: about N/3 or more for a spread-out mode, small for a localised one
-    const N = this.ctx.N, pn = [0];
-    for (let k = 1; k <= 8; k++) pn.push(blk.pn[k - 1]);   // computed at build time from full-precision vectors
-    const LOC = Math.round(0.01 * N), nLoc = pn.slice(1).filter(x => x < LOC).length;
-    const lo = Math.min(.5, Math.floor((Math.min(...vals.slice(1)) - .02) * 20) / 20), hi = 1;
-    const svg = el("svg", { width: W, height: H }, box);
-    const X = k => ml + (k - .5) / 8 * (W - ml - mr), Y = scale("linear", lo, hi, H - mb, mt);
-    niceTicks(lo, hi, 3).forEach(v => { el("line", { x1: ml, x2: W - mr, y1: Y(v), y2: Y(v), stroke: "#efeee9" }, svg); const t = el("text", { x: ml - 5, y: Y(v) + 3.5, "text-anchor": "end" }, svg); t.textContent = v.toFixed(2); });
-    const yl = el("text", { x: ml - 5, y: H - 7, "text-anchor": "end", style: "font-size:10px" }, svg); yl.textContent = "PN";
-    const sel = k => st.kind === "psi" ? k === st.k : k < st.r;
-    for (let k = 1; k <= 8; k++) {
-      const on = sel(k), c = on ? "#16161a" : "#b9b8b1";
-      el("line", { x1: X(k), x2: X(k), y1: Y(lo), y2: Y(vals[k]), stroke: c, "stroke-width": on ? 2 : 1.5 }, svg);
-      el("circle", { cx: X(k), cy: Y(vals[k]), r: on ? 4.5 : 3.5, fill: c, stroke: "#fff", "stroke-width": 1.5 }, svg);
-      const t = el("text", { x: X(k), y: H - 24, "text-anchor": "middle" }, svg); t.textContent = `${sym(st)}${k}`;
-      if (on) t.setAttribute("style", "fill:#16161a;font-weight:600");
-      const tp = el("text", { x: X(k), y: H - 7, "text-anchor": "middle", style: pn[k] < LOC ? `fill:${m.palette.accent};font-weight:650;font-size:10px` : "font-size:10px" }, svg);
-      tp.textContent = pn[k] >= 1000 ? (pn[k] / 1000).toFixed(1) + "k" : String(Math.round(pn[k]));
-      const hit = el("rect", { x: X(k) - 12, y: mt, width: 24, height: H - mt, fill: "transparent", style: "cursor:pointer" }, svg);
-      hit.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(null, [{ name: `${sym(st)}${k}`, value: vals[k].toFixed(4) }, isProd(st) ? { name: `per-snapshot geometric mean ${sym(st)}^(1/n)`, value: Math.pow(vals[k], 1 / (st.b - st.a + 1)).toFixed(4) } : { name: "average penalty 1 − λ", value: (1 - vals[k]).toFixed(4) },
-        { name: "participation number", value: `${Math.round(pn[k])} of ${N}` + (pn[k] < LOC ? " (localised)" : "") }])));
-      hit.addEventListener("pointerleave", hideTip);
-      hit.addEventListener("click", () => { st.kind = "psi"; st.k = k; if (st.color === "seba") st.color = "eig"; st.focus = null; this.update(); });
-    }
-    const locNote = nLoc ? ` <span style="color:${m.palette.accent};font-weight:600">${nLoc} localised mode${nLoc > 1 ? "s" : ""}</span> (PN below ${LOC}): a mode carried by a handful of images, not a grouping; sets built from it are suspect.` : "";
-    $("blk-spec-note").innerHTML = (isProd(st)
-      ? `Singular values of the <b>ordered product</b> Q = M<sub>b</sub>⋯M<sub>a</sub> of the block's ${st.b - st.a + 1} lazy walk${st.a === st.b ? "" : "s"} (first snapshot applied first; constant projected out): σ<sub>1</sub>..σ<sub>8</sub> (σ<sub>0</sub> = 1, the constant, not shown). ψ<sub>k</sub> here is the ${st.op === "start" ? "right singular vector v<sub>k</sub>: the function at the start of the block that keeps fraction σ<sub>k</sub> of its norm after being smoothed by every snapshot in turn" : "left singular vector u<sub>k</sub> = Qv<sub>k</sub>/σ<sub>k</sub>: what the best-surviving start function has become after the last snapshot"}. A product is multiplicative: one snapshot that erases a split is enough to sink it.`
-      : `Spectrum of the block operator M̄, the mean of the lazy walks M<sub>c</sub> over the block's ${st.b - st.a + 1} snapshot${st.a === st.b ? "" : "s"}: λ<sub>1</sub>..λ<sub>8</sub> (λ<sub>0</sub> = 1, the constant ψ<sub>0</sub>, not shown). 1 − λ<sub>k</sub> is ψ<sub>k</sub>'s average variation across the block's walks.`)
-      + (st.kind === "psi" ? ` Click a bar to colour by that ψ.` : ` The r = ${st.r} coherent sets come from SEBA on ψ<sub>0</sub>..ψ<sub>${st.r - 1}</sub> (dark).`)
-      + ` PN: participation number (Σψ²)²/Σψ⁴, roughly how many images a mode is spread over.` + locNote;
+    this.renderSpectrum(null);
     this.renderBlockMap();
   }
   renderBlockMap() {
@@ -1081,7 +1000,7 @@ export class Explorer {
     $("blk-map-anchor").textContent = st.fam === "layer" ? "checkpoint" : "site";
     const box = $("blk-map"); box.replaceChildren();
     if (kk > m.n_vecs) {   // the map reads meta's spectra (ψ1..ψ8); the add-on is per block
-      $("blk-map-note").textContent = `Not shipped for ψ${kk}: the map of every block uses ψ1..ψ${m.n_vecs} only. Pick ψ${m.n_vecs} or lower to see it.`;
+      $("blk-map-note").textContent = `Shipped for eigenvectors 1 to ${m.n_vecs} only; pick one of those to compare blocks.`;
       $("blk-map-wrap").open = this._mapOpen ?? (window.innerWidth >= 1100);
       $("blk-map-wrap").ontoggle = () => { this._mapOpen = $("blk-map-wrap").open; };
       return;
@@ -1103,7 +1022,7 @@ export class Explorer {
       const t1 = el("text", { x: ml - 4, y: mt + i * cw + cw / 2 + 3.5, "text-anchor": "end" }, svg); t1.textContent = nm;
       const t2 = el("text", { x: ml + i * cw + cw / 2, y: mt + n * cw + 12, "text-anchor": "middle" }, svg); t2.textContent = nm;
     });
-    $("blk-map-note").innerHTML = `Every block at this ${st.fam === "layer" ? "checkpoint" : "site"}: row = first ${st.fam === "layer" ? "site" : "checkpoint"}, column = last; colour = ${sym(st)}<sub>${kk}</sub> (darker = closer to 1; range ${lo.toFixed(3)} to 1). Click to select.`;
+    $("blk-map-note").innerHTML = `Every block at this ${st.fam === "layer" ? "checkpoint" : "site"}: row = first ${st.fam === "layer" ? "site" : "checkpoint"}, column = last; colour = eigenvalue ${kk} (darker = closer to 1; range ${lo.toFixed(3)} to 1). Click to select.`;
     $("blk-map-wrap").open = this._mapOpen ?? (window.innerWidth >= 1100);
     $("blk-map-wrap").ontoggle = () => { this._mapOpen = $("blk-map-wrap").open; };
   }
@@ -1111,8 +1030,8 @@ export class Explorer {
   renderLegend() {
     const st = this.st, { m, pal, labels, N } = this.ctx, col = this.col, body = $("leg-body");
     body.replaceChildren(); $("leg-jac").replaceChildren();
-    const titles = { seba: `Coherent sets (SEBA, r = ${st.r})`, nodal: `Sign of ψ${st.k} (nodal domains)`, eig: `Eigenfunction ψ${st.k}`, km: `Spectral k-means partition, k = ${st.kmk}${st.a === st.b ? "" : ` (${st.kms} side)`}`, class: "CIFAR class (validation only)",
-      correct: "Correct / wrong", loss: "Loss", jac: "Input-Jacobian norm", gcos: "Gradient alignment (cosine)", gdot: "Gradient alignment (dot product)" };
+    const titles = { seba: `${st.r} groups of images (coherent sets)`, nodal: `Sign of eigenvector ${st.k}`, eig: `Eigenvector ${st.k}`, km: `k-means on the eigenvectors, ${st.kmk} groups${st.a === st.b ? "" : ` (at the ${st.kms === "end" ? "last" : "first"} site)`}`, class: "CIFAR class (for checking only)",
+      correct: "Correct / wrong", loss: "Loss", jac: "Sensitivity to the input (Jacobian norm)", gcos: "Gradient agrees with the average gradient", gdot: "Gradient alignment (dot product)" };
     const pxk = isPx(st.color) ? st.color.slice(3) : null, pxLab = pxk && (this.ctx.imgstats?.labels[pxk] || IMGSTATS[pxk]?.label || pxk);
     $("leg-title").textContent = pxk ? `Image statistic: ${pxLab}` : titles[st.color];
     if (st._S && st.color === "seba") {
@@ -1138,8 +1057,8 @@ export class Explorer {
         const toggle = () => { st.focus = st.focus === j ? null : j; if (st.color === "seba") st.j = st.focus === g.unassigned ? null : st.focus; this.col = colouring(this.ctx, st, this.blk); this.renderAll(); this.writeHash(); };
         row.addEventListener("click", toggle);
         row.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
-        row.addEventListener("pointerenter", () => { if (st.focus != null) return; const save = st.focus; st.focus = j; this.col = colouring(this.ctx, st, this.blk); this.draw(); this.drawLens(); st.focus = save; });
-        row.addEventListener("pointerleave", () => { if (st.focus != null) return; this.col = colouring(this.ctx, st, this.blk); this.draw(); this.drawLens(); });
+        row.addEventListener("pointerenter", () => { if (st.focus != null) return; const save = st.focus; st.focus = j; this.col = colouring(this.ctx, st, this.blk); this.draw(); st.focus = save; });
+        row.addEventListener("pointerleave", () => { if (st.focus != null) return; this.col = colouring(this.ctx, st, this.blk); this.draw(); });
         body.append(row);
       }
       if (!g.classes) body.append(h("div", { class: "leg-note", text: g.perRow ? `Counts and class make-up at step ${m.steps[st.at === "final" ? m.steps.length - 1 : t].toLocaleString("en")}. Bars: class make-up (labels used only to validate).` : "Bars: class make-up of each group (class colours as in ‘CIFAR class’; labels only validate)." }));
@@ -1163,8 +1082,7 @@ export class Explorer {
 
   renderSourceLegend(body) {
     const S = this.st._S, src = SR.SRC[S.id], a = S.agree, f2 = nz(2), f3 = nz(3);
-    const tags = src.status.split("+").map(t => `${t}: ${SR.STATUS[t.replace(/[^A-Z]/g, "")]}`).join(" · ");
-    body.append(h("div", { class: "leg-note", text: `Status ${src.status}. ${tags}.` }));
+    body.append(h("div", { class: "leg-note", text: src.def }));
     if (a && a.cls && Number.isFinite(a.cls.ami))
       $("leg-jac").append(h("div", { class: "jrow" }, h("span", { text: "This source against the classes: AMI (jointly assigned)" }), h("span", {}, h("span", { class: "jv", text: f2(a.cls.ami) }), h("span", { class: "jnull", text: `  permutation 95th pct ${f3(a.cls.q95)}` }))),
         h("div", { class: "jrow" }, h("span", { text: "matched Jaccard with the classes" }), h("span", {}, h("span", { class: "jv", text: f2(a.cls.mj) }), h("span", { class: "jnull", text: `  permutation mean ${f2(a.cls.mjNull)}` }))));
@@ -1193,7 +1111,7 @@ export class Explorer {
     const ancNames = st.fam === "layer" ? m.steps.map(s => "step " + s.toLocaleString("en")) : m.sites;
     const posNames = st.fam === "layer" ? m.sites : m.steps.map(s => s.toLocaleString("en"));
     const out = h("span", { class: "jv", text: "…" }), nul = h("span", { class: "jnull" });
-    const OPS = ["avg", "start", "end"], opSel = m.vals.layerprodR ? [sel(["average", "product · start", "product · end"], OPS.indexOf(c.op), v => c.op = OPS[v])] : [];
+    const opSel = [];
     box.append(h("div", { class: "jcmp" }, h("span", { text: "vs block" }), sel(ancNames, c.anchor, v => c.anchor = v), sel(posNames, c.a, v => { c.a = v; if (c.b < v) c.b = v; }), h("span", { text: "to" }), sel(posNames, c.b, v => { c.b = v; if (c.a > v) c.a = v; }), ...opSel),
       h("div", { class: "jrow" }, h("span", { text: `same kernel rule, r = ${st.r}` }), h("span", {}, out, nul)));
     const per = h("div", { class: "leg-note" }); box.append(per);
@@ -1242,7 +1160,7 @@ export class Explorer {
     };
     $("img-sub").textContent = `${blockKind(st)}: ${blockLabel(this.ctx, st)} · ${m.modes[st.mode]}`;
     if (tg.kind === "psi") {
-      $("img-title").textContent = `Images at the ends of ψ${tg.k}`;
+      $("img-title").textContent = `Images at the two ends of eigenvector ${tg.k}`;
       for (const [b, name, col] of [[1, `most negative ψ${tg.k}`, pal.p.diverging.neg], [0, `most positive ψ${tg.k}`, pal.p.diverging.pos], [2, `ψ${tg.k} nearest zero`, pal.p.diverging.mid]]) {
         body.append(h("div", { class: "set-row" + (b === 2 ? " minor" : "") }, h("div", { class: "set-head" }, h("span", { class: "sw", style: { background: col } }), h("span", { class: "set-name", text: name })),
           strip(D.reps(m, blk, "psi", tg.k, b), b === 2 ? 1 : 2)));
@@ -1256,7 +1174,7 @@ export class Explorer {
     const r = st.r, lab = blk.lab.subarray(tg.ri * N, (tg.ri + 1) * N);
     const cnt = [...Array(r + 1)].map(() => new Array(10).fill(0)), size = new Array(r + 1).fill(0);
     for (let i = 0; i < N; i++) { const g = lab[i] < 0 ? r : lab[i]; size[g]++; cnt[g][labels[i]]++; }
-    $("img-title").textContent = `Coherent sets, r = ${r}: images and class make-up`;
+    $("img-title").textContent = `${r} groups of images (coherent sets) and their class make-up`;
     const seba = st.color === "seba";
     for (let j = 0; j <= r; j++) {
       if (j === r && !size[r]) continue;
@@ -1272,8 +1190,8 @@ export class Explorer {
       head.addEventListener("click", pick);
       head.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
       if (seba) {
-        head.addEventListener("pointerenter", () => { if (st.focus != null) return; st.focus = j; this.col = colouring(this.ctx, st, blk); this.draw(); this.drawLens(); st.focus = null; });
-        head.addEventListener("pointerleave", () => { if (st.focus != null) return; this.col = colouring(this.ctx, st, blk); this.draw(); this.drawLens(); });
+        head.addEventListener("pointerenter", () => { if (st.focus != null) return; st.focus = j; this.col = colouring(this.ctx, st, blk); this.draw(); st.focus = null; });
+        head.addEventListener("pointerleave", () => { if (st.focus != null) return; this.col = colouring(this.ctx, st, blk); this.draw(); });
       }
       const row = h("div", { class: "set-row" + (on ? " on" : "") + (dim ? " dim" : "") }, head);
       if (!un) {
@@ -1291,7 +1209,7 @@ export class Explorer {
   // first card for a source other than the method: agreement with the method, then sizes, class make-up and images
   renderSourceImages(body, strip, compBar) {
     const st = this.st, S = st._S, { m, pal, labels, N } = this.ctx, src = SR.SRC[S.id], k = S.k;
-    $("img-title").textContent = `Sets from: ${src.label} (${src.status})${S.classes ? "" : `, r = ${st.r}`}`;
+    $("img-title").textContent = `Sets from: ${src.label}${S.classes ? "" : `, r = ${st.r}`}`;
     body.append(h("div", { class: "card-note src-def-top", text: src.def }));
     const cnt = [...Array(k + 1)].map(() => new Array(10).fill(0)), size = new Array(k + 1).fill(0);
     for (let i = 0; i < N; i++) { const g = S.lab[i] < 0 ? k : S.lab[i]; size[g]++; cnt[g][labels[i]]++; }
@@ -1305,8 +1223,8 @@ export class Explorer {
       const pick = () => { st.focus = st.focus === j ? null : j; this.col = colouring(this.ctx, st, this.blk); this.renderAll(); };
       head.addEventListener("click", pick);
       head.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
-      head.addEventListener("pointerenter", () => { if (st.focus != null) return; st.focus = j; this.col = colouring(this.ctx, st, this.blk); this.draw(); this.drawLens(); st.focus = null; });
-      head.addEventListener("pointerleave", () => { if (st.focus != null) return; this.col = colouring(this.ctx, st, this.blk); this.draw(); this.drawLens(); });
+      head.addEventListener("pointerenter", () => { if (st.focus != null) return; st.focus = j; this.col = colouring(this.ctx, st, this.blk); this.draw(); st.focus = null; });
+      head.addEventListener("pointerleave", () => { if (st.focus != null) return; this.col = colouring(this.ctx, st, this.blk); this.draw(); });
       const row = h("div", { class: "set-row" + (on ? " on" : "") + (dim ? " dim" : "") }, head);
       if (!un && size[j]) row.append(strip(S.reps ? S.reps(j) : SR.shuffledMembers(S.lab, j, 2024 + 31 * j), on ? 2 : 1));
       body.append(row);
@@ -1328,7 +1246,7 @@ export class Explorer {
     box.append(line("AMI, jointly assigned images", f2(a.ami), `coverage ${f2(a.cov)} · permutation 95th pct ${f3(a.q95)}` + (Number.isFinite(a.max95) ? ` · reference from shuffled labels, scanning the ${nB} blocks at this ${st.fam === "layer" ? "checkpoint" : "site"} (95th pct of the largest): ${f3(a.max95)}` : "")));
     box.append(line("matched Jaccard", f2(a.mj), `permutation mean ${f2(a.mjNull)}` + (Number.isFinite(a.mjMax95) ? ` · shuffled labels scanned over the ${nB} blocks (95th pct of the largest): ${f2(a.mjMax95)}` : "")));
     box.append(h("div", { class: "card-note", text: "AMI (adjusted mutual information) is about 0 when two partitions share no more than chance and 1 when they are the same; coverage is the share of images both assign. Matched Jaccard runs from 0 to 1 (1 = the same sets). These say how much two partitions coincide; neither a high nor a low value is better." }));
-    box.append(h("div", { class: "card-note", text: `Permutation: the source's labels shuffled ${a.nperm.toLocaleString("en")} times, set sizes kept${a.rep ? "; computed by the site build for this stored null draw (no scanned-blocks reference: one block)" : S.id === "Y2" ? "; computed by the site build" : ""}. The 95th percentile is for this block alone; when you compare many blocks, use the scanned-blocks reference. Kernel rule ${this.ctx.m.modes[this.srcIdx.kernel_rule]}, average operator.` }));
+    box.append(h("div", { class: "card-note", text: `Permutation: the source's labels shuffled ${a.nperm.toLocaleString("en")} times, set sizes kept${a.rep ? "; computed by the site build for this stored null draw (no scanned-blocks reference: one block)" : S.id === "Y2" ? "; computed by the site build" : ""}. The 95th percentile is for this block alone; when you compare many blocks, use the scanned-blocks reference. Kernel rule ${this.ctx.m.modes[this.srcIdx.kernel_rule]}.` }));
     return box;
   }
   renderRetention() {
@@ -1369,7 +1287,7 @@ export class Explorer {
   // card: chi^2 information kept by k-block partitions vs the ceiling F_k. Cosine root, layer blocks; from d/coarse/.
   async renderCoarse() {
     const st = this.st, ctx = this.ctx, m = ctx.m, on = coarseOn(ctx, st);
-    $("card-coarse").hidden = !on; $("blk-strip-wrap").hidden = !on;
+    $("card-coarse").hidden = !on;
     if (!on) return;
     const tok = this._cgTok = (this._cgTok || 0) + 1;
     let U;
@@ -1377,38 +1295,51 @@ export class Explorer {
     catch (e) { console.error(e); $("cg-note").textContent = "The coarse-graining summary failed to load."; return; }
     if (tok !== this._cgTok || this.ctx !== ctx) return;
     const rec = U.blocks[pairOf(ctx, st)];
-    this.renderStrip(rec);
+    this.renderSpectrum(rec);
     this.renderCoarseCard(rec);
   }
-  renderStrip(rec) {
-    const st = this.st, m = this.ctx.m, cell = st.a === st.b, prod = isProd(st) || cell;
-    const vals = prod ? rec.sv : rec.avg, gap = prod ? rec.gap : rec.avg_gap, S = cell ? "λ" : sym(st), K = maxK(this.ctx, st);
-    const sel = st.kind === "psi" ? st.k : null, n = Math.min(64, vals.length - 1);
-    const pts = lo => [...Array(n)].map((_, i) => i + 1).filter(lo).map(k => [k, vals[k]]);
+  // Eigenvalue chart of the block average: lambda_1..lambda_8 from the block, or up to lambda_32 with the largest drop when
+  // the coarse-graining summary for this block is loaded (rec). Linear scale; dark = the eigenvectors behind the current groups.
+  renderSpectrum(rec) {
+    const st = this.st, ctx = this.ctx, m = ctx.m, blk = this.blk, N = ctx.N, cell = st.a === st.b;
+    const vals = rec ? (cell ? rec.sv : rec.avg) : Array.from(blk.vals), gap = rec ? (cell ? rec.gap : rec.avg_gap) : null;
+    const K = maxK(ctx, st), n = Math.min(rec ? 32 : m.n_vecs, vals.length - 1);
+    const pn = k => k <= m.n_vecs ? blk.pn[k - 1] : null, LOC = Math.round(0.01 * N);
+    const loc = k => pn(k) != null && pn(k) < LOC;
+    const sel = st.kind === "psi" ? st.k : null, used = k => st.kind !== "psi" && k < st.r;
+    const pts = f => [...Array(n)].map((_, i) => i + 1).filter(f).map(k => [k, vals[k]]);
     const series = [
-      { name: `${S}ₖ with a shipped ψₖ (click to colour)`, pts: pts(k => k <= K && k !== sel), color: "#55545a", dots: 2.6, noline: true },
-      { name: "value only", pts: pts(k => k > K), color: "#c3c2bb", dots: 2.2, noline: true },
+      { name: "eigenvector (click to colour the grid by it)", pts: pts(k => k <= K && k !== sel && !used(k)), color: "#9a9993", dots: 3, noline: true },
+      { name: `used to build the current ${st.r} groups`, pts: pts(k => used(k) && k !== sel), color: "#16161a", dots: 3.6, noline: true },
+      { name: "value only (vector not shipped)", pts: pts(k => k > K), color: "#d6d5cf", dots: 2.4, noline: true },
+      { name: "concentrated on a few images", pts: pts(loc), color: m.palette.accent, marker: "diamond", hollow: true },
     ];
-    if (sel) series.push({ name: `ψ${sel}`, pts: [[sel, vals[sel]]], color: m.palette.accent, dots: 4.2, noline: true });
-    const gx = gap.k - .5, clear = gap.clear;
-    xyChart($("blk-strip"), {
-      series, ylog: true, height: 128, ml: 40, xrange: [.5, n + .5], xticks: [1, 8, 16, 24, 32, 48, 64].filter(v => v <= n), xname: "index k",
-      vlines: [{ x: gx, dash: !clear, color: clear ? "#16161a" : "#8a8983", label: `gap after ψ${gap.k - 1}` }], legend: false,
-      yfmt: v => (+v.toPrecision(2)).toString(),
-      tipExtra: k => [{ name: `${S}${k} / ${S}${k + 1}`, value: vals[k + 1] > 0 ? (vals[k] / vals[k + 1]).toFixed(3) : "n/a" }, { name: "vector", value: k <= K ? "shipped" : "not shipped" }],
-      onclick: k => { if (k > K) return; st.kind = "psi"; st.k = k; if (st.color === "seba") st.color = "eig"; st.focus = null; this.update(); },
+    if (sel && sel <= n) series.push({ name: `eigenvector ${sel} (shown)`, pts: [[sel, vals[sel]]], color: m.palette.accent, dots: 5, noline: true });
+    const top = vals.slice(1, n + 1).filter(Number.isFinite), lo = Math.max(0, Math.min(.9, Math.floor((Math.min(...top) - .02) * 10) / 10));
+    const xt = n <= 8 ? [...Array(n)].map((_, i) => i + 1) : [1, 4, 8, 12, 16, 20, 24, 28, 32].filter(v => v <= n);
+    xyChart($("blk-spec"), {
+      series: series.filter(x => x.pts.length), yrange: [lo, 1], height: 160, ml: 50, xrange: [.5, n + .5], xticks: xt,
+      xname: "eigenvector number", ytitle: "eigenvalue", legend: false,
+      vlines: gap && gap.clear ? [{ x: gap.k - .5, color: "#16161a", top: true, label: `big drop → ${gap.k} groups` }] : [],
+      yfmt: v => v.toFixed(2),
+      tipExtra: k => [{ name: "average change across the block (1 − eigenvalue)", value: (1 - vals[k]).toFixed(4) },
+        ...(pn(k) != null ? [{ name: "spread over about", value: `${Math.round(pn(k))} of ${N} images` + (loc(k) ? " (concentrated)" : "") }] : []),
+        ...(k > K ? [{ name: "vector", value: "not shipped, value only" }] : [])],
+      onclick: k => { if (k > K) return; st.kind = "psi"; st.k = k; if (st.color === "seba" || st.color === "km") st.color = "eig"; st.focus = null; this.update(); },
     });
-    $("blk-strip-title").textContent = `Top ${n} of the ${prod ? (cell ? "cell's walk M" : "ordered product Q") : "block average M̄"}: ${S}1..${S}${n} (log scale)`;
-    const rule = cell || !prod ? "on the Laplacian scale 1 − λ" : "as σₖ / σₖ₊₁";
-    $("blk-strip-note").innerHTML = `Largest ratio ${rule} for a split after 1 to 31 nontrivial functions: after ψ<sub>${gap.k - 1}</sub> (a ${gap.k}-block partition), ratio ${gap.ratio.toFixed(2)}; runner-up after ψ<sub>${gap.k2 - 1}</sub>, ${gap.ratio2.toFixed(2)}. `
-      + (clear ? "Marked solid: the largest ratio is at least 1.15 and 10% above the runner-up." : "<b>No clear gap</b> (dashed): the largest ratio is below 1.15 or within 10% of the runner-up.")
-      + ` Descriptive only; nothing downstream uses it.${K > m.n_vecs ? ` Dark points: ψ1..ψ${K} can colour the grid (ψ9..ψ32 from an 8-bit add-on).` : ` ψ9..ψ32 ${st.a === st.b ? "" : "for multi-site blocks "}are shipped for the default kernel rule only; here only ψ1..ψ8 can colour the grid.`}`
-      + (!prod && !cell ? " Gap of the average computed by the site build with the same rule as for single cells." : "");
+    $("blk-spec-title").textContent = "Eigenvalues: which patterns the block keeps";
+    const nLoc = [...Array(n)].map((_, i) => i + 1).filter(loc).length;
+    $("blk-spec-note").innerHTML = `Each dot is one eigenvector of the block's averaged random walk between similar images (M̄, the mean over the block's ${st.b - st.a + 1} snapshot${cell ? "" : "s"}), in order. `
+      + `Its height, the eigenvalue (at most 1), says how well that pattern of values over the images survives a step of the walk: near 1 means a smooth split the network keeps throughout the block; lower means finer detail or noise. `
+      + (gap ? (gap.clear ? `The largest relative drop comes after eigenvector ${gap.k - 1}, which suggests ${gap.k} natural groups. ` : `There is no clear drop, so no natural number of groups stands out. `) : "")
+      + (st.kind === "psi" ? "" : `The ${st.r} groups are built from the dark dots. `)
+      + (nLoc ? `<span style="color:${m.palette.accent};font-weight:600">${nLoc} eigenvector${nLoc > 1 ? "s are" : " is"} concentrated on a few images</span> (diamond): a handful of outliers, not a grouping. ` : "")
+      + "Click a dot to colour the grid by that eigenvector.";
   }
   renderCoarseCard(rec) {
     const st = this.st, ctx = this.ctx, m = ctx.m, pal = ctx.pal, cell = st.a === st.b, C = m.coarse, K = C.K;
-    const sides = cell ? [["start", "one-sided I(c(X);X′)", "Information one step of the walk keeps about the block of the start image: I(c(X); X′)"], ["two", "both ends I(c(X);c(X′))", "The same partition on both ends of one step (stationary chain)"]]
-      : [["start", "start side I(c(X);Y)", "Partition the images at the first site; information about the image at the last site"], ["end", "end side I(X;c′(Y))", "Partition the images at the last site"], ["two", "two-sided I(c(X);c′(Y))", "Partition both ends (coherent pairs); ceiling at the smaller number of blocks"]];
+    const sides = cell ? [["start", "group the start image", "Sort the image a walk step starts from into k groups; how much does knowing its group tell you about where the step lands? I(c(X); X′)"], ["two", "group both ends", "Sort both ends of one walk step with the same k groups. I(c(X); c(X′))"]]
+      : [["start", "group at first site", "Sort the images at the first site into k groups; how much does that tell you about the image at the last site? I(c(X); Y)"], ["end", "group at last site", "Sort the images at the last site into k groups. I(X; c′(Y))"], ["two", "group at both", "Sort both ends into k groups each. I(c(X); c′(Y))"]];
     const seg = $("cg-side");
     if (seg._cell !== cell) {
       seg._cell = cell;
@@ -1421,44 +1352,44 @@ export class Explorer {
     const xOf = (mt, qi) => { const a = rec.m[mt].keff_start[qi], b = rec.m[mt].keff_end[qi]; return side === "start" ? a : side === "end" ? b : a == null || b == null ? null : Math.min(a, b); };
     const ptsOf = mt => K.map((_, qi) => { const x = xOf(mt, qi), I = rec.m[mt][key][qi]; return x == null || I == null ? null : [x, eff ? I / F(x) : I]; }).filter(Boolean).sort((p, q) => p[0] - q[0]);
     const S = pal.sets, series = [
-      { name: "ceiling F_k", pts: K.map(k => [k, eff ? 1 : F(k)]), color: "#16161a", dash: true, width: 1.4 },
-      { name: "spectral k-means", pts: ptsOf("spectral"), color: S[0], dots: 2.2 },
-      { name: "SEBA", pts: ptsOf("seba"), color: S[1], dots: 2.2 },
-      { name: "PCA k-means", pts: ptsOf("pca"), color: S[2], dots: 2.2 },
-      { name: "random (null)", pts: ptsOf("random"), color: "#9a9993", dots: 2, width: 1.4 },
-      { name: "predictions", pts: ptsOf("pred"), color: m.palette.accent, marker: "triangle" },
-      { name: "labels", pts: ptsOf("labels"), color: "#16161a", marker: "diamond", hollow: true },
+      { name: "best possible", pts: K.map(k => [k, eff ? 1 : F(k)]), color: "#16161a", dash: true, width: 1.4 },
+      { name: "k-means on eigenvectors", pts: ptsOf("spectral"), color: S[0], dots: 2.2 },
+      { name: "coherent sets", pts: ptsOf("seba"), color: S[1], dots: 2.2 },
+      { name: "k-means on activations (PCA)", pts: ptsOf("pca"), color: S[2], dots: 2.2 },
+      { name: "random groups", pts: ptsOf("random"), color: "#9a9993", dots: 2, width: 1.4 },
+      { name: "predicted class", pts: ptsOf("pred"), color: m.palette.accent, marker: "triangle" },
+      { name: "true class", pts: ptsOf("labels"), color: "#16161a", marker: "diamond", hollow: true },
     ];
     const km = kmOn(ctx, st), hl = st.color === "km" ? st.kmk : null;
     xyChart($("cg-chart"), {
-      series, ylog: !eff, yrange: eff ? [0, 1.02] : null, height: 190, ml: 44, xrange: [1.5, 32.5], xticks: [2, 4, 8, 12, 16, 20, 24, 32], xname: "number of blocks k (occupied)", hl,
-      vlines: [{ x: rec.gap.k, dash: !rec.gap.clear, color: rec.gap.clear ? "#16161a" : "#8a8983", label: rec.gap.clear ? "gap" : "no clear gap" }],
+      series, ylog: !eff, yrange: eff ? [0, 1.02] : null, height: 190, ml: 52, xrange: [1.5, 32.5], xticks: [2, 4, 8, 12, 16, 20, 24, 32], xname: "number of groups k", ytitle: eff ? "share of best" : "information kept", hl,
+      vlines: rec.gap.clear ? [{ x: rec.gap.k, color: "#16161a", label: "big eigenvalue drop" }] : [],
       yfmt: eff ? (v => v.toFixed(1)) : undefined,
-      tipExtra: k => [{ name: "ceiling F_k", value: (+F(k).toPrecision(4)).toString() }, ...(km && C.ks.includes(k) ? [{ name: "click", value: `colour by spectral k-means, k = ${k}` }] : [])],
+      tipExtra: k => [{ name: "best possible", value: (+F(k).toPrecision(4)).toString() }, ...(km && C.ks.includes(k) ? [{ name: "click", value: `colour the grid by k-means, ${k} groups` }] : [])],
       onclick: km ? (k => { if (!C.ks.includes(k)) return; st.color = "km"; st.kmk = k; if (!cell) st.kms = side === "end" ? "end" : "start"; st.focus = null; this.update(); }) : null,
     });
-    const what = cell ? `the cell's walk M at ${m.sites[st.a]}` : `the ordered product Q = M<sub>${m.sites[st.b]}</sub>⋯M<sub>${m.sites[st.a]}</sub> (the coupling of the image at ${m.sites[st.a]} with the image at ${m.sites[st.b]})`;
+    const what = cell ? `one step of the walk at ${m.sites[st.a]}` : `the passage from ${m.sites[st.a]} to ${m.sites[st.b]} (the walks of the block's sites applied in order)`;
     const g = rec.gap;
-    $("cg-sub").innerHTML = `${m.modes[st.mode]} · total I(X;Y) = ${(+rec.total.toPrecision(4))}${cell ? " (at least N/4 − 1 from the lazy half)" : ""} · ${g.clear ? `gap at k = ${g.k}` : "no clear gap"}`;
-    $("cg-note").innerHTML = `χ² information kept by a k-block partition of ${what}${!cell && !isProd(st) ? " (this card is about the product, whichever operator colours the grid)" : ""}. `
-      + `<b>F<sub>k</sub></b> = σ<sub>1</sub>² + … + σ<sub>k−1</sub>² (dashed) is the most any k-block partition can keep (Eckart–Young)${side === "two" ? "; two-sided, at the smaller of the two block counts" : ""}. `
-      + `Each method is placed at its number of occupied blocks. <b>Random</b> balanced partitions (mean of 4 draws) are the null. <b>Labels</b> (CIFAR class) and <b>predictions</b> are validation only, at k = 10 (predictions may occupy fewer classes). `
-      + (eff ? "Efficiency I / F<sub>k</sub> is a tightness check only: it is 1 for every partition of a walk with no geometry at all, so read it next to the absolute values. " : "")
-      + (km ? "Click a k (2 to 16) to colour the grid by that spectral k-means partition." : "Spectral k-means colouring is shipped for this block only under the default kernel rule.");
+    $("cg-sub").innerHTML = `${m.modes[st.mode]} · total information ${(+rec.total.toPrecision(4))} · ${g.clear ? `big eigenvalue drop at ${g.k} groups` : "no clear eigenvalue drop"}`;
+    $("cg-note").innerHTML = `Sort the images into k groups and ask how much the group alone tells you about ${what}; the y axis is that information (χ² mutual information). `
+      + `<b>Best possible</b> (dashed) is the most any k groups could keep, from the top singular values${side === "two" ? " (at the smaller of the two group counts)" : ""}. `
+      + `Each method is plotted at the number of groups it actually uses. <b>Random groups</b> (mean of 4 draws) show what chance keeps; <b>true class</b> and <b>predicted class</b> are for checking only (10 groups, or fewer if some class is never predicted). `
+      + (eff ? "The share of best possible is only a tightness check: a walk with no structure at all gives 1 for every grouping, so read it next to the amounts. " : "")
+      + (km ? "Click a k from 2 to 16 to colour the grid by k-means with that many groups." : "k-means colouring is shipped for this block only under the default kernel rule.");
     // single cells: leakage against the Ky Fan (Ncut) and higher-order Cheeger (max leakage) bounds
     $("cg-cell").hidden = !cell;
     if (!cell) return;
     const KF = k => { let s = 0; for (let i = 0; i < k && i < sv.length; i++) s += 1 - sv[i]; return s; }, CH = k => (1 - sv[k - 1]) / 2;
     const ratio = (mt, q) => K.map((_, qi) => { const x = rec.m[mt].keff_start[qi], v = rec.m[mt][q][qi]; return x == null || v == null ? null : [x, v / (q === "ncut" ? KF(x) : CH(x))]; }).filter(Boolean).sort((p, r) => p[0] - r[0]);
-    const cs = [["spectral", "spectral k-means", S[0]], ["seba", "SEBA", S[1]], ["pca", "PCA k-means", S[2]], ["random", "random", "#9a9993"]];
+    const cs = [["spectral", "k-means on eigenvectors", S[0]], ["seba", "coherent sets", S[1]], ["pca", "k-means on activations", S[2]], ["random", "random groups", "#9a9993"]];
     xyChart($("cg-cell-chart"), {
-      series: [...cs.map(([mt, nm, c]) => ({ name: `${nm}: Ncut / Ky Fan`, pts: ratio(mt, "ncut"), color: c, width: 1.6 })),
-        ...cs.map(([mt, nm, c]) => ({ name: `${nm}: max leak / Cheeger`, pts: ratio(mt, "maxleak"), color: c, dash: true, width: 1.2 })),
-        { name: "labels: Ncut / Ky Fan", pts: ratio("labels", "ncut"), color: "#16161a", marker: "diamond", hollow: true }],
-      ylog: true, height: 140, ml: 44, xrange: [1.5, 32.5], xticks: [2, 4, 8, 12, 16, 20, 24, 32], xname: "number of blocks k", legend: false, hl,
+      series: [...cs.map(([mt, nm, c]) => ({ name: `${nm}: total leak / best possible`, pts: ratio(mt, "ncut"), color: c, width: 1.6 })),
+        ...cs.map(([mt, nm, c]) => ({ name: `${nm}: leakiest group / best possible`, pts: ratio(mt, "maxleak"), color: c, dash: true, width: 1.2 })),
+        { name: "true class: total leak / best possible", pts: ratio("labels", "ncut"), color: "#16161a", marker: "diamond", hollow: true }],
+      ylog: true, height: 140, ml: 52, xrange: [1.5, 32.5], xticks: [2, 4, 8, 12, 16, 20, 24, 32], xname: "number of groups k", ytitle: "times the minimum", legend: false, hl,
       yfmt: v => (+v.toPrecision(2)).toString(),
     });
-    $("cg-cell-note").innerHTML = `Solid: Ncut(c) = Σ<sub>j</sub> φ(A<sub>j</sub>) over the Ky Fan bound Σ<sub>i&lt;k</sub>(1 − λ<sub>i</sub>); dashed: the largest leakage max<sub>j</sub> φ(A<sub>j</sub>) over the higher-order Cheeger lower bound (1 − λ<sub>k−1</sub>)/2. Both ratios are at least 1; 1 means the partition meets the bound. Colours as above; hollow diamond: labels (Ncut). φ(A) = 1 − (1/|A|) Σ<sub>x,y∈A</sub> M[x,y] is the chance one step leaves block A.`;
+    $("cg-cell-note").innerHTML = `A group <b>leaks</b> when a walk step starting inside it lands outside it; the leak of group A is the chance of that, φ(A). Solid lines: the leaks summed over all groups; dashed: the leakiest group. Each is divided by the smallest value the eigenvalues allow (the Ky Fan bound Σ<sub>i&lt;k</sub>(1 − λ<sub>i</sub>) for the sum, the higher-order Cheeger bound (1 − λ<sub>k−1</sub>)/2 for the leakiest group), so 1 means as tight as possible and larger means leakier. Colours as above; hollow diamonds: the true classes (sum).`;
   }
 
   renderStats() {
@@ -1538,9 +1469,9 @@ export function captionParts(ctx, st, col) {
   }[st.color] || (isPx(st.color) ? `image statistic ${ctx.imgstats?.labels[st.color.slice(3)] || IMGSTATS[st.color.slice(3)]?.label || st.color.slice(3)}: ${pxDef(st.color.slice(3))} The same per-image value in every panel (a property of the probe image, not of the network). The block sets only the side panel (${side}).` : st.color);
   if (st._S && st.color === "seba") {
     const S = st._S, src = SR.SRC[S.id];
-    colour = `hard sets from "${src.label}" (status ${src.status}; ${S.classes ? "10 sets" : `r = ${st.r} sets`}): ${src.def} ` +
+    colour = `hard sets from "${src.label}" (${S.classes ? "10 sets" : `r = ${st.r} sets`}): ${src.def} ` +
       (S.classes ? "Class colours." : "Each set takes the colour of the method's set of this block it overlaps most (Hungarian matching on Jaccard; display only).") +
-      ` Grey = unassigned. Painted on every panel. Kernel rule ${m.modes[0]}, average operator.`;
+      ` Grey = unassigned. Painted on every panel. Kernel rule ${m.modes[0]}.`;
   }
   const dot = ctx.kernel && ctx.kernel !== "cos";
   // under dot, fitState leaves st.lay at seed 0 or the spectral layout (st.lay indexes the cosine root's list)
@@ -1554,7 +1485,6 @@ export function captionParts(ctx, st, col) {
     ...(dot ? part("Kernel:", `${ctx.kernelLabel || "dot"}: half squared Euclidean distance |x_i − x_j|²/2 on the unnormalised activations in place of the cosine distance 1 − cos (data ${m.tag}).`) : []),
     ...part("Block:", `${blockKind(st).toLowerCase()}, ${blk}.`),
     ...part("Kernel rule:", `${m.modes[st.mode]}.`),
-    ...part("Operator:", `${opName(st)}.`),
     ...part("Colour:", colour + focus),
     ...part("Positions:", `${lay}; display only, no number on this page is computed from them. Rows: checkpoints (step, validation accuracy); columns: sites; ${T * S} panels, one per snapshot, of the same ${m.n.toLocaleString("en")} probe images.`),
   ];
