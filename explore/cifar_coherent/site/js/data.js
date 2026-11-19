@@ -154,3 +154,59 @@ export function sebaVectors(m, blk, ri) {
   blk._seba[ri] = out;
   return out;
 }
+
+// ------------------------------------------------------------------ baselines study (site/baselines.py -> d/src/)
+// index.json: files {"<fam>/<anchor>": {lab: [source ids with label data], agree: [source ids with agreement rows], P,
+// maxnull}}, reps {id: {fam, anchor, a, b, pair, draws, agree}}, fields (agreement row fields), seba_r.
+export const srcIndex = () => json("d/src/index.json");
+export function unpackNibbles(u8, count) {
+  const out = new Int8Array(count);
+  for (let i = 0; i < count; i++) out[i] = ((i & 1) ? u8[i >> 1] >> 4 : u8[i >> 1] & 15) - 1;
+  return out;
+}
+const srcCache = new Map();
+// one block's source labels (Int8Array (R*N) per source) and agreement rows (Float32Array (R*F) per source)
+export function srcChunk(fam, anchor, pair) {
+  const key = `${fam}/${anchor}/${pair}`;
+  if (srcCache.has(key)) return srcCache.get(key);
+  const p = (async () => {
+    const [m, idx] = await Promise.all([meta(), srcIndex()]);
+    const f = idx.files[`${fam}/${anchor}`];
+    if (!f) return null;
+    const r = await fetch(`d/src/${key}.bin.gz`);
+    if (!r.ok) throw new Error(`sources ${key}: HTTP ${r.status}`);
+    const b = await new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+    const N = m.n, R = m.seba_r.length, half = (N + 1) >> 1, F = idx.fields.length, out = { lab: {}, agree: {} };
+    let off = 0;
+    for (const s of f.lab) {
+      const lab = new Int8Array(R * N);
+      for (let ri = 0; ri < R; ri++) lab.set(unpackNibbles(new Uint8Array(b, off + ri * half, half), N), ri * N);
+      out.lab[s] = lab; off += R * half;
+    }
+    for (const s of f.agree) { out.agree[s] = new Float32Array(b.slice(off, off + R * F * 4)); off += R * F * 4; }
+    return out;
+  })();
+  p.catch(() => srcCache.delete(key));
+  srcCache.set(key, p);
+  if (srcCache.size > 200) srcCache.delete(srcCache.keys().next().value);
+  return p;
+}
+// labels painted on every block: the method on the network's input pixels (R*N)
+export async function srcI1() {
+  const [m, b] = await Promise.all([meta(), bytes("d/src/i1.bin")]);
+  const N = m.n, R = m.seba_r.length, half = (N + 1) >> 1, lab = new Int8Array(R * N);
+  for (let ri = 0; ri < R; ri++) lab.set(unpackNibbles(new Uint8Array(b, ri * half, half), N), ri * N);
+  return lab;
+}
+// the stored null draws of a representative block: {draw id: Int8Array (R*N)}
+export async function srcRep(id) {
+  const [m, idx] = await Promise.all([meta(), srcIndex()]);
+  const rp = idx.reps[id], b = await bytes(`d/src/rep/${encodeURIComponent(id)}.bin`);
+  const N = m.n, R = m.seba_r.length, half = (N + 1) >> 1, out = {};
+  rp.draws.forEach((k, di) => {
+    const lab = new Int8Array(R * N);
+    for (let ri = 0; ri < R; ri++) lab.set(unpackNibbles(new Uint8Array(b, (di * R + ri) * half, half), N), ri * N);
+    out[k] = lab;
+  });
+  return out;
+}

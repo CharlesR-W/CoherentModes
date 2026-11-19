@@ -1,0 +1,425 @@
+<p class="lede">Reference material for the main text: how the kernel rules were chosen, how the average operator compares with the product the theory builds on, how the layouts are made, the per-image diagnostics, exact definitions of every statistic in <a href="#measurements">Appendix A</a> and <a href="#baselines">Appendix B</a>, and how to reproduce the site.</p>
+
+<nav class="callout" id="method-details-toc"><p class="callout-title">Contents</p><ol>
+<li><a href="#method-details/sweep">The kernel sweep</a></li>
+<li><a href="#method-details/avgprod">Average versus product</a></li>
+<li><a href="#method-details/umap">Layouts (display only)</a></li>
+<li><a href="#method-details/perimage">Per-image diagnostics</a></li>
+<li><a href="#method-details/questions">Statistics behind the Measurements appendix</a></li>
+<li><a href="#method-details/baselines-defs">Baselines, nulls and comparison statistics</a></li>
+<li><a href="#method-details/reproduce">Reproduce</a></li>
+</ol></nav>
+
+<h2 id="sweep">The kernel sweep</h2>
+
+<p>Background to <a href="#method/kappa">the five kernel rules</a> in Method.</p>
+
+<p>Candidates (<code>data/r20s0b/sweep.json</code>, produced by <code>sweep_math.py</code>), 19 in all: one global
+$\kappa \in \{2, 3, 5, 8, 12, 16, 20, 25, 30\}$; $\kappa$ calibrated to a median 15-NN mass share of 0.05, 0.1, 0.2,
+0.5; per-image perplexity 15, 30, 100, 300; kNN graphs with $k$ = 15, 50. Snapshots: b2, b5, b8, pool and logits at steps
+256, 6,400 and 64,000. Each snapshot's operator is computed alone ($M = \tfrac12(I + P)$, Sinkhorn as in <a href="#method/operator">Method</a>). Label-free
+diagnostics: the participation number $\mathrm{PN}(\psi) = 1/\sum_i \psi_i^4$ of the unit vectors $\psi_1..\psi_8$
+($N$ when all entries have equal size, 2 when two images carry everything); $1 - \lambda_1..\lambda_8$; the sizes of
+the SEBA sets for $r = 4, 8$; and Sinkhorn stability. Matched Jaccard of the SEBA sets with the classes was computed
+after the choice, as validation.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/rules.png" alt="Participation number of the leading eigenvector, one minus its eigenvalue, and the smallest SEBA set, against a single global kappa for five sites, with the per-image rules shown at the right of each panel.">
+  <figcaption><b>Plotted:</b> single-snapshot operators at step {{fact:final_step}}, one line per site (b2, b5, b8, pool,
+  logits; light to dark). Wide part of each panel: one global $\kappa$ for the snapshot (log axis); red crosses: the
+  $\kappa$ the calibrated half-mass rule picks in that snapshot. Narrow grey part: the per-image rules (kNN graph $k$ =
+  15, perplexity 100, perplexity 300). Left: $\mathrm{PN}(\psi_1)$, log scale, dashed line at 2. Middle: $1 -
+  \lambda_1$. Right: size of the smallest of the $r = 8$ SEBA sets, log scale (a size of 0 is drawn at the floor).
+  Source: <code>sweep.json</code>.<br>
+  <b>Values:</b> $1 - \lambda_1$ in b2, b5, b8: 0.39 to 0.47 for global $\kappa \in \{2, 3, 5\}$; 0.05 to 0.17 under
+  the per-image rules.</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img src="assets/fig/sweep.png" alt="Participation number, one minus the leading eigenvalue, and class agreement of SEBA sets for every candidate kernel rule and five sites at the final checkpoint.">
+  <figcaption><b>Plotted:</b> all 19 candidate rules at step {{fact:final_step}}, single-snapshot operators, one line per
+  site (b2, b5, b8, pool, logits; light to dark). x: the rule's parameter, grouped by family (global $\kappa$; median
+  15-NN mass target; per-image perplexity; kNN graph $k$). Top: median $\mathrm{PN}$ of $\psi_1..\psi_8$ (solid) and
+  minimum (dotted), log scale, dashed line at 2. Middle: $1 - \lambda_1$ of $M$. Bottom: matched Jaccard of the $r =
+  8$ SEBA sets with the 10 classes (validation, computed after the choice). Source: <code>sweep.json</code>.</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img src="assets/fig/kappa.png" alt="Kernel weight against neighbour rank, cumulative kernel mass against rank, and achieved 15-neighbour mass by site, for five single-kappa rules.">
+  <figcaption><b>Plotted:</b> five single-$\kappa$ kernels $\exp(-\kappa d)$ at step {{fact:final_step}}: kNN scale,
+  the two-distance half-mass heuristic, calibrated half-mass, global $\kappa = 5$, global $\kappa = 30$ (legend: their
+  $\kappa$ at b5). Left: weight of the $m$-th nearest neighbour relative to the nearest, at the median distance over
+  images for each rank, b5; dotted line at $m = 15$. Middle: share of an image's kernel mass (self excluded, before
+  Sinkhorn) in its $m$ nearest neighbours, median over images, b5; dotted lines at $m = 15$ and one half. Right: that
+  share at $m = 15$, per site. Recomputed by <code>site/figdata.py</code> from the same checkpoint and probe.</figcaption>
+</figure>
+
+<h2 id="avgprod">Average versus product</h2>
+
+<p id="hankel-detail">The project's theory builds on a product, not an average. For a layer block $a < b$, the
+chronological product $Q = M_b \cdots M_a$ (functions are column vectors; layer $a$ applied first) is the nearest
+cross-layer object: its right singular vectors are functions at layer $a$, its left singular vectors their
+normalised images at layer $b$ (Froyland's coherent pairs). The title's "cross-Hankel" is an analogy to this: for a
+time series $y$, a Hankel matrix $H_{ij} = y_{i+j}$ has windows of the past as rows and of the future as columns, and
+for linear systems its leading singular vectors give a small state through which the past influences the future;
+$Q$ plays that role between layer $a$ and layer $b$.</p>
+
+<p>The explorer defaults to $\bar M$. To first order in the step size the two agree: if $M_c = I - \varepsilon L_c$, then
+$Q^\top Q = I - 2\varepsilon \sum_c L_c + O(\varepsilon^2)$ and $\bar M = I - \tfrac{\varepsilon}{|B|}\sum_c L_c$,
+so they share leading vectors up to $O(\varepsilon)$ when the relevant eigenvalues of $\sum_c L_c$ are simple. Beyond
+first order they differ: $(\tfrac12(M_a + M_b))^2$ contains $\tfrac14(M_aM_b + M_bM_a)$, while $Q^\top Q$ does not
+average.</p>
+
+<p><code>avgprod.json</code> reports, for the kNN-graph and perplexity-100 rules, with the constant projected out of
+both sides, the mean $\cos^2$ of principal angles between $\mathrm{span}(\psi_1..\psi_r)$ of $\bar M$ and the top-$r$
+non-trivial right and left singular vectors of $Q$ and of the two-end product $M_b M_a$, $r \in \{3, 6\}$. At step
+{{fact:final_step}}, $r = 3$, over the 66 layer pairs, median (lowest): kNN graph, 0.989 (0.836) for the right and
+0.991 (0.881) for the left singular vectors of $Q$, and 0.973 (0.632) and 0.975 (0.641) for the two-end product;
+perplexity 100, 0.993 (0.645) and 0.995 (0.649), and 0.979 (0.664) and 0.981 (0.661). With $r = 6$ the medians are
+0.96 to 0.99.</p>
+
+<h3 id="product-blocks">Product blocks in the explorer</h3>
+
+<p>The explorer's <b>Operator</b> switch replaces $\bar M$ by the ordered product, for every layer and time block and
+every kernel rule. With $C_c = M_c - \mathbf 1\mathbf 1^\top/N$ (the constant projected out; each $M_c$ is symmetric
+and doubly stochastic, so $C_c = M_c(I - \mathbf 1\mathbf 1^\top/N)$), the block operator is $Q = C_b \cdots C_a$,
+first snapshot applied first, with singular value decomposition $Q = \sum_k \sigma_k u_k v_k^\top$. <b>Product ·
+start</b> shows the right singular vectors $v_k$: the functions on the probe images that keep the largest share
+$\sigma_k = |Q v_k|$ of their norm after being smoothed by every snapshot of the block in turn. <b>Product · end</b>
+shows $u_k = Q v_k / \sigma_k$, what they have become after the last snapshot. Both are exported in exactly the
+average's format ($\sigma_0 = 1$ for the constant, SEBA on $v_0..v_{r-1}$ or $u_0..u_{r-1}$), from a float64 eigensolve
+of $Q^\top Q$ or $QQ^\top$.</p>
+
+<p>Two properties differ from the average. The product is <em>multiplicative</em>: a function's survival is the
+product of its <b>step gains</b> $g_c = |C_c w_{c-1}| / |w_{c-1}|$ ($w$ the function pushed through the block so far,
+from first to last snapshot for $v$, from last to first for $u$), so one snapshot that erases a split sinks it,
+where the average only dilutes it. The retention strip shows these gains (solid) next to $\rho_c$ (dashed); for
+$\psi_k$ they multiply to $\sigma_k$ exactly (checked to $1.4\times10^{-7}$ on every exported block). The product is
+<em>order-sensitive</em>, but only up to reversal: each $M_c$ is symmetric, so reversing the snapshots transposes $Q$,
+which keeps the singular values and swaps start and end. The average ignores order entirely.</p>
+
+<p>Measured, at step {{fact:final_step}}, {{fact:mode_name.rule0}}, $r = 4$, matched Jaccard between the average's and
+the product's hard sets on the same block, mean over layer blocks of each length: 0.99 for two sites, 0.95 for four,
+0.90 for six, 0.83 for eight, 0.76 for ten, and 0.64 (start) and 0.77 (end) for the full stem–logits block. The leading
+spans agree more than the sets (full block, mean $\cos^2$: 0.84 start, 0.88 end). For the full block the singular
+values are $\sigma_{1..3}$ = 0.38, 0.20, 0.14, against $\lambda_{1..3}$ = 0.91, 0.85, 0.82: averaging and composing
+twelve walks give very different scales, so compare $\sigma$ only with $\sigma$. Against CIFAR classes (validation
+only; matched Jaccard, full block) the end sets align about as well as the average's at $r = 4$ (0.42 against 0.41)
+and better at $r = 8$ (0.74 against 0.61); the start sets less (0.29 and 0.38). Read naively, functions that survive
+the whole network in order are class-like by the time they reach the logits, but at the stem they are not yet the
+average's groups. One network, one seed; <code>product_summary.json</code> has every block, rule and $r$.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/avgprod.png" alt="Heatmaps of agreement between the averaged operator's leading span and the product operator's singular vectors, for every pair of first and last site.">
+  <figcaption><b>Plotted:</b> step {{fact:final_step}}, $r = 3$, constant projected out. Row: first site $a$; column:
+  last site $b$ ($a < b$). Colour: mean $\cos^2$ of principal angles between $\mathrm{span}(\psi_1, \psi_2, \psi_3)$ of
+  $\bar M$ for block $a..b$ and, by column of panels, the top-3 non-trivial right singular vectors of $Q = M_b \cdots
+  M_a$, its left singular vectors, and the right and left singular vectors of $M_b M_a$. Top row of panels:
+  {{fact:mode_name.rule0}}; bottom row: {{fact:mode_name.rule1}}. Source: <code>avgprod.json</code>.</figcaption>
+</figure>
+
+<h2 id="umap">Layouts (display only)</h2>
+
+<ul>
+<li>Per checkpoint: <code>umap.AlignedUMAP</code> across the 12 sites (identity relations between consecutive
+sites), <code>n_neighbors=15</code>, <code>min_dist=0.1</code>, <code>alignment_regularisation=0.02</code>,
+<code>random_state=0</code>, on the top 50 principal components ($u_k\sqrt{\lambda_k}$ from the eigendecomposition of
+$C$) of each snapshot.</li>
+<li>Across checkpoints, per site: centre, scale to unit RMS, orthogonal Procrustes (reflections allowed) onto the
+previous checkpoint, then rescale to the 0.5 and 99.5 percentiles for drawing. The within-checkpoint alignment is part
+of the UMAP objective and shapes the layouts; across checkpoints only rotation, reflection, centring and scale
+change.</li>
+<li>No quantity is computed from the 2-d coordinates. Distances in a layout are not distances in the operator.</li>
+<li><b>Seed 1</b> ("layout from"). A second ResNet-20, identical recipe, training seed 1; only its activations' top-50
+PCs and its own AlignedUMAP and Procrustes layouts are computed, for the same probe images and steps. Colours always
+come from seed 0's blocks. Seed 1's layouts are aligned along its own checkpoints, not onto seed 0's.</li>
+<li><b>Spectral</b> layout. For each snapshot, the diffusion coordinates $\lambda_k \psi_k$, $k = 1..32$, of that
+snapshot's own lazy walk $M_c$ under the {{fact:mode_name.rule0}} rule (diffusion map at $t = 1$; constant excluded;
+the same single-snapshot eigenfunctions the explorer shows for $a = b$, extended to 32), then the same AlignedUMAP and
+Procrustes steps as above. Where the activation layout shows the cosine geometry, this one shows the geometry the
+construction actually uses: two images are close when the walk's slow modes cannot tell them apart. It is fixed per
+snapshot and does not change with the selected block or kernel rule. Display only, like the others.</li>
+</ul>
+
+<h2 id="perimage">Per-image diagnostics</h2>
+
+<p>At each checkpoint, eval mode: cross-entropy loss, prediction, correctness; $\lVert \partial z / \partial x
+\rVert_F$, the Frobenius norm of the $10 \times 3072$ Jacobian of the logits $z$ with respect to the normalised input
+pixels; per-sample loss gradients $g_i$ with respect to all trainable parameters, $\bar g = \frac1N \sum_i g_i$ over
+the probe, and $g_i \cdot \bar g$, $\cos(g_i, \bar g)$, $\lVert g_i \rVert$. These use labels through the loss and
+never enter an operator.</p>
+
+<h2 id="questions">Statistics behind the Measurements appendix</h2>
+
+<p>Defaults unless a chart says otherwise: the {{fact:default_mode}} and $r = 4$. Class labels and probe pixels only
+describe and validate here; none of these statistics enters an operator. Exact definitions and the JSON layout are in
+the docstrings of <code>site/analysis.py</code> and <code>site/analysis_findings.py</code>.</p>
+
+<h3 id="stat-jaccard">Matched Jaccard, null and size ceiling</h3>
+
+<p>Hard labelings $A$ ($r_A$ sets) and $B$ ($r_B$ sets; 10 for the classes), unassigned images in no set: $J_{ij} =
+|A_i \cap B_j| / |A_i \cup B_j|$ (0 if the union is empty); Hungarian matching maximising total $J$ over $\min(r_A,
+r_B)$ pairs; score = mean matched $J$. <b>Null:</b> permute the label vector of $A$, unassigned entries included (keeps
+$A$'s set sizes and unassigned count), 200 permutations from one shared seeded bank; stored as the mean $\mu_0$, the
+2.5 / 97.5 percentiles and the maximum. <b>Size ceiling</b> (against a fixed reference labeling): the same Hungarian
+mean over $\min(|A_i|, |B_j|) / \max(|A_i|, |B_j|)$, the largest score any sets of these sizes could reach. The
+explorer's legend uses the same score with a 30-draw null.</p>
+
+<ul>
+<li><b>When</b> (<code>q_when</code>): for each site and checkpoint, matched Jaccard of that single-snapshot block's sets
+with the same site's sets at the final checkpoint, and with the classes.</li>
+<li><b>Carry-over</b> (<code>q_carry</code>): at each checkpoint, matched Jaccard between the single-snapshot sets of
+every pair of sites (no null), of adjacent sites (with null), and of adjacent layer blocks of width 2 and 3.</li>
+</ul>
+
+<h3 id="stat-makeup">Class make-up</h3>
+
+<p>For the default rule, every layer block and every time block, and $r \in \{2, 3, 4\}$: the $(r + 1) \times 10$
+table of counts $n_{jc} = \#\{\text{images in SEBA set } j \text{ with class } c\}$, rows in reliability order, with a
+last row for the unassigned images. The charts show it for single-snapshot blocks as a heatmap with a checkpoint slider
+(colour range 0 to 200, the images per class). <b>Per-class placement</b> (at $r = 2$): for each class $c$ and snapshot,
+the fraction of $c$'s 200 images in the set matched to $c$'s super-class (below), and the fraction unassigned.</p>
+
+<h3 id="stat-va">Vehicles against animals at $r = 2$</h3>
+
+<p>$V$ = {airplane, automobile, ship, truck} (800 images), $A$ = the other six classes (1,200). For every kernel rule
+and single-snapshot block (and, for the default rule, every time block), the two $r = 2$ SEBA sets are compared with the
+2-set labeling $(V, A)$:</p>
+
+<ul>
+<li><b>score</b>: their matched Jaccard (for $2 \times 2$, the better of the two pairings), with null mean $\mu_0$,
+null band and null maximum over the 200 permutations, and size ceiling as above;</li>
+<li><b>norm_excess</b> $= (\text{score} - \mu_0) / (\text{ceiling} - \mu_0)$: 0 at the null mean, 1 when the sets are
+as aligned with $(V, A)$ as their sizes allow;</li>
+<li><b>agree</b>: under the matching, the fraction of <em>assigned</em> images whose set is matched to their own
+super-class; <b>vehicle fraction</b> of set $j$: the share of $V$ among its members.</li>
+</ul>
+
+<p>Milestones per site, over the {{fact:n_checkpoints}} checkpoints $t$, with $T$ the last:</p>
+<ul>
+<li><b>half_step</b>: the first $t$ such that $\text{norm\_excess}(t') \ge 0.5$ at every $t' \ge t$;</li>
+<li><b>most_step</b>: the first $t$ such that $\text{score}(t') - \mu_0(t') \ge 0.8\,(\text{score}(T) - \mu_0(T))$ at
+every $t' \ge t$ (80% of the final excess over the null mean, kept from then on); undefined if the final score does
+not exceed its null maximum.</li>
+<li>The permutation onset (the first $t$ whose score exceeds its null maximum at every later checkpoint, a one-sided
+Monte Carlo permutation $p$ of $1/201$, the smallest 200 draws can give) is step {{fact:q.va.onset_step.all_sites}} at every site here, so the charts report half_step and most_step.</li>
+</ul>
+
+<p><b>Pixel baseline</b> (a closed-form comparison, not part of the method): for each snapshot, each of the 12 image
+statistics below and each sign, assign the top $n_1$ images by the signed statistic to set 1 and the bottom $n_2$ to
+set 2 ($n_j$ = that snapshot's SEBA set sizes; the rest unassigned), and score the split against $(V, A)$ the same way.
+pixel_best is the largest of these 24 scores. It is chosen using the labels, so it is an upper reference for
+single-statistic splits of these sizes. <b>Best class bipartition</b> (default rule): over all 511 splits of the 10
+classes into two groups, the one whose labeling has the largest matched Jaccard with the $r = 2$ sets, and the rank of
+$(V, A)$ among them (1 = best).</p>
+
+<h3 id="stat-imgstats">Image statistics</h3>
+
+<p>From the probe pixels ($32 \times 32 \times 3$, scaled to $[0, 1]$, no normalisation), twelve statistics per
+image, with $Y = 0.299R + 0.587G + 0.114B$ (Rec. 601 luma of the gamma-encoded values):</p>
+<ul>
+<li><b>mean_r, mean_g, mean_b</b>: channel means over the 1,024 pixels; <b>luminance</b>: mean of $Y$;
+<b>contrast</b>: standard deviation of $Y$ (RMS contrast); <b>saturation</b>: mean over pixels of $(\max - \min) /
+\max$ of $(R, G, B)$ (0 where $\max = 0$).</li>
+<li><b>bc_r, bc_g, bc_b, bc_lum</b>: mean over the border ring (the 448 pixels within 4 px of the edge) minus mean over
+the central $16 \times 16$ pixels, for $R$, $G$, $B$ and $Y$ (a background proxy); <b>bc_dist</b>: the Euclidean norm
+of (bc_r, bc_g, bc_b).</li>
+<li><b>hf_frac</b>: with $F$ the 2-D DFT of $Y - \bar Y$, the share of $\sum |F|^2$ at frequency radius above 8 cycles
+per image (half the Nyquist radius) among all non-zero frequencies.</li>
+</ul>
+
+<p>For each block (every single-snapshot block; layer blocks stem..logits, b1..logits, b5..pool and b7..pool at every
+checkpoint; time blocks over all checkpoints and over the later half at every site), 17 functions: $\psi_1..\psi_8$
+and the SEBA vectors for $r = 2, 3, 4$.</p>
+<ul>
+<li><b>Correlation</b>: Pearson correlation over the $N$ probe images between a function and a statistic. The sign
+for $\psi_k$ follows the stored sign convention; only $|\mathrm{corr}|$ is sign-free.</li>
+<li><b>Set contrast</b>: for hard set $j$ ($r = 2, 3, 4$), the mean of the standardised statistic over set $j$ minus
+its mean over all other images (unassigned included), in units of the statistic's SD over the $N$ images.</li>
+<li><b>Within-class correlation</b>: the Pearson correlation after subtracting, from both the function and the
+statistic, their mean over the image's class. Class make-up alone cannot produce it: it measures whether $f$ tracks
+the statistic among images of the same class.</li>
+<li><b>$R^2$ of the fit</b> (a closed-form least-squares fit): $R^2$ of $\psi_k$ regressed on the 12 standardised
+statistics plus an intercept. Its null permutes the images (same bank as below); stored per block as the 95th
+percentile pooled over $k = 1..8$ (expected null mean about $\text{rank}/N$, the 12 statistics having rank {{fact:q.img.rank}}; largest over blocks
+{{fact:q.img.r2_null_hi_max}}).</li>
+<li><b>Class contrasts</b> (labels describe the statistics only): mean standardised statistic over class $c$ minus
+over the other classes, and over $V$ minus over $A$.</li>
+</ul>
+
+<p><b>Thresholds.</b> One bank of 1,000 image permutations is applied to the statistics, the same draws for every
+block. Per block: <em>pointwise</em> = 95th percentile of $|\text{null corr}|$ pooled over the $17 \times 12$ entries
+(a two-sided 5% level for one entry); <em>familywise</em> = 95th percentile over draws of the largest $|\text{null
+corr}|$ among the block's $17 \times 12$ entries; <em>familywise for $\psi$</em>, per statistic = the same over
+$\psi_1..\psi_8$ only; the same pointwise and familywise pair for the set contrasts. <em>Global</em> = 95th percentile
+over draws of the largest $|\text{null corr}|$ over every block and entry ({{fact:q.img.thr_global}} here). The
+within-class correlations have their own null, permuting images within each class (a second bank of 1,000), with
+familywise thresholds per block and per statistic over $\psi_1..\psi_8$.</p>
+
+<h3 id="stat-grad">Gradient coherence</h3>
+
+<p>$G_t$ is the cosine Gram of per-sample loss gradients at checkpoint $t$. For the sets of a time block at one site
+(all checkpoints, or the later half), at each $t$: mean of $G_t$ over ordered pairs $i \ne j$ in the same set, minus
+the mean over assigned pairs in different sets (pair-weighted, unassigned excluded). The same for the 10 classes.
+<b>Null:</b> permute set labels among the assigned images, 100 permutations; the band is the measured 2.5 / 97.5
+percentile range (pairs sharing an image are not independent, so it is not a standard error). <b>Set alignment:</b>
+mean $\cos(g_i, \bar g)$ over each set's members.</p>
+
+<p><b>Class-union reference</b> (b9; $r = 2$ and 4; both time blocks). Give each class wholly to the set that
+holds most of its assigned images. This labels images by unions of classes, merging classes as the sets do but cutting
+none. The <b>primary</b> reference computes the same within-minus-between statistic for these union labels on the
+images the sets assign, so its population is the same as the sets' own statistic (unassigned images excluded). The
+reported quantity is the ratio of the sets' statistic to this reference at the final checkpoint. Comparing the two
+separates "the sets merge classes" from "the sets cut across classes"; the reference is needed because the gradients
+carry the one-hot label. A <b>secondary</b> version applies the union labels to all $N$ images, a different
+population from the sets'.</p>
+
+<h3 id="stat-decod">Decodability</h3>
+
+<p>A validation fit, not part of the construction: 10,000 CIFAR training images (1,000 per class) fit, all 10,000 test
+images evaluated (they include the {{fact:n_images}} probe images); features centred by the fit mean and
+L2-normalised; flattened maps and spatial channel means ("GAP") for convolutional sites. Closed-form ridge on one-hot
+targets, no intercept, $\lambda$ by generalised cross-validation on the fit set; weighted cosine $k$-NN, $k = 20$,
+votes $\exp(\cos/0.07)$.</p>
+
+<h2 id="baselines-defs">Baselines, nulls and comparison statistics</h2>
+
+<p>Definitions behind the <a href="#baselines">Baselines and nulls</a> appendix (B) and the explorer's <b>Sets from</b>
+control (from the study's plan and schema, <code>explore/cifar_baselines/PLAN.md</code> and <code>SCHEMA.md</code>).
+All of it uses kernel rule {{fact:mode_name.rule0}}. Notation: $Z_l$ the centred, row-normalised activations of
+snapshot $l$, $C_l = Z_l Z_l^\top$ its cosine Gram, $H = I - \tfrac1N \mathbf 1\mathbf 1^\top$ the centring matrix,
+$C_B = \frac1L \sum_{l \in B} C_l$ the block Gram (the Gram of the concatenated per-snapshot features, up to the
+factor $1/L$), $q = r - 1$ non-constant directions, and $k_c = r$ sets for every source.</p>
+
+<h3 id="baselines-sources">Sources</h3>
+<ul>
+<li><b>Cosine PCA + SEBA</b> (S+P): the top $q$ eigenvectors of $H C_B H$, with the constant prepended, rounded by
+the unchanged SEBA. <b>Classical MDS is the same computation here.</b> For unit vectors the squared chordal distance
+is $d_{ij}^2 = 2 - 2C_{ij}$, and classical MDS diagonalises $-\tfrac12 H D^{(2)} H = H C H$, the doubly centred Gram,
+so its coordinates are the principal directions of $C$ (the "kernel reconstruction" reading of MDS).</li>
+<li><b>PCA + k-means</b> (B): k-means with $k = r$ and 20 starts on the scores $U_p \Lambda_p^{1/2}$, $p = \max(q, 20)$.</li>
+<li><b>Spherical k-means</b> (B): maximise $\sum_c \lVert \sum_{i \in c} z_i \rVert$ over partitions into $r$ sets
+(each image assigned to the centroid of largest cosine), evaluated through $C_B$; 20 k-means++ starts.</li>
+<li><b>Method eigenvectors + k-means</b> (S+B): k-means on $\psi_1..\psi_q$; <b>row-normalised</b>: on the rows of
+$[\psi_0, .., \psi_q]$ scaled to unit length (Ng, Jordan and Weiss 2001).</li>
+<li><b>Textbook spectral clustering</b> (S+B): $\frac1L \sum_l D_l^{-1/2} A_l D_l^{-1/2}$ with $A_l$ the snapshot's
+0/1 union 15-NN graph (no floor, no Sinkhorn, no lazy step); its leading eigenvectors, rows normalised, then
+k-means.</li>
+<li><b>First / middle / last snapshot</b> (S+P): the method on the single-snapshot block $(a, a)$, $(m, m)$ with
+$m = \lfloor (a+b)/2 \rfloor$, or $(b, b)$.</li>
+<li><b>Co-assignment consensus</b> (P): $A_B(i, j) = \frac1L \sum_l \mathbb 1[\ell_l(i) = \ell_l(j) \ne
+\text{unassigned}]$ with $\ell_l$ the single-snapshot sets at the same $r$; the top $q$ eigenvectors of $H A_B H$, then
+SEBA.</li>
+<li><b>Mean-projector consensus</b> (S+P): the top $q$ eigenvectors of $\frac1L \sum_l U_l U_l^\top$, $U_l$ the
+snapshot's own $\psi_1..\psi_q$, then SEBA.</li>
+<li><b>Pixels</b>, <b>untrained network</b>, <b>other training seed</b> (S+P): the method unchanged on the network's
+input, on the same block at step 0, and on the same layer block of a second network (seed 1) at the final checkpoint.</li>
+<li><b>Classes</b>, <b>predicted class</b> (V): 10 sets each; the prediction is taken at the block's checkpoint (layer
+block) or its last checkpoint (time block).</li>
+</ul>
+
+<h3 id="baselines-nulls">Nulls</h3>
+<ul>
+<li><b>Trajectory shuffle</b>: $P_l \to \Pi_l P_l \Pi_l^\top$ with independent random permutations $\Pi_l$, $\Pi_l = I$
+for the block's first snapshot. Draws are coherent: draw $t$ uses the same permutation of a snapshot in every block
+and rank. <b>Within-class</b>: each $\Pi_l$ permutes images only within their class.</li>
+<li><b>Spectrum-matched Gaussian</b>: per snapshot, Gaussian activations whose covariance has the nonzero eigenvalues
+of $H R_l H / N$ ($R_l = X_l X_l^\top$ the raw Gram), independent across snapshots, then the full pipeline. It keeps
+the spectrum in expectation and before the pipeline's centring and row normalisation, not after them.</li>
+<li><b>Joint second-order surrogate</b>: one Haar orthogonal $O$ ($N \times N$, $O\mathbf 1 = \mathbf 1$) shared by
+the block's snapshots, $C^*_l = D_l O C_l O^\top D_l$ with $D_l$ diagonal restoring the unit diagonal. Before $D_l$
+this keeps the mean and every within- and cross-snapshot second moment exactly; after $D_l$ it does not, and the stored
+diagnostic (relative change of $\operatorname{tr}(C_l C_m)$) changes by up to {{fact:bn.n2b_mm_max}} over the twelve
+representative blocks ({{fact:bn.n2b_mm_b4b6}} for b4 to b6).</li>
+<li><b>Degree-preserving rewiring</b>: double-edge swaps on each snapshot's 15-NN graph before the floor, keeping
+every degree; then floor, Sinkhorn and the lazy step.</li>
+<li><b>Random subspaces</b>: SEBA on $[\mathbf 1/\sqrt N, V]$ with $V$ a Haar-random $N \times q$ orthonormal basis
+orthogonal to $\mathbf 1$; and SEBA started from random rotations of the real span.</li>
+<li><b>Label permutation</b> (for agreement scores): one labelling is permuted across the images, which keeps every
+set size and the unassigned count; for the joint AMI the permutation runs within the jointly assigned images. Any
+selection (a largest value over blocks) is repeated inside each permutation.</li>
+</ul>
+
+<h3 id="baselines-stats">Comparison statistics</h3>
+<ul>
+<li><b>AMI</b> (adjusted mutual information, arithmetic normalisation): $\mathrm{AMI}(a, b) = \dfrac{I(a, b) -
+\mathbb E\,I}{\tfrac12 (H(a) + H(b)) - \mathbb E\,I}$, where $\mathbb E\,I$ is the expected mutual information over
+permutations with the same marginals. 0 is the chance level and 1 the same partition. <b>Joint AMI</b>: on the images
+both labellings assign, always with its <b>coverage</b>, the share of such images. The variant with "unassigned" as
+one more category also rewards agreeing on which images are unassigned.</li>
+<li><b>Matched Jaccard</b>: $\frac{1}{\max(k_a, k_b)} \sum_{(i,j) \in \mathcal M} J_{ij}$ over a Hungarian matching
+$\mathcal M$ of sets maximising total Jaccard $J_{ij} = |A_i \cap B_j| / |A_i \cup B_j|$; empty declared sets count.
+(The explorer's Legend card and the Measurements appendix report the mean over matched sets instead.)</li>
+<li><b>Largest-over-blocks band</b>: the mean and 95th percentile, over permutations, of the largest score over all
+blocks of one checkpoint (layer blocks) or one site (time blocks) at a fixed source and $r$.</li>
+<li><b>Subspace overlap</b>: $\frac1q \lVert U^\top V \rVert_F^2$ (mean squared cosine of the principal angles) of two
+$q$-dimensional spans with the constant removed; chance $q/(N-1)$.</li>
+<li><b>Retention excess</b>: $R_P(A) = \mathbf 1_A^\top P \mathbf 1_A / |A|$ minus its size null $t + (1 - t)(|A| -
+1)/(N - 1)$, $t = \operatorname{tr}(P)/N$ (0 for the default zero-diagonal walk): the retention of a random set of the
+same size.</li>
+<li><b>Variance capture</b> ("kernel reconstruction"): $\lVert \Pi_U G \Pi_U \rVert_F^2 / \lVert G \rVert_F^2$
+against the rank-$q$ optimum $\sum_{j \le q} \lambda_j^2 / \sum_j \lambda_j^2$ of $G$; <b>Dirichlet energy</b> of a
+unit $f$ under snapshot $l$, as plotted: $f^\top (I - M_l) f = \tfrac12 f^\top (I - P_l) f$ with $M_l$ the lazy
+walk.</li>
+<li><b>CKA</b>: $\langle \tilde C_1, \tilde C_2 \rangle_F / (\lVert \tilde C_1 \rVert_F \lVert \tilde C_2 \rVert_F)$
+with $\tilde C = HCH$; <b>debiased</b>: the same with U-centred Grams (zero diagonal, unbiased centring), whose value
+under independence is near 0 at finite $N$.</li>
+<li><b>Rank nesting</b>: $H(\text{sets at } r \mid \text{sets at } r')$ in nats for $r < r'$; 0 when the finer sets
+refine the coarser ones.</li>
+</ul>
+
+<h3 id="baselines-transfer">Transfer-operator pilot</h3>
+<p>For snapshots $a$, $b$ of the same images, $(Tf)(y) = \mathbb E[f(X) \mid Y = y]$ on the empirical marginals. A
+fitted estimate is $T = (C_{YY} + \rho_Y I)^{-1/2} C_{YX} (C_{XX} + \rho_X I)^{-1/2}$ on centred finite features
+(linear PCA scores, Nyström features of $e^{\kappa(x \cdot x' - 1)}$, or diffusion coordinates; $\rho = \eta\,
+\operatorname{tr}(C)/m$ is a ridge fit), or $T = D_q^{-1/2} B D_p^{-1/2}$ for the soft Ulam joint table $B$ of landmark
+memberships. Its singular vectors give source and destination functions; <b>held-out correlation</b> is their Pearson
+correlation on test images; <b>VAMP-2</b> is the squared Frobenius norm of the test-split cross-covariance of the six
+fitted source and destination functions after whitening each side by its regularised test covariance (the tuned
+ridge; for soft Ulam none): $\lVert S_f^{-1/2} S_{fg} S_g^{-1/2} \rVert_F^2$, as <code>transfer.py</code> computes
+it. <b>Composition discrepancy</b> on $a \to b \to c$: $T_{bc}T_{ab} - T_{ac} = A_c^{-1/2} S_{cb}
+(A_b^{-1} - G_b^{+}) S_{ba} A_a^{-1/2} + A_c^{-1/2} (S_{cb} G_b^{+} S_{ba} - S_{ca}) A_a^{-1/2}$, the regulariser term
+plus the partial term, with $S$ the fit cross-moments, $A$ the regularised and $G$ the unregularised marginal
+moments (<code>TRANSFER.md</code>, section 5).</p>
+
+<h2 id="reproduce">Reproduce</h2>
+
+<p>From <code>explore/cifar_coherent/</code> in <a href="https://github.com/CharlesR-W/CoherentModes">the repo</a>.
+The measurement files under <code>data/</code> are not in git. They live on the Modal volume
+<code>cm-cifar-coherent</code>, so either path below needs a Modal account, and the remote images also need the
+ModelZoo source at <code>~/code/ModelZoo</code>. The SEBA code (<code>seba.py</code>) is a port of the authors'
+reference implementation and is licensed GPL-3.0-or-later accordingly.</p>
+
+<p><b>Rebuild the site from existing measurements</b> (with access to the volume as it stands):</p>
+
+<pre><code>uv run --with modal python measure_v2.py fetch r20s0b   # seed 0, incl. sweep.json
+uv run --with modal python measure_v2.py fetch r20s1b   # seed-1 layouts
+uv run --with modal python measure.py fetch r20s0       # legacy run: stats_*.json
+uv run --no-project --with numpy --with torch --with modal \
+    --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+    python site/figdata.py r20s0b   # reads checkpoints from the volume
+uv run --with numpy --with matplotlib --with pillow python site/make_figures.py r20s0b
+uv run --with numpy --with scipy --with matplotlib python -I site/analysis.py r20s0b
+uv run --with numpy --with pillow python site/build_site.py r20s0b</code></pre>
+
+<p><b>Regenerate everything on a fresh volume.</b> Every launch is detached: wait for it to complete successfully,
+using the matching <code>status</code> command, before starting the next. <code>measure_v2.py launch all</code> copies
+the seed-0 layouts and probe from the legacy run's <code>/out/analysis/r20s0/</code>, so the legacy measurement at the
+eight explorer checkpoints must run first. The kernel sweep is its own stage.</p>
+
+<pre><code>export TMPDIR=/var/tmp/cm-pipeline; mkdir -p "$TMPDIR"
+uv run --with torch --with numpy python test_coherent.py
+uv run --with modal python modal_train.py deploy
+uv run --with modal python modal_train.py launch            # seed 0
+uv run --with modal python modal_train.py launch --seed 1   # seed 1 (layouts only)
+uv run --with modal python measure.py deploy
+uv run --with modal python measure.py launch resnet20-relu-seed0 r20s0 \
+    0,64,256,1024,2560,6400,25600,64000   # layouts, probe, stats
+uv run --with modal python measure_v2.py deploy
+uv run --with modal python measure_v2.py launch all         # status: measure_v2.py status all
+uv run --with modal python measure_v2.py launch derivatives
+uv run --with modal python measure_v2.py launch validate
+uv run --with modal python measure_v2.py launch sweep       # 19 rules x 15 snapshots
+uv run --with modal python measure_v2.py launch layouts     # seed 1, after its training
+# then the seven commands of the rebuild path above</code></pre>
+

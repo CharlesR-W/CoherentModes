@@ -1,6 +1,9 @@
 """Build the static mini-writeup site from measurement data (schema_version 2, SPEC.md section 2).
 
     uv run --with numpy --with pillow python site/build_site.py <tag> [--layout-tag r20s1b] [--default-mode 2]
+    uv run --with numpy --with pillow --with scipy --with scikit-learn python site/build_site.py r20s0b --baselines r20s0c
+                                                                      # + "Sets from" data and the Baselines and nulls tab
+    ... build_site.py r20s0b --baselines r20s0c --alignment ../spectral_align/data   # + the Alignment tab (site/alignment.py)
     uv run --with numpy --with pillow python site/build_site.py <tag> --facts      # list {{fact:NAME}} values
     python3 -m http.server 8765 --bind 127.0.0.1 -d viewer/site                    # then open http://127.0.0.1:8765/
 
@@ -179,6 +182,12 @@ class Builder:
             self.blocks()
         self.small_json()
         self.write_meta()
+        if self.baselines:       # site/baselines.py: d/src/ (explorer "Sets from") and d/bn/ (Baselines and nulls tab)
+            import baselines
+            self.facts.update(baselines.build(self, self.baselines))
+        if self.alignment:       # site/alignment.py: d/al/ (Alignment tab; analysis by explore/spectral_align/analyze.py)
+            import alignment
+            self.facts.update(alignment.build(self, self.alignment))
         self.assemble_html()
         (OUT / ".nojekyll").write_text("")
         tot = sum(p.stat().st_size for p in OUT.rglob("*") if p.is_file())
@@ -550,6 +559,13 @@ class Builder:
             "{{CONTENT_FINDINGS}}": self.fragment("findings", ph("Findings")),
             "{{CONTENT_MEASUREMENTS}}": self.fragment("measurements", ph("Measurements", q_extra)),
             "{{CONTENT_METHOD}}": self.fragment("method", ph("Method")),
+            "{{CONTENT_METHOD_DETAILS}}": self.fragment("method_details", ph("Method details")),
+            "{{CONTENT_BASELINES}}": self.fragment("baselines", ph("Baselines")),
+            "{{CONTENT_PRIMER}}": self.fragment("primer", ph("Primer")),
+            # Alignment tab: shown only when d/al/ was built (--alignment); otherwise hidden, with a placeholder
+            "{{CONTENT_ALIGNMENT}}": self.fragment("alignment", "") if (OUT / "d" / "al" / "index.json").exists() else
+                '<div class="placeholder"><b>Alignment</b> is built with <code>build_site.py ... --alignment &lt;data dir&gt;</code>.</div>',
+            "{{ALIGNMENT_TAB_HIDDEN}}": "" if (OUT / "d" / "al" / "index.json").exists() else " hidden",
             "{{TOURS_JSON}}": self.tours(),
         }
         page = (HERE / "index.html").read_text()
@@ -582,6 +598,8 @@ def main():
     ap.add_argument("--html-only", action="store_true", help="development: only re-copy css/js/assets and re-assemble index.html")
     ap.add_argument("--allow-missing", action="store_true", help="development: tolerate missing layer_/time_ files")
     ap.add_argument("--clean", action="store_true", help="discard all previous output, including block chunks")
+    ap.add_argument("--baselines", default=None, help="data tag of the baselines study (e.g. r20s0c): explorer 'Sets from' data + Baselines and nulls tab")
+    ap.add_argument("--alignment", default=None, help="spectral-alignment data directory (e.g. ../spectral_align/data): the Alignment tab")
     a = ap.parse_args()
     if a.facts:
         p = OUT / "d" / "facts.json"
@@ -593,6 +611,8 @@ def main():
     b = Builder(a.tag, a.layout_tag, a.default_mode, a.skip_blocks, a.clean)
     b.only = set(a.only.split(",")) if a.only else None
     b.allow_missing = a.allow_missing
+    b.baselines = a.baselines
+    b.alignment = a.alignment
     if a.html_only:   # development: re-copy static files and re-assemble index.html from the previous build's data
         b.facts = json.loads((OUT / "d" / "facts.json").read_text())
         b.copy_static(); b.assemble_html()

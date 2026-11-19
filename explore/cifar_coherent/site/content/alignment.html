@@ -1,0 +1,343 @@
+<!-- Alignment tab (explore/spectral_align/SPEC.md). Live figures data-live="al-*" are drawn by js/alignment.js from
+     d/al/ (site/alignment.py, explore/spectral_align/analyze.py). Fact names start with "al."; list them with
+     build_site.py <tag> --facts. Verdict slots (class "al-slot") are for the reader sentences of SPEC.md's figure list
+     and are to be written from measured data only. -->
+
+<p class="al-data al-data-{{fact:al.data_slug}}">{{fact:al.data_note}}</p>
+
+<p class="lede">This appendix compares the explorer's <b>single-site operators</b> with each other: different sites of
+one network, the same site at different checkpoints, and sites of networks of different depth (ResNet-20, ResNet-32
+and ResNet-56, two training seeds each). Every network sees the same {{fact:al.n_images}} probe images, so every
+operator lives on the same node set and two operators can be compared directly, with no matching of images.</p>
+
+<p>Each comparison is a distance between two eigendecompositions. Some distances depend on a cut $k$ (how many
+eigenfunctions are kept) or a diffusion time $t$, so each figure lets you choose the distance and its $k$ or $t$. The
+monotone alignment of two networks' sites (dynamic time warping, DTW) is a comparison tool used on these distances;
+it is not part of the construction.</p>
+
+<aside class="callout" id="al-summary"><p class="callout-title">What was found</p>
+<ul>
+<li><b>Sites of networks of different depth can be aligned, and the alignment is as good as between two seeds of one depth.</b> At the end of training the matched distance between ResNet-20 and ResNet-56 is 0.19–0.22 (projector distance, $k=9$), against 0.18 for two seeds of the same depth and 0.30–0.38 for permuted blocks. The $k=9$ cut is not reproducible in most snapshots along the path, so this is checked at a reproducible cut ($k=3$: 0.10–0.14 across depth, 0.10 across seeds, about 0.25–0.32 for permuted blocks) and with the diffusion-kernel distance, which has no cut ($t=16$: 0.10–0.12, 0.09–0.11, 0.20–0.26); the conclusion is the same. The order of sites is found by the distances themselves; DTW's monotonicity is not what produces it. The path goes through the stage ends, but inside a stage it is not proportional to depth.</li>
+<li><b>The correspondence is learned.</b> Until step 256 the alignment is no better than permuted blocks; it appears between steps 1,024 and 6,400.</li>
+<li><b>Within ResNet-20</b>, sites change gradually with depth, and neighbouring sites are no farther apart than two seeds at the same site; the one large jump is from the last block to the pooled features. Over training each site approaches its final operator monotonically and reaches the seed floor before the first learning-rate drop.</li>
+<li><b>The number of eigenmodes changes little about which pairs are close</b> (rank correlation at least 0.83 between any two cuts) but a lot about what is reproducible: cuts beyond $k\approx 5$ are reproducible in about half of the snapshots or fewer, and small cuts separate best from the null.</li>
+<li><b>A standard baseline, CKA, gives nearly the same alignment</b> (rank correlation 0.86–0.97 with the spectral distances). What the spectral comparison adds is the mode-level view: which modes two sites share one-to-one, which are only shared as a span, and which images move. The eigenvalues alone do not align the networks.</li>
+</ul>
+<p>Two seeds per depth; cross-depth numbers use different-seed pairings. The perplexity-100 rule could not be built for {{fact:al.missing.rule1.snapshots}} early-training ResNet-56 snapshots, which are shown as missing.</p></aside>
+
+<h2 id="objects">What is compared</h2>
+
+<p><b>Networks.</b> ResNet-$(6n+2)$ for $n = 3, 5, 9$, seeds 0 and 1: {{fact:al.n_nets}} networks trained with the
+same recipe, differing only in the number of blocks per stage. Final test accuracy: ResNet-20
+{{fact:al.acc.r20s0.final}} and {{fact:al.acc.r20s1.final}}, ResNet-32 {{fact:al.acc.r32s0.final}} and
+{{fact:al.acc.r32s1.final}}, ResNet-56 {{fact:al.acc.r56s0.final}} and {{fact:al.acc.r56s1.final}} (seeds 0 and 1).</p>
+
+<p><b>Sites.</b> The stem, every block output, the pooled features and the logits: {{fact:al.sites.r20s0}},
+{{fact:al.sites.r32s0}} and {{fact:al.sites.r56s0}} sites. The residual blocks fall into three stages (16, 32 and 64
+channels); the figures mark the stage boundaries.</p>
+
+<p><b>Checkpoints.</b> The explorer's eight, at steps {{fact:al.steps}}, for every network. A <b>snapshot</b> is one
+network at one checkpoint and one site: {{fact:al.n_cells}} snapshots in all.</p>
+
+<p><b>Operator per snapshot.</b> Exactly the explorer's construction (<a href="#method/kernel">Method</a>): centred
+cosine Gram, kernel, zero diagonal, doubly stochastic $P$, lazy walk $M = (I + P)/2$, for two kernel rules (rule 0,
+the union 15-NN graph, which is the default; rule 1, per-image perplexity 100). $\psi_1, \dots, \psi_{64}$ are the
+eigenfunctions after the constant one, in order of decreasing eigenvalue, $U_k = [\psi_1 \dots \psi_k]$ and
+$P_k = U_k U_k^\top$.</p>
+
+<h2 id="distances">Distances between two snapshots</h2>
+
+<p>For two snapshots $A$ and $B$, all on the same {{fact:al.n_images}} images ($N$):</p>
+
+<ul>
+<li><b>Projector distance</b> $d_k(A,B) = 1 - \|U_k(A)^\top U_k(B)\|_F^2 / k \in [0, 1]$: zero when the two
+leading-$k$ spans are equal, and $1 - k/(N-1)$ in expectation for two independent random spans (the <b>chance
+line</b>; {{fact:al.chance.k8}} at $k = 8$, {{fact:al.chance.k64}} at $k = 64$). $k \in \{${{fact:al.k_grid}}$\}$.</li>
+<li><b>Diffusion-kernel distance</b> $h_t(A,B) = 1 - \langle A_t, B_t\rangle_F / (\|A_t\|_F \|B_t\|_F)$ with
+$A_t = M_A^t - \mathbf{1}\mathbf{1}^\top/N$, over the whole spectrum: no cut; each mode is weighted by
+$\lambda^t$. $t \in \{${{fact:al.t_grid}}$\}$.</li>
+<li><b>Eigenvalue-only distance</b> $s_k = \|\lambda_{1..k}(A) - \lambda_{1..k}(B)\|_2/\sqrt{k}$. It
+<b>ignores the eigenvectors</b>: two operators with the same spectrum and unrelated eigenfunctions are at
+distance zero.</li>
+<li><b>CKA distance (baseline)</b> $1 - \mathrm{CKA}$ of the two centred cosine Grams. It is a standard
+representation-similarity measure, shown for comparison; it is not an output of this construction.</li>
+</ul>
+
+<p id="cuts"><b>Cut diagnostics.</b> A leading-$k$ span is only well defined when the cut between modes $k$ and $k+1$
+separates eigenvalues. For every snapshot the operator was rebuilt on two overlapping two-thirds subsets of the
+images (no labels used), and $\mathrm{span}_k$ is the smallest $\cos^2$ principal angle between the two rebuilds'
+leading-$k$ spans on the shared images (as in the explorer's stability check). A cut is <b>unresolved</b> for a pair of
+snapshots when $\mathrm{span}_k &lt; 0.5$, or is missing, in either snapshot. At an unresolved cut, $d_k$ depends on how
+the near-equal modes happen to be split; it says how sensitive the comparison is, not how the two sites differ.
+The <b>stability horizon</b> of a snapshot is the largest $k$ with $\mathrm{span}_k \ge 0.5$.</p>
+
+<aside class="callout" id="read-unresolved">
+<p class="callout-title">How unresolved cuts are drawn</p>
+<p>In every projector-distance heat map, a cell whose cut is unresolved is <b>hatched and faded</b>; in line charts,
+an unresolved point is a <b>hollow circle</b> (resolved points are filled). Hover any cell or point for the eigenvalue
+gap $\lambda_k - \lambda_{k+1}$ and $\mathrm{span}_k$ of both snapshots. The other distances have no cut and are
+drawn plainly.</p>
+</aside>
+
+<p id="missing"><b>Missing snapshots.</b> Under kernel rule 1, {{fact:al.missing.rule1.snapshots}} snapshots have
+no operator: the per-image perplexity calibration could not reach its target on these collapsed early-training
+snapshots ({{fact:al.missing.rule1.list}}). They are drawn as
+missing (white, crossed) and every comparison that needs them is left out of the rule-1 summaries:
+{{fact:al.missing.rule1.comparisons}} of {{fact:al.missing.rule1.comparisons_of}} cross-network comparisons.
+{{fact:al.subset_failures_note}}</p>
+
+<p><b>Replicates and floors.</b> The replicate is the training seed. The <b>seed floor</b> of a site is the distance
+between that site in the two seeds of the same depth, at the same checkpoint and kernel rule. A difference between
+sites or between depths is read against it. Comparisons across depth have four seed pairings, shown as individual
+values, not averaged.</p>
+
+<p id="shared-draws"><b>Shared initial draws.</b> Networks of different depth trained with the <i>same</i> seed draw
+the initial weights of the stem and the first blocks identically (same random generator, same construction order), so
+at early checkpoints their stems and first blocks are partly the same function. Every cross-depth summary in this appendix
+(the values in captions, the tables' first lines, the default selections) therefore uses the two <b>different-seed
+pairings</b>; the two same-seed pairings are still shown, labelled "same seed: shared initial draws".</p>
+
+<h2 id="within">Within one network</h2>
+
+<h3 id="w1">Site against site at one checkpoint</h3>
+
+<figure class="fig wide live" data-live="al-w1" id="fig-w1">
+<figcaption><b>Plotted:</b> distance between the operators of site $i$ (row) and site $j$ (column) of one network at
+one checkpoint; colour from 0 (light) to the largest shipped value of the chosen distance (dark; 1 for $d_k$). Lines
+mark the stage boundaries. Projector distance: hatched cells have an unresolved cut, and the dot beside each site
+label is filled when that site's own cut $k \mid k+1$ is resolved. Controls: network, checkpoint, distance and its $k$
+or $t$, kernel rule. <b>Values</b> (ResNet-20 seed 0, step {{fact:al.final_step}}, rule 0, $d_9$): largest
+adjacent-site distance {{fact:al.w1.r20s0.rule0.proj_k9.largest_jump_value}} ({{fact:al.w1.r20s0.rule0.proj_k9.largest_jump}}),
+second {{fact:al.w1.r20s0.rule0.proj_k9.second_jump_value}} ({{fact:al.w1.r20s0.rule0.proj_k9.second_jump}}), median
+adjacent {{fact:al.w1.r20s0.rule0.proj_k9.adjacent_median}}.</figcaption>
+</figure>
+
+<aside class="callout" id="w1-reading"><p class="callout-title">Reading</p>
+<p>Default rule, final checkpoint, $k=9$. ResNet-20's sites form one smooth band, not separate groups: the distance grows steadily with separation in depth, from 0.11–0.34 between neighbouring sites to about 0.9 between the stem and the logits. The one large jump is b9 → pool (0.48); pool and logits carry nearly the same operator (0.02–0.05). Neighbouring sites are <b>no farther apart than two training seeds at the same site</b> (seed floor 0.10–0.35 at $k=9$); only b9 → pool clearly exceeds its floor (0.48 against 0.11–0.16). The diffusion-kernel distance at $t=16$ shows the same picture with smaller numbers.</p></aside>
+
+<h3 id="w2">One site over training</h3>
+
+<figure class="fig wide live" data-live="al-w2" id="fig-w2">
+<figcaption><b>Plotted:</b> left, for every site of one network, the distance between its operator at each checkpoint
+and at the final checkpoint (x: training step, symmetric-log scale so that step 0 shows); one line per site, light
+(stem) to dark (logits); grey band: the range of the seed floor at the final checkpoint over sites (for $d_k$, over the
+sites whose cut is resolved in both seeds). Right, for one
+chosen site, the checkpoint × checkpoint distance matrix. Projector distance: hollow circles and hatched cells are
+unresolved cuts. <b>Values</b> (ResNet-20 seed 0, rule 0, $d_9$): earliest checkpoint from which each site stays
+within its final-checkpoint seed floor: {{fact:al.w2.r20s0.rule0.proj_k9.settled}}.</figcaption>
+</figure>
+
+<aside class="callout" id="w2-reading"><p class="callout-title">Reading</p>
+<p>Default rule, $k=9$, ResNet-20 seed 0. Every site approaches its final operator monotonically: distance to the final checkpoint is 0.71–0.96 at initialization, 0.32–0.53 at step 1,024, 0.18–0.37 at step 2,560 and 0.13–0.21 at step 25,600, which is the level of the seed floor. At initialization the early sites are already closer to their final form (stem 0.71) than the late ones (logits 0.95, chance 0.995). No site finishes clearly ahead of the others. Many cuts at $k=9$ are unresolved in the early checkpoints, so read these as sensitivity values; the diffusion-kernel distance ($t=16$) gives the same ordering without a cut.</p></aside>
+
+<h3 id="w3">Does the cut matter?</h3>
+
+<figure class="fig wide live" data-live="al-w3" id="fig-w3">
+<figcaption><b>Plotted:</b> projector distance $d_k$ between adjacent sites ($i$, $i+1$) of one network at one
+checkpoint against $k$ (log scale); one line per adjacent pair, light (stem–b1) to dark (pool–logits); filled circles
+are resolved cuts and hollow circles unresolved ones. Grey band: the range of the seed floor $d_k$ over the sites whose cut is resolved
+in both seeds, with its median dashed; where no site's floor cut is resolved there is no band and the median, taken
+over all sites, is drawn hollow; thin grey line: the chance line $1 - k/(N-1)$; vertical dotted lines: the median and the range of the
+sites' stability horizons. <b>Values</b> (rule 0, step {{fact:al.final_step}}): stability horizon of ResNet-20 seed 0,
+median {{fact:al.w3.r20s0.rule0.horizon_median}} (range {{fact:al.w3.r20s0.rule0.horizon_range}}); smallest $k$ at which
+more than half of the adjacent pairs have an unresolved cut: {{fact:al.w3.r20s0.rule0.k_most_unresolved}}.</figcaption>
+</figure>
+
+<aside class="callout" id="w3-reading"><p class="callout-title">Reading</p>
+<p>The cut matters for what can be trusted more than for what is seen. Across all six networks at the final checkpoint, the cut is reproducible in 86–100% of snapshots for $k\le 4$, 73% at $k=5$, about half for $k=6$–$9$, 23% at $k=10$ and almost never beyond $k=14$. The exception is pool and logits, where $k=8$–$10$ is reproducible (nine class contrasts) while $k=2$–$3$ is not. Distances rise with $k$ for neighbouring sites and for the seed floor alike (ResNet-20 neighbours: 0.01–0.18 at $k=1$, 0.25–0.68 at $k=64$; seed floor 0.04–0.19 and 0.40–0.69), so a larger $k$ adds mostly non-reproducible directions and does not separate sites better.</p></aside>
+
+<h3 id="w4">Do the distances order pairs the same way?</h3>
+
+<figure class="fig wide live" data-live="al-w4" id="fig-w4">
+<figcaption><b>Plotted:</b> Spearman rank correlation between two distances, taken over a fixed set of snapshot
+pairs; rows and columns: $d_k$ for every $k$, $h_t$ for every $t$, the eigenvalue-only $s_k$ for every $k$ and the CKA
+baseline; colour from −1 (blue) through 0 (grey) to 1 (red). Pair sets: <i>within</i>, every pair of distinct
+snapshots of one network that share a checkpoint or a site (the pairs of the two figures above; all six networks,
+{{fact:al.w4.within.rule0.n_pairs}} pairs); <i>across</i>, every site pair of two networks with different seeds at
+the final checkpoint (the nine such network pairs, including the two seeds of each depth; {{fact:al.w4.cross.rule0.n_pairs}}
+pairs). <b>Values</b> (within, rule 0): $d_1$
+vs $d_{64}$ {{fact:al.w4.within.rule0.proj_k1.proj_k64}}, $d_9$ vs $d_{64}$ {{fact:al.w4.within.rule0.proj_k9.proj_k64}},
+smallest among the $d_k$ {{fact:al.w4.within.rule0.proj_min}}, $d_9$ vs CKA {{fact:al.w4.within.rule0.proj_k9.cka}},
+$h_{16}$ vs CKA {{fact:al.w4.within.rule0.heat_t16.cka}}.</figcaption>
+</figure>
+
+<aside class="callout" id="w4-reading"><p class="callout-title">Reading</p>
+<p>Within networks at the final checkpoint, the projector distances order pairs of sites almost identically for every $k$ (Spearman $\ge 0.83$ between any two cuts; 0.93 between $k=3$ and $k=32$). The diffusion-kernel distance interpolates between them: $t=256$ agrees with $k=1$ (1.00), $t=16$ with $k=9$ (0.99), $t=4$ with $k=64$ (0.99). The baseline (CKA on the centred-cosine Grams) agrees with all of them at 0.86–0.97. The eigenvalue-only distance is the outlier (0.45–0.57 with the projector distances): the spectrum alone does not carry the ordering.</p></aside>
+
+<h2 id="across">Across depth</h2>
+
+<p>For two networks at one checkpoint and one distance, $D$ is the site × site matrix of distances. Three things are
+read off it.</p>
+
+<ul>
+<li><b>DTW path.</b> A monotone path from (stem, stem) to (logits, logits) with steps (1,0), (0,1) and (1,1), minimizing
+the weighted sum of $D$ along it (diagonal steps count twice, the start once). The reported <b>cost</b> is that minimum
+divided by $L_A + L_B - 1$, the total weight of every such path, so the optimized and the reported quantity agree and
+no path length is favoured. DTW forces the match to be monotone; on a matrix with no structure every path ties.</li>
+<li><b>Unconstrained matches.</b> For each site of $A$ its nearest site of $B$ (row argmin), and the reverse (column
+argmin). The <b>inversion fraction</b> is the share of site pairs whose matches come in the opposite order: it says
+whether monotonicity is found in $D$ or only imposed by DTW.</li>
+<li><b>Architectural reference.</b> Block $j$ of stage $s$ in $A$ ($n_A$ blocks per stage) is paired with block
+$\lceil j\,n_B/n_A \rceil$ of stage $s$ in $B$; stem, pool and logits with themselves. Reported: the mean gap in
+relative depth between the DTW path and this reference (stage coordinate $s - 1 + j/n$, so a match in another stage
+counts as a large gap), and whether the path passes through the three stage ends.</li>
+</ul>
+
+<p id="nulls"><b>References.</b> A DTW cost is read against: the <b>permutation null</b>, the optimum recomputed after
+randomly permuting the residual-block sites of $B$ (stem, pool and logits fixed; {{fact:al.n_perm}} permutations);
+the <b>constant-matrix reference</b>, the cost of any path on a matrix whose every entry is the mean of $D$; the
+<b>seed floors</b>, the DTW cost between the two seeds of each depth at the same checkpoint; and the <b>untrained
+reference</b>, the same comparison at checkpoint 0, so that a correspondence that the architecture produces before any
+training is not attributed to learning. Same-depth cross-seed pairs, where the expected match is the diagonal, are
+included as pairs of their own.</p>
+
+<h3 id="c1">The site × site matrix of two networks</h3>
+
+<figure class="fig wide live" data-live="al-c1" id="fig-c1">
+<figcaption><b>Plotted:</b> distance $D_{ij}$ between site $i$ of network $A$ (columns) and site $j$ of network $B$
+(rows), colour as above. Orange line: the DTW path. Black diamonds: the architectural reference. Open circles:
+for each site of $A$, its nearest site of $B$ (row argmin). Crosses: for each site of $B$, its nearest site of $A$
+(column argmin). Grey lines: stage boundaries. A same-seed pair of different depth is marked "shared initial
+draws" above the matrix. Hatched cells: unresolved cut (projector distance). Controls: the two
+networks (any pair, including the two seeds of one depth), checkpoint (including checkpoint 0 and, where available,
+iso-accuracy), distance and its $k$ or $t$, kernel rule. The line under the matrix gives the cost, the null, the
+floors and the reference gap of the comparison shown.</figcaption>
+</figure>
+
+<aside class="callout" id="c1-reading"><p class="callout-title">Reading</p>
+<p>Final checkpoint, default rule, $k=9$, ResNet-20 seed 1 against ResNet-56 seed 0. DTW maps ResNet-20's stem to ResNet-56's stem–b5, b1 to b6, b2 to b7–b8, b3 to b9–b14, b4 to b15–b16, b5 to b17, b6 to b18, b7 to b19–b21, b8 to b21–b26, b9 to b27, and pool and logits to themselves. The path passes through all three stage ends (b3↔b9, b6↔b18, b9↔b27), and the unconstrained best matches are already monotone (no inversions), so the ordering is found by the distances and not imposed by DTW. Inside a stage the match is not proportional: ResNet-56's first blocks of stage 2 (b10–b14) still resemble ResNet-20's last block of stage 1 more than its first block of stage 2. For two seeds of the same depth the path stays near the diagonal.</p></aside>
+
+<h3 id="c2">Summary for every distance</h3>
+
+<figure class="fig wide live" data-live="al-c2" id="fig-c2">
+<figcaption><b>Plotted:</b> one row per distance; in each cell, one value per seed pairing, in the order given above
+the table: different-seed pairings on the first line, same-seed pairings (shared initial draws) on a second, grey line. Gap: mean relative-depth gap between the DTW path and the architectural reference. Stage ends: how many of
+the three stage ends the path passes through. Cost: normalized DTW cost. Seed floor: DTW cost between the two seeds of
+the depth of $A$, and of $B$. Null: 5th percentile of the permutation null, and the fraction of null draws with a
+cost at or below the observed one. Constant: the constant-matrix reference. Inversions: inversion fraction of the row
+argmins. Unresolved: share of the DTW path whose cut is unresolved (projector distance only). Controls: depth pair,
+checkpoint, kernel rule, rows. <b>Values</b> (ResNet-20 against ResNet-56, step {{fact:al.final_step}}, rule 0, $d_9$,
+different-seed pairings {{fact:al.c2.20-56.final.rule0.proj_k9.pairings}}): gap {{fact:al.c2.20-56.final.rule0.proj_k9.gap}};
+cost {{fact:al.c2.20-56.final.rule0.proj_k9.cost}}; null 5th percentile {{fact:al.c2.20-56.final.rule0.proj_k9.null05}};
+seed floors {{fact:al.c2.20-56.final.rule0.proj_k9.floor_a}} (ResNet-20) and {{fact:al.c2.20-56.final.rule0.proj_k9.floor_b}}
+(ResNet-56). At checkpoint 0: cost {{fact:al.c2.20-56.init.rule0.proj_k9.cost}}, null 5th percentile
+{{fact:al.c2.20-56.init.rule0.proj_k9.null05}}; same-seed pairings at checkpoint 0 ({{fact:al.c2.20-56.init.sameseed.rule0.proj_k9.pairings}}):
+cost {{fact:al.c2.20-56.init.sameseed.rule0.proj_k9.cost}}, null 5th percentile {{fact:al.c2.20-56.init.sameseed.rule0.proj_k9.null05}}.</figcaption>
+</figure>
+
+<aside class="callout" id="c2-reading"><p class="callout-title">Reading</p>
+<p>Final checkpoint, different-seed pairings, default rule. With the projector distance at $k=9$ the matched cost is 0.19–0.22 across depth, against 0.18 for two seeds of the same depth and 0.30–0.38 for permuted blocks: <b>networks of different depth align about as well as two seeds of one depth</b>. About three quarters of the matched path at $k=9$ crosses a cut that is unresolved in one of the two snapshots; at $k=3$, where cuts are mostly resolved, the costs are 0.10–0.14 across depth and 0.10 across seeds, and with the cut-free diffusion kernel ($t=16$) 0.10–0.12 and 0.09–0.11. Every eigenvector-based distance recovers the stage ends with no inversions; the gap from the architectural reference is 0.07–0.09 stage units for same-depth pairs, about 0.10 for 20 against 32 and 0.20–0.27 for 20 against 56. Separation from the permutation null is best at small cuts (cost/null 0.36–0.48 at $k=3$, 0.53–0.62 at $k=9$, 0.72–0.82 at $k=32$) and for the diffusion kernel at $t=16$ (0.42–0.57); the CKA baseline does as well (0.44–0.58). The eigenvalue-only distance shows inversions (up to 0.25) and misses stage ends; $t=1$ barely separates from the null. At checkpoint 0 no distance beats the null for different-seed pairings.</p></aside>
+
+<h3 id="c3">Along the matched path</h3>
+
+<figure class="fig wide live" data-live="al-c3" id="fig-c3">
+<figcaption><b>Plotted:</b> top, the distance $D_{ij}$ at each point $(i, j)$ of the DTW path (solid) and the seed
+floor at the same point (dashed: mean of $A$'s floor at site $i$ and $B$'s floor at site $j$), against relative depth
+(mean of $i/(L_A-1)$ and $j/(L_B-1)$); one colour per seed pairing (different-seed pairings by default; the same-seed
+pairings, which share initial draws, on request). Bottom, their ratio (log scale; grey line at 1).
+Projector distance: hollow circles are unresolved cuts, in the pair itself or, for the floor and the ratio, in any of the
+four snapshots the floor uses. Controls: depth pair, checkpoint, distance, kernel rule.
+<b>Values</b> (ResNet-20 seed 0 against ResNet-56 seed 1, step {{fact:al.final_step}}, rule 0, $d_9$): over the
+{{fact:al.c3.r20s0-r56s1.rule0.proj_k9.n_points}} path points whose cut is resolved in the pair and in its floor, largest
+ratio {{fact:al.c3.r20s0-r56s1.rule0.proj_k9.max_ratio}} at {{fact:al.c3.r20s0-r56s1.rule0.proj_k9.max_at}}, median ratio
+{{fact:al.c3.r20s0-r56s1.rule0.proj_k9.median_ratio}}.</figcaption>
+</figure>
+
+<aside class="callout" id="c3-reading"><p class="callout-title">Reading</p>
+<p>Along the matched path between ResNet-20 (seed 1) and ResNet-56 (seed 0), $d_9$ is 0.19–0.30 through stage 1, 0.20–0.26 in stage 2, 0.12–0.18 in stage 3 and 0.10 at pool and logits. The seed floors at the same sites are 0.10–0.35 (ResNet-20) and 0.09–0.32 (ResNet-56), so there is no depth at which the two networks differ clearly more than two seeds do. The largest matched distances (0.32, 0.39 where ResNet-56's b25–b26 meet ResNet-20's b8) sit where ResNet-56's own seed floor is also highest (0.29–0.31).</p></aside>
+
+<h3 id="c4">Over training</h3>
+
+<figure class="fig wide live" data-live="al-c4" id="fig-c4">
+<figcaption><b>Plotted:</b> the DTW summary of one depth pair at each of the eight checkpoints (x: training step,
+symmetric-log scale); one colour per seed pairing, solid for different seeds and dashed for the same seed (shared
+initial draws). Panels: normalized DTW cost with the 5th to 95th percentile of each
+different-seed pairing's permutation null (grey) and the two depths' seed-floor costs (dashed); relative-depth gap from the
+architectural reference; inversion fraction of the row argmins; for the projector distance, the share of the path with
+an unresolved cut. Controls: depth pair, distance, kernel rule. <b>Values</b> (ResNet-20 against ResNet-56, rule 0,
+$d_9$): earliest checkpoint from which the cost is below the null's 5th percentile in both different-seed pairings
+({{fact:al.c4.20-56.rule0.proj_k9.pairings}}): {{fact:al.c4.20-56.rule0.proj_k9.below_null_from}}; in both same-seed
+pairings: {{fact:al.c4.20-56.sameseed.rule0.proj_k9.below_null_from}}.</figcaption>
+</figure>
+
+<aside class="callout" id="c4-reading"><p class="callout-title">Reading</p>
+<p>Different-seed pairings, $k=9$. The matched cost equals the permutation null at steps 0, 64 and 256 (ratio 0.95–1.04), is just below it at step 1,024 (0.91–0.96 for 20 or 32 against 56), and then separates: 0.71–0.82 at step 2,560, 0.64–0.72 at 6,400, 0.59–0.63 at 25,600 and 0.53–0.57 at the end. The gap from the architectural reference falls in step with it (above 0.7 stage units before step 1,024, 0.26–0.32 at 2,560, 0.19–0.27 at the end). <b>The correspondence between depths is learned during training</b>; the architecture alone does not produce it at initialization. Same-seed pairings of different depth share their initial draws for the stem and early blocks and are not a clean reference at early steps (for example cost 0.43 against 0.72 for the two ResNet-20/ResNet-56 pairings at step 0).</p></aside>
+
+<h2 id="modes">Which modes, and which images</h2>
+
+<p>The scalar distances say how far apart two snapshots are, not which eigenfunctions are kept, mixed or reordered,
+or which images move. For {{fact:al.vec_cells}} snapshots (every network at step {{fact:al.final_step}} and ResNet-20
+seed 0 at every checkpoint; kernel rule 0) the leading 64 eigenfunctions are shipped (16-bit; $d_k$ recomputed from
+them differs from the full-precision value by at most {{fact:al.int16_dk_max_error}}), and the figure below computes
+in your browser:</p>
+<ul>
+<li>the <b>mode-overlap matrix</b> $G = U_{64}(A)^\top U_{64}(B)$, shown as $G^2$ (the sign of an eigenfunction is
+arbitrary);</li>
+<li>the <b>cumulative block overlap</b> $\|G_{[:i,:j]}\|_F^2 / \min(i, j)$, the share of the smaller of the two
+leading spans captured by the other (on the diagonal, $1 - d_i$);</li>
+<li>the <b>principal angles</b> between the two leading-$k$ spans, as $\cos^2$ (rotation-invariant);</li>
+<li>the <b>per-image discrepancy</b> $\delta_i = [(P_k(A) - P_k(B))^2]_{ii}$, which sums to $2k\,d_k$, averaged by
+class (labels colour and group only) and the images with the largest $\delta_i$.</li>
+</ul>
+
+<aside class="callout caveat" id="single-mode">
+<p>Entries of $G$ for single modes are meaningful only at <b>isolated, reproducible eigenvalues</b>. Inside a group of
+near-equal eigenvalues the eigenfunctions can rotate freely among themselves, so $G$ can look mixed while the spans
+agree. Read the cumulative overlap and the principal angles there; the marks along the axes show where the cuts are
+unresolved.</p>
+</aside>
+
+<figure class="fig wide live" data-live="al-c5" id="fig-c5">
+<figcaption><b>Plotted:</b> for two chosen snapshots $A$ (rows) and $B$ (columns), kernel rule 0: $G^2$ for modes
+1–64; the cumulative block overlap; the $k$ values of $\cos^2$ of the principal angles between the leading-$k$ spans,
+largest first; and, at the chosen $k$, the mean of $\delta_i$ per CIFAR class with the images of largest $\delta_i$.
+Ticks along the axes of the two matrices mark modes $m$ whose cut $m \mid m+1$ is unresolved in that snapshot. The line
+under the controls compares $d_k$ recomputed from the shipped eigenfunctions with the stored all-pairs value.</figcaption>
+</figure>
+
+<aside class="callout" id="c5-reading"><p class="callout-title">Reading</p>
+<p>Final checkpoint, ResNet-20 seed 1 b6 against ResNet-56 seed 0 b18 (matched by DTW): modes 1–6 correspond nearly one-to-one (squared overlaps 0.96, 0.92, 0.84, 0.87, 0.79, 0.66), modes 7–9 are mixed among themselves, and the leading nine modes of one network lie 68–96% inside the leading nine of the other, with almost nothing (under 0.1) from modes 10–12; the principal angles give $\cos^2$ 0.97 down to 0.67. Two seeds of ResNet-20 at b6 look the same (0.96 to 0.78). At the logits the nine-dimensional span is shared ($\cos^2$ 0.96–0.79 across depth, the same as across seeds) but single modes are not: only mode 1 keeps its index, because the eigenvalues inside the span are close together. Earlier in the network less is shared (ResNet-20 b2 against ResNet-56 b8: modes 1–4 at 0.57–0.90, then little). The per-image discrepancy is spread over images and classes and not carried by a few images (the 200 most-moved images hold 23–38% of it).</p></aside>
+
+<h2 id="iso">Iso-accuracy (secondary)</h2>
+
+<p>Deeper networks reach a given test accuracy at a different step. As a secondary comparison, ResNet-20 at its final
+checkpoint is also compared with each deeper network at the earliest saved checkpoint whose test accuracy is at least
+ResNet-20's final accuracy (same seed), accepted only if it overshoots that target by at most 0.5 points. This choice is
+<b>conditioned on an outcome and uses test labels</b>: it is a validation analysis, not part of the label-free
+construction, and the iso-step comparisons above are primary.</p>
+
+<div class="table-scroll"><table class="data">
+<tr><th>network</th><th class="num">target (ResNet-20 final, same seed)</th><th class="num">earliest step at or above</th><th class="num">its accuracy</th><th class="num">overshoot</th><th>status</th></tr>
+<tr><td>ResNet-32 seed 0</td><td class="num">{{fact:al.iso.r32s0.target}}</td><td class="num">{{fact:al.iso.r32s0.step}}</td><td class="num">{{fact:al.iso.r32s0.accuracy}}</td><td class="num">{{fact:al.iso.r32s0.overshoot}}</td><td>{{fact:al.iso.r32s0.reason}}</td></tr>
+<tr><td>ResNet-32 seed 1</td><td class="num">{{fact:al.iso.r32s1.target}}</td><td class="num">{{fact:al.iso.r32s1.step}}</td><td class="num">{{fact:al.iso.r32s1.accuracy}}</td><td class="num">{{fact:al.iso.r32s1.overshoot}}</td><td>{{fact:al.iso.r32s1.reason}}</td></tr>
+<tr><td>ResNet-56 seed 0</td><td class="num">{{fact:al.iso.r56s0.target}}</td><td class="num">{{fact:al.iso.r56s0.step}}</td><td class="num">{{fact:al.iso.r56s0.accuracy}}</td><td class="num">{{fact:al.iso.r56s0.overshoot}}</td><td>{{fact:al.iso.r56s0.reason}}</td></tr>
+<tr><td>ResNet-56 seed 1</td><td class="num">{{fact:al.iso.r56s1.target}}</td><td class="num">{{fact:al.iso.r56s1.step}}</td><td class="num">{{fact:al.iso.r56s1.accuracy}}</td><td class="num">{{fact:al.iso.r56s1.overshoot}}</td><td>{{fact:al.iso.r56s1.reason}}</td></tr>
+</table></div>
+
+<p>Where a network's checkpoint is not accepted, its iso-accuracy comparison is not made: the tolerance was fixed
+before the run and is not relaxed afterwards. In the figures, choose "iso-accuracy" as the checkpoint of a ResNet-20 /
+deeper pair; it is offered only for pairs with an accepted checkpoint. With a single accepted deeper network there is
+no seed floor at iso-accuracy for that depth (it would need the other seed at its own accepted checkpoint).</p>
+
+<h2 id="al-defs">Definitions used in this appendix</h2>
+
+<details class="more"><summary>Floors, summaries and pair sets</summary>
+<ul>
+<li><b>Seed floor of one side of a comparison</b>: the same-depth cross-seed comparison at the same checkpoint. For a
+deeper network at its iso-accuracy checkpoint, the other seed at that seed's iso-accuracy checkpoint; for ResNet-20 in
+an iso-accuracy comparison, the other seed at the final checkpoint.</li>
+<li><b>Settled</b> (values under the training figure): the earliest checkpoint from which on the distance to the same
+site at the final checkpoint stays at or below that site's seed floor at the final checkpoint. For $d_k$ it is given only
+when the cut is resolved in the floor and at every checkpoint from then on; otherwise the step of the latest unresolved
+cut is named.</li>
+<li><b>Floor along the path</b> (C3): the mean of $A$'s floor at site $i$ and $B$'s floor at site $j$.</li>
+<li><b>Below the null from</b> (C4 values): the earliest checkpoint from which on the DTW cost is below the 5th
+percentile of the permutation null in every seed pairing.</li>
+<li><b>Pair sets of the rank correlations</b>: as in the caption of the rank-correlation figure.</li>
+<li><b>Data shipped to this page</b>: of the all-pairs distance tensors, only the blocks the figures draw (each
+network's site × site matrices at each checkpoint, each site's checkpoint × checkpoint matrix, and the site × site
+matrices of every pair of networks at each checkpoint and at iso-accuracy), 16-bit, fetched per distance; the
+eigenfunctions are fetched per snapshot. {{fact:al.site_mb}} MB in all, of which {{fact:al.site_vectors_mb}} MB are
+eigenfunctions. Probe images: {{fact:al.probe_match}}.</li>
+</ul>
+</details>

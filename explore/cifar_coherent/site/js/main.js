@@ -1,5 +1,8 @@
 // Page shell: hash router, maths, gifs, side notes, heading anchors, lazy live figures.
-const TABS = ["overview", "explorer", "findings", "measurements", "method"];
+const TABS = ["overview", "primer", "explorer", "findings", "method", "appendices",
+              "measurements", "baselines", "method-details", "alignment"];
+// Appendix panels: reached from the "Appendices" tab, which stays highlighted while one of them is open.
+const APPENDICES = ["measurements", "baselines", "method-details", "alignment"];
 const TAB_ALIAS = { questions: "measurements" };          // old tab names (the site is published)
 // Old #<tab>/<id> whose section moved. Applied only when <id> is no longer in <tab>, so an old URL keeps
 // working while the content is being moved; a target id that does not exist (yet) lands on its tab's top.
@@ -7,12 +10,13 @@ const ANCHOR_ALIAS = {
   "overview/treated-alike": "overview/procedure",
   "overview/blocks": "overview/step-3",
   "overview/through-training": "overview/step-3",
-  "overview/hankel": "method/avgprod",
+  "overview/hankel": "method-details/avgprod",
   "overview/kernel": "method/kernel",
   "overview/reading": "method/reading",
   "overview/panels": "method/reading",   // the loadings section was removed
-  "overview/limits": "method/checks",
-  "method/limits": "method/checks",
+  "overview/limits": "findings/next-checks",
+  "method/limits": "findings/next-checks",
+  "method/checks": "findings/next-checks",
   "method/glossary-cell": "method/glossary-snapshot",                       // "cell" became "snapshot"
   "method/glossary-single-cell-block": "method/glossary-single-snapshot-block",
 };
@@ -35,6 +39,8 @@ function resolveHash() {
     return { tab: t || "overview", anchor: t ? document.getElementById(tab) : null, query: new URLSearchParams(qs.slice(1)), canon: null };
   }
   if (id && !inTab(tab, id) && ANCHOR_ALIAS[`${tab}/${id}`]) { [tab, id] = ANCHOR_ALIAS[`${tab}/${id}`].split("/"); moved = true; }
+  // a section moved to another tab (e.g. Method -> Appendix C, 2026-11-19): follow its id
+  if (id && !inTab(tab, id)) { const t = findTabOf(id); if (t && TABS.includes(t)) { tab = t; moved = true; } }
   const anchor = inTab(tab, id);
   return { tab, anchor, query: new URLSearchParams(qs.slice(1)), canon: moved ? `#${tab}${id ? "/" + id : ""}${qs}` : null };
 }
@@ -47,7 +53,9 @@ async function route() {
   current = tab;
   document.body.dataset.tab = tab;
   document.querySelectorAll(".tab-panel").forEach(p => p.hidden = p.dataset.tab !== tab);
-  document.querySelectorAll(".tablist a").forEach(a => a.setAttribute("aria-selected", String(a.dataset.tab === tab)));
+  const shown = APPENDICES.includes(tab) ? "appendices" : tab;
+  document.querySelectorAll(".tablist a").forEach(a => a.setAttribute("aria-selected", String(a.dataset.tab === shown)));
+  document.querySelectorAll(".appx-nav a").forEach(a => a.setAttribute("aria-current", a.dataset.tab === tab ? "page" : "false"));
   if (tab === "explorer") {
     if (!explorer) {
       const { Explorer } = await import("./explorer.js");
@@ -60,7 +68,20 @@ async function route() {
   if (anchor) requestAnimationFrame(() => anchor.scrollIntoView({ block: "start" }));
   else if (changed || tab !== "explorer") window.scrollTo(0, 0);   // no anchor, or an unknown one: the tab's top
   observeLive();
+  requestAnimationFrame(markScrolls);
 }
+
+// tables wider than their box get a "scroll sideways" cue (css .table-scroll.scrolls; as in explore/ncs_report)
+function markScrolls() {
+  document.querySelectorAll(".tab-panel:not([hidden]) .table-scroll, .tab-panel:not([hidden]) .bn-fig").forEach(d => {
+    d.classList.add("table-scroll"); d.classList.toggle("scrolls", d.scrollWidth > d.clientWidth + 2); });
+}
+window.addEventListener("resize", markScrolls);
+let scrollsQueued = false;
+new MutationObserver(() => {
+  if (scrollsQueued || document.body.dataset.tab === "explorer") return;
+  scrollsQueued = true; requestAnimationFrame(() => { scrollsQueued = false; markScrolls(); });
+}).observe(document.body, { childList: true, subtree: true });
 
 window.addEventListener("hashchange", route);
 document.addEventListener("click", e => {

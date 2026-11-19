@@ -2,6 +2,7 @@
 import * as D from "./data.js";
 import { Palette, divLUT, seqLUT, qDiv, qSeq, hexRgb } from "./colors.js";
 import { h, el, showTip, hideTip, tipRows, lineChart, scale, niceTicks, fmtStep } from "./charts.js";
+import * as SR from "./sources.js";
 
 const $ = id => document.getElementById(id);
 const DIM = "#e7e6e1";
@@ -37,6 +38,8 @@ export async function prepare(ctx, st) {
   }
 }
 const fmt = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : "n/a";
+// fixed decimals without a "-0.00"
+const nz = d => v => { if (!Number.isFinite(v)) return "n/a"; const t = v.toFixed(d); return /^-0\.?0*$/.test(t) ? t.slice(1) : t; };
 const pct = v => Number.isFinite(v) ? (100 * v).toFixed(0) + "%" : "n/a";
 
 // ------------------------------------------------------------------------------------------- shared context
@@ -115,7 +118,14 @@ export function colouring(ctx, st, blk) {
   const hashOrder = (() => { const o = Uint16Array.from({ length: N }, (_, i) => i); const k = new Float64Array(N); for (let i = 0; i < N; i++) k[i] = Math.sin(i * 12.9898) * 43758.5453 % 1; return o.sort((a, b) => k[a] - k[b]); })();
   let out;
   const c = st.color;
-  if (c === "seba") {
+  if (c === "seba" && st._S) {
+    // sets from another source (js/sources.js): hard labels, colours matched to the method's sets
+    const S = st._S, k = S.k, ci = new Uint8Array(N), key = new Float64Array(N);
+    for (let i = 0; i < N; i++) { const l = S.lab[i]; ci[i] = l < 0 ? k : l; key[i] = l < 0 ? -1 : S.key ? S.key[i] : 0; }
+    const cols = (S.classes ? pal.classes.slice() : [...Array(k)].map((_, j) => pal.set(j))).concat([pal.unassigned]);
+    const order = S.key ? orderBy(key) : Uint16Array.from(hashOrder).sort((a, b) => (ci[a] === k ? 0 : 1) - (ci[b] === k ? 0 : 1));
+    out = { ...same(ci, order), cols, groups: { ids: ci, n: k + 1, names: S.names.concat(["unassigned"]), unassigned: k, classes: S.classes, src: S.id } };
+  } else if (c === "seba") {
     const ri = m.seba_r.indexOf(st.r), r = st.r, lab = blk.lab.subarray(ri * N, (ri + 1) * N);
     const vecs = D.sebaVectors(m, blk, ri);
     const ci = new Uint8Array(N), key = new Float64Array(N);
@@ -270,8 +280,9 @@ export class Explorer {
     const { m, T, S } = ctx;
     this.st = {
       fam: "layer", anchor: T - 1, a: 0, b: S - 1, mode: m.default_mode, color: "seba", k: 1, r: m.seba_r.includes(4) ? 4 : m.seba_r[0],
-      kind: "set", focus: null, j: null, at: "own", lay: 0, ps: 1.6, cmp: null, tap: "end", op: "avg",
+      kind: "set", focus: null, j: null, at: "own", lay: 0, ps: 1.6, cmp: null, tap: "end", op: "avg", src: "M0",
     };
+    this.srcIdx = await D.srcIndex().catch(() => null);   // baselines study (build_site.py --baselines); null if absent
     this.coords = { 0: toCoords(ctx.layouts[0]) };
     this.cur = this.coords[0];
     this.hover = -1; this.lensCell = [T - 1, S - 1];
@@ -320,6 +331,7 @@ export class Explorer {
     for (const [k, d] of Object.entries(IMGSTATS)) og.append(new Option(d.label, "px:" + k));
     $("ex-color").append(og);
     $("ex-color").addEventListener("change", e => this.setColor(e.target.value));
+    this.buildSources();
     $("ex-k").addEventListener("change", e => {
       if (this.st.kind === "psi") this.st.k = +e.target.value; else { this.st.r = +e.target.value; this.st.j = null; }
       if (BLOCK_KINDS.has(this.st.color) || this.st.color === "seba") this.st.focus = null;
@@ -337,6 +349,29 @@ export class Explorer {
     $("ex-dev").addEventListener("change", e => { this.setDev(e.target.checked, true); this.update(); });
     this.buildGuide();
   }
+  // "Sets from": the colour sources of the baselines study, grouped by kind, with status tags
+  buildSources() {
+    const sel = $("ex-src");
+    if (!this.srcIdx) { $("ex-src-ctl").hidden = true; return; }
+    let og = null;
+    for (const s of SR.SOURCES) {
+      if (!og || og.label !== s.group) { og = document.createElement("optgroup"); og.label = s.group; sel.append(og); }
+      const o = new Option(`${s.label} · ${s.status}`, s.id); o.dataset.base = o.textContent; o.title = s.def; og.append(o);
+    }
+    sel.addEventListener("change", e => this.setSource(e.target.value));
+    const btn = $("ex-src-btn"), help = $("ex-src-help");
+    const setHelp = open => { btn.setAttribute("aria-expanded", String(open)); help.hidden = !open; };
+    btn.addEventListener("click", () => setHelp(btn.getAttribute("aria-expanded") !== "true"));
+    document.addEventListener("keydown", e => { if (e.key === "Escape") setHelp(false); });
+    document.addEventListener("pointerdown", e => { if (!help.hidden && !e.target.closest("#ex-src-help, #ex-src-btn")) setHelp(false); });
+  }
+  setSource(id) {
+    const st = this.st;
+    st.src = id; st.focus = null;
+    if (id !== "M0") { st.color = "seba"; st.kind = "set"; st.j = null; }
+    this.update();
+  }
+  srcAvail() { return SR.availability(this.srcIdx, this.st, isProd(this.st)); }
   // dev-only state: anything a plain view cannot show (used to switch dev mode on for shared links and tours)
   needsDev() {
     const st = this.st, m = this.ctx.m, L = m.layouts[st.lay] || {};
@@ -388,6 +423,7 @@ export class Explorer {
   setColor(c) {
     const st = this.st;
     st.color = c; st.focus = null;
+    if (c !== "seba") st.src = "M0";      // other sources give sets only
     if (c === "seba") st.kind = "set";
     if (c === "nodal" || c === "eig") st.kind = "psi";
     if (c === "seba" && st.j != null) st.focus = st.j;
@@ -425,6 +461,13 @@ export class Explorer {
     this.segs.forEach(s => s._sync());
     $("ex-mode").value = st.mode;
     $("ex-color").value = st.color;
+    if (this.srcIdx) {
+      const av = this.srcAvail(), sel = $("ex-src");
+      sel.querySelectorAll("option").forEach(o => { const why = av[o.value]; o.disabled = !!why; o.textContent = o.dataset.base + (why ? ` (n/a: ${why})` : ""); });
+      sel.value = st.src;
+      $("ex-src-note").hidden = st.mode === this.srcIdx.kernel_rule && !isProd(st);
+      $("ex-src-note").textContent = st.mode !== this.srcIdx.kernel_rule ? `Other sources: kernel rule ${this.ctx.m.modes[this.srcIdx.kernel_rule]} only` : "Other sources: average operator only";
+    }
     const anc = $("ex-anchor"), a = $("ex-a"), b = $("ex-b");
     const key = st.fam + T + S;
     if (anc._key !== key) {
@@ -624,7 +667,12 @@ export class Explorer {
     if (pts.loss) rows.push({ name: "loss", value: fmt(pts.loss[tt * N + i], 3) });
     const blk = this.blk;
     if (blk) {
-      if (st.kind === "set") {
+      if (st.kind === "set" && st._S) {
+        const S = st._S, l = S.lab[i];
+        rows.push({ name: `${SR.SRC[S.id].label}${S.classes ? "" : ` (r = ${st.r})`}`, value: l < 0 ? "unassigned" : S.names[l], color: l < 0 ? this.ctx.pal.unassigned : S.classes ? this.ctx.pal.classes[l] : this.ctx.pal.set(l) });
+        const l0 = blk.lab[m.seba_r.indexOf(st.r) * N + i];
+        rows.push({ name: `the method (r = ${st.r})`, value: l0 < 0 ? "unassigned" : `set ${l0 + 1}`, color: l0 < 0 ? this.ctx.pal.unassigned : this.ctx.pal.set(l0) });
+      } else if (st.kind === "set") {
         const ri = m.seba_r.indexOf(st.r), l = blk.lab[ri * N + i], v = D.sebaVectors(m, blk, ri);
         rows.push({ name: `SEBA (r = ${st.r})`, value: l < 0 ? "unassigned" : `set ${l + 1} (${fmt(v[l][i])})`, color: l < 0 ? this.ctx.pal.unassigned : this.ctx.pal.set(l) });
       } else {
@@ -652,9 +700,18 @@ export class Explorer {
       $("ex-status").textContent = "loading image statistics…";
       try { await prepare(ctx, st); } catch (e) { $("ex-status").textContent = "image statistics unavailable"; console.error(e); return; }
     }
+    let S = null, srcMsg = "";
+    if (st.src !== "M0") {
+      const why = this.srcAvail()[st.src];
+      if (why) { srcMsg = `Sets from: "${SR.SRC[st.src].label}" is ${why}; showing the method instead.`; st.src = "M0"; this.syncControls(); this.writeHash(); }
+      else {
+        try { S = await SR.load(ctx, st, st.src, blk.lab.subarray(ctx.m.seba_r.indexOf(st.r) * ctx.N, (ctx.m.seba_r.indexOf(st.r) + 1) * ctx.N)); }
+        catch (e) { console.error(e); srcMsg = "this source failed to load; showing the method"; st.src = "M0"; this.syncControls(); this.writeHash(); }
+      }
+    }
     if (token !== this._tok) return;
-    this.blk = blk;
-    $("ex-status").textContent = "";
+    this.blk = blk; st._S = S;
+    $("ex-status").textContent = srcMsg;
     $("ex-side").style.opacity = 1;
     this.col = colouring(ctx, st, blk);
     this.renderAll();
@@ -679,6 +736,7 @@ export class Explorer {
     if (st.color in DIAG || st.color === "correct") p.set("at", st.at);
     if (st.lay) p.set("lay", st.lay);
     if (isProd(st)) p.set("op", st.op);
+    if (st.src && st.src !== "M0") p.set("src", st.src);
     let hsh = "#explorer?" + p.toString();
     if (this.tour) {
       if (this.tour.base == null) this.tour.base = hsh;     // the first state written after the tour was applied
@@ -710,7 +768,10 @@ export class Explorer {
     if (p.has("k")) { st.k = int("k", 1, m.n_vecs) ?? st.k; if (!BLOCK_KINDS.has(st.color)) st.kind = "psi"; }
     if (p.has("r")) { const r = int("r", 1, 99); if (m.seba_r.includes(r)) st.r = r; if (!BLOCK_KINDS.has(st.color)) st.kind = "set"; }
     st.cmp = null;
+    st.src = SR.SRC[p.get("src")] && this.srcIdx ? p.get("src") : "M0";
+    if (st.src !== "M0") { st.color = "seba"; st.kind = "set"; }
     st.j = int("j", 0, 15); st.focus = st.color === "seba" ? st.j : null;
+    if (st.src !== "M0") st.j = null;
     if (p.get("at") === "final" || p.get("at") === "own") st.at = p.get("at");
     const lay = int("lay", 0, m.layouts.length - 1) ?? 0; if (lay < m.layouts.length && lay !== st.lay) this.setLayout(lay);
     if (!this.dev && this.needsDev()) this.setDev(true, false);   // a link into an extra option opens the extras
@@ -870,7 +931,10 @@ export class Explorer {
       correct: "Correct / wrong", loss: "Loss", jac: "Input-Jacobian norm", gcos: "Gradient alignment (cosine)", gdot: "Gradient alignment (dot product)" };
     const pxk = isPx(st.color) ? st.color.slice(3) : null, pxLab = pxk && (this.ctx.imgstats?.labels[pxk] || IMGSTATS[pxk]?.label || pxk);
     $("leg-title").textContent = pxk ? `Image statistic: ${pxLab}` : titles[st.color];
-    if (col.groups && st.color === "seba") {
+    if (st._S && st.color === "seba") {
+      $("leg-title").textContent = `Sets from: ${SR.SRC[st._S.id].label}`;
+      this.renderSourceLegend(body);
+    } else if (col.groups && st.color === "seba") {
       body.append(h("div", { class: "leg-note", text: "Set sizes, class make-up and images: the first card of this panel." }));
       this.renderJaccard();
     } else if (col.groups) {
@@ -913,6 +977,16 @@ export class Explorer {
     }
   }
 
+  renderSourceLegend(body) {
+    const S = this.st._S, src = SR.SRC[S.id], a = S.agree, f2 = nz(2), f3 = nz(3);
+    const tags = src.status.split("+").map(t => `${t}: ${SR.STATUS[t.replace(/[^A-Z]/g, "")]}`).join(" · ");
+    body.append(h("div", { class: "leg-note", text: `Status ${src.status}. ${tags}.` }));
+    if (a && a.cls && Number.isFinite(a.cls.ami))
+      $("leg-jac").append(h("div", { class: "jrow" }, h("span", { text: "This source against the classes: AMI (jointly assigned)" }), h("span", {}, h("span", { class: "jv", text: f2(a.cls.ami) }), h("span", { class: "jnull", text: `  permutation 95th pct ${f3(a.cls.q95)}` }))),
+        h("div", { class: "jrow" }, h("span", { text: "matched Jaccard with the classes" }), h("span", {}, h("span", { class: "jv", text: f2(a.cls.mj) }), h("span", { class: "jnull", text: `  permutation mean ${f2(a.cls.mjNull)}` }))));
+    const more = h("div", { class: "leg-note" }); more.innerHTML = `Definitions, the table of what each null keeps and destroys, and charts over all blocks: <a href="#baselines">Baselines and nulls</a>.`;
+    body.append(more);
+  }
   async renderJaccard() {
     const st = this.st, ctx = this.ctx, { m, labels, N } = ctx, box = $("leg-jac");
     const ri = m.seba_r.indexOf(st.r), A = this.blk.lab.subarray(ri * N, (ri + 1) * N);
@@ -992,6 +1066,7 @@ export class Explorer {
       body.append(h("div", { class: "card-note", text: "Images with the largest and smallest entries of the block's eigenfunction (computed at full precision). Hover an image to ring it in every panel." }));
       return;
     }
+    if (st._S) return this.renderSourceImages(body, strip, compBar);
     const r = st.r, lab = blk.lab.subarray(tg.ri * N, (tg.ri + 1) * N);
     const cnt = [...Array(r + 1)].map(() => new Array(10).fill(0)), size = new Array(r + 1).fill(0);
     for (let i = 0; i < N; i++) { const g = lab[i] < 0 ? r : lab[i]; size[g]++; cnt[g][labels[i]]++; }
@@ -1027,6 +1102,49 @@ export class Explorer {
     body.append(key, h("div", { class: "card-note", text: "Bars: CIFAR class make-up of each set (validation only: labels describe the sets and play no part in finding them). Thumbnails: each set's members with the highest SEBA value. Click a set for more of its images and its boundary; hover an image to ring it in every panel." }));
   }
 
+  // first card for a source other than the method: agreement with the method, then sizes, class make-up and images
+  renderSourceImages(body, strip, compBar) {
+    const st = this.st, S = st._S, { m, pal, labels, N } = this.ctx, src = SR.SRC[S.id], k = S.k;
+    $("img-title").textContent = `Sets from: ${src.label} (${src.status})${S.classes ? "" : `, r = ${st.r}`}`;
+    body.append(h("div", { class: "card-note src-def-top", text: src.def }));
+    const cnt = [...Array(k + 1)].map(() => new Array(10).fill(0)), size = new Array(k + 1).fill(0);
+    for (let i = 0; i < N; i++) { const g = S.lab[i] < 0 ? k : S.lab[i]; size[g]++; cnt[g][labels[i]]++; }
+    for (let j = 0; j <= k; j++) {
+      if (j === k && !size[k]) continue;
+      const un = j === k, on = st.focus === j, dim = st.focus != null && !on;
+      const col = un ? pal.unassigned : S.classes ? pal.classes[j] : pal.set(j);
+      const head = h("div", { class: "set-head", role: "button", tabindex: 0, title: "Click to isolate this set in every panel" },
+        h("span", { class: "sw", style: { background: col } }), h("span", { class: "set-name", text: un ? "unassigned" : S.names[j] }),
+        h("span", { class: "n", text: size[j].toLocaleString("en") }), compBar(cnt[j], size[j] || 1));
+      const pick = () => { st.focus = st.focus === j ? null : j; this.col = colouring(this.ctx, st, this.blk); this.renderAll(); };
+      head.addEventListener("click", pick);
+      head.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+      head.addEventListener("pointerenter", () => { if (st.focus != null) return; st.focus = j; this.col = colouring(this.ctx, st, this.blk); this.draw(); this.drawLens(); st.focus = null; });
+      head.addEventListener("pointerleave", () => { if (st.focus != null) return; this.col = colouring(this.ctx, st, this.blk); this.draw(); this.drawLens(); });
+      const row = h("div", { class: "set-row" + (on ? " on" : "") + (dim ? " dim" : "") }, head);
+      if (!un && size[j]) row.append(strip(S.reps ? S.reps(j) : SR.shuffledMembers(S.lab, j, 2024 + 31 * j), on ? 2 : 1));
+      body.append(row);
+    }
+    const key = h("div", { class: "class-key" });
+    m.classes.forEach((c, q) => key.append(h("span", {}, h("i", { style: { background: pal.classes[q] } }), c)));
+    body.append(key, h("div", { class: "card-note", text: (S.classes ? "Each set is one class; bars show its class make-up." : "Colours: each set takes the colour of the method's set it overlaps most (Hungarian matching on Jaccard, this block and r); display only. Bars: CIFAR class make-up (validation only).") +
+      (S.reps ? " Thumbnails: each set's members with the highest SEBA value." : " Thumbnails: members in a fixed pseudo-random order (this source stores hard labels only, no membership values).") + " Click a set to isolate it in every panel." }));
+    body.append(this.agreementBox(S));
+  }
+  agreementBox(S) {
+    const st = this.st, src = SR.SRC[S.id], a = S.agree, f3 = nz(3), f2 = nz(2);
+    const box = h("div", { class: "src-agree" });
+    if (!a) { box.append(h("div", { class: "card-note", text: "No agreement row stored for this source and block." })); return box; }
+    const nB = this.srcIdx.files[`${st.fam}/${st.anchor}`]?.P;
+    const what = S.id === "Y1" ? "overlap of the default construction's sets with the classes" : "overlap with the default construction's sets (same block, r = " + st.r + ")";
+    box.append(h("div", { class: "src-agree-head", text: what.charAt(0).toUpperCase() + what.slice(1) }));
+    const line = (label, v, extra) => h("div", { class: "src-agree-row" }, h("span", { class: "k", text: label }), h("span", { class: "v", text: v }), h("span", { class: "x", text: extra }));
+    box.append(line("AMI, jointly assigned images", f2(a.ami), `coverage ${f2(a.cov)} · permutation 95th pct ${f3(a.q95)}` + (Number.isFinite(a.max95) ? ` · reference from shuffled labels, scanning the ${nB} blocks at this ${st.fam === "layer" ? "checkpoint" : "site"} (95th pct of the largest): ${f3(a.max95)}` : "")));
+    box.append(line("matched Jaccard", f2(a.mj), `permutation mean ${f2(a.mjNull)}` + (Number.isFinite(a.mjMax95) ? ` · shuffled labels scanned over the ${nB} blocks (95th pct of the largest): ${f2(a.mjMax95)}` : "")));
+    box.append(h("div", { class: "card-note", text: "AMI (adjusted mutual information) is about 0 when two partitions share no more than chance and 1 when they are the same; coverage is the share of images both assign. Matched Jaccard runs from 0 to 1 (1 = the same sets). These say how much two partitions coincide; neither a high nor a low value is better." }));
+    box.append(h("div", { class: "card-note", text: `Permutation: the source's labels shuffled ${a.nperm.toLocaleString("en")} times, set sizes kept${a.rep ? "; computed by the site build for this stored null draw (no scanned-blocks reference: one block)" : S.id === "Y2" ? "; computed by the site build" : ""}. The 95th percentile is for this block alone; when you compare many blocks, use the scanned-blocks reference. Kernel rule ${this.ctx.m.modes[this.srcIdx.kernel_rule]}, average operator.` }));
+    return box;
+  }
   renderRetention() {
     const st = this.st, { m, pal } = this.ctx, blk = this.blk, tg = this.target(), X = blk.X, R = m.seba_r.length;
     const xs = [...Array(X).keys()], names = st.fam === "layer" ? m.sites : m.steps.map(fmtStep);
@@ -1049,8 +1167,9 @@ export class Explorer {
       yfmt: v => v.toFixed(2), ml: 36, xname: st.fam === "layer" ? "site" : "step",
       refline: tg.kind !== "psi" ? null : prod ? { y: Math.pow(blk.vals[tg.k], 1 / (st.b - st.a + 1)), label: `σ${tg.k}^(1/${st.b - st.a + 1}) (geometric-mean gain)` } : { y: blk.vals[tg.k], label: `λ${tg.k} (block mean)` },
     });
+    if (st._S) $("ret-note").dataset.src = "1"; else delete $("ret-note").dataset.src;
     $("ret-title").innerHTML = `${prod ? "Step gain g<sub>c</sub> and retention ρ<sub>c</sub>" : "Retention ρ<sub>c</sub>"}(${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : tg.j == null ? "SEBA vectors" : `SEBA vector ${tg.j + 1}`}) in every snapshot`;
-    $("ret-note").innerHTML = (prod ? `Solid: step gain g<sub>c</sub> = |C<sub>c</sub>w<sub>c−1</sub>| / |w<sub>c−1</sub>|, where w is f (constant removed) pushed through the block's snapshots in order (${st.op === "start" ? "first to last" : "last to first, the adjoint direction"}); defined inside the block only, and the gains multiply to σ exactly for ψ. A dip marks the snapshot that erases the function. Dashed: ` : ``) + `ρ<sub>c</sub>(f) = f<sup>T</sup>M<sub>c</sub>f / f<sup>T</sup>f for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}, with f = ${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : "each SEBA vector (colours as the sets)"}; the block's snapshots are shaded. ${prod ? "" : tg.kind === "psi" ? `λ<sub>${tg.k}</sub> (dashed) is the mean of ρ<sub>c</sub> over the shaded snapshots: an <b>average</b>, not a value in every snapshot.` : "The spectrum is an <b>average</b> of retention over the shaded snapshots, not a value in every snapshot."}`;
+    $("ret-note").innerHTML = (prod ? `Solid: step gain g<sub>c</sub> = |C<sub>c</sub>w<sub>c−1</sub>| / |w<sub>c−1</sub>|, where w is f (constant removed) pushed through the block's snapshots in order (${st.op === "start" ? "first to last" : "last to first, the adjoint direction"}); defined inside the block only, and the gains multiply to σ exactly for ψ. A dip marks the snapshot that erases the function. Dashed: ` : ``) + `ρ<sub>c</sub>(f) = f<sup>T</sup>M<sub>c</sub>f / f<sup>T</sup>f for every ${st.fam === "layer" ? "site at this checkpoint" : "checkpoint at this site"}, with f = ${tg.kind === "psi" ? `ψ<sub>${tg.k}</sub>` : "each SEBA vector (colours as the sets)"}; the block's snapshots are shaded. ${prod ? "" : tg.kind === "psi" ? `λ<sub>${tg.k}</sub> (dashed) is the mean of ρ<sub>c</sub> over the shaded snapshots: an <b>average</b>, not a value in every snapshot.` : "The spectrum is an <b>average</b> of retention over the shaded snapshots, not a value in every snapshot."}` + (st._S ? ` <b>Shown for the method's SEBA vectors</b>, not for "${SR.SRC[st._S.id].label}" (that source stores hard labels only).` : "");
   }
 
   renderStats() {
@@ -1115,7 +1234,7 @@ export function captionParts(ctx, st, col) {
   const focus = col && col.groups && st.focus != null && st.focus < col.groups.n ? ` Only ${col.groups.names[st.focus]} is coloured; the rest are light grey.` : "";
   const at = st.at === "final" ? `at the final checkpoint (${step(T - 1)}) in every row` : "at each row's own checkpoint";
   const side = st.kind === "psi" ? `side panel: ψ${st.k}` : `side panel: r = ${st.r} coherent sets`;
-  const colour = {
+  let colour = {
     seba: `coherent sets, r = ${st.r}. Each image's hard label is the largest of the ${st.r} SEBA vectors from ψ0..ψ${st.r - 1} of the block operator ${opM}; grey = unassigned (no positive entry); ${fromBlk}points drawn in order of membership value, largest on top.`,
     eig: `ψ${st.k} / max|ψ${st.k}|, where ψ${st.k} is ${isProd(st) ? `the ${st.op === "start" ? "right" : "left"} singular vector of the ordered product Q for σ${st.k}, singular values in decreasing order from σ0 = 1 (the constant)` : `the eigenfunction of the block operator M̄ for λ${st.k}, eigenvalues in decreasing order from λ0 = 1 (the constant)`}; diverging scale, sign fixed so the largest-magnitude entry is positive; ${fromBlk}largest |ψ| on top.`,
     nodal: `sign of ψ${st.k} of the block operator ${opM} (ψ${st.k} > 0, < 0, = 0); ${fromBlk}largest |ψ| on top.`,
@@ -1126,6 +1245,12 @@ export function captionParts(ctx, st, col) {
     gcos: `cosine between the image's loss gradient (all parameters) and the mean gradient over the probe images, ${at}. The block sets only the side panel (${side}).`,
     gdot: `dot product of the image's loss gradient with the mean gradient, ${at}. The block sets only the side panel (${side}).`,
   }[st.color] || (isPx(st.color) ? `image statistic ${ctx.imgstats?.labels[st.color.slice(3)] || IMGSTATS[st.color.slice(3)]?.label || st.color.slice(3)}: ${pxDef(st.color.slice(3))} The same per-image value in every panel (a property of the probe image, not of the network). The block sets only the side panel (${side}).` : st.color);
+  if (st._S && st.color === "seba") {
+    const S = st._S, src = SR.SRC[S.id];
+    colour = `hard sets from "${src.label}" (status ${src.status}; ${S.classes ? "10 sets" : `r = ${st.r} sets`}): ${src.def} ` +
+      (S.classes ? "Class colours." : "Each set takes the colour of the method's set of this block it overlaps most (Hungarian matching on Jaccard; display only).") +
+      ` Grey = unassigned. Painted on every panel. Kernel rule ${m.modes[0]}, average operator.`;
+  }
   const L = m.layouts[st.lay] || {};
   const lay = !st.lay ? "UMAP of each snapshot (AlignedUMAP across sites, Procrustes across checkpoints)"
     : L.kind === "spectral" ? `UMAP of each snapshot's diffusion coordinates λ_kψ_k, k = 1..${L.n_coords}, from that snapshot's own walk under the ${m.modes[L.mode]} rule, whatever rule colours the points (AlignedUMAP across sites, Procrustes across checkpoints)`

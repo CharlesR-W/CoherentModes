@@ -1,0 +1,319 @@
+<!-- Primer, part A: motivation. Faithful to overview.html "Where this comes from", sections 1-4. -->
+
+<h2 id="primer-question">The question</h2>
+
+<figure class="fig wide">
+<svg viewBox="0 0 1000 350" role="img" aria-label="Images pass through the network; at one layer each image becomes a point in activation space, and nearby points are inputs the network treats alike." style="width:100%;height:auto">
+<defs><marker id="pa-ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--mute)"/></marker></defs>
+<rect x="40" y="40" width="70" height="70" rx="6" fill="var(--c-set-0)" fill-opacity=".22" stroke="var(--c-set-0)" stroke-width="2"/>
+<circle cx="75" cy="70" r="14" fill="var(--c-set-0)" fill-opacity=".7"/><rect x="52" y="90" width="46" height="8" rx="3" fill="var(--c-set-0)" fill-opacity=".5"/>
+<rect x="40" y="135" width="70" height="70" rx="6" fill="var(--c-set-0)" fill-opacity=".22" stroke="var(--c-set-0)" stroke-width="2"/>
+<circle cx="75" cy="165" r="14" fill="var(--c-set-0)" fill-opacity=".7"/><rect x="52" y="185" width="46" height="8" rx="3" fill="var(--c-set-0)" fill-opacity=".5"/>
+<rect x="40" y="230" width="70" height="70" rx="6" fill="var(--c-set-1)" fill-opacity=".22" stroke="var(--c-set-1)" stroke-width="2"/>
+<circle cx="75" cy="260" r="14" fill="var(--c-set-1)" fill-opacity=".7"/><rect x="52" y="280" width="46" height="8" rx="3" fill="var(--c-set-1)" fill-opacity=".5"/>
+<text x="75" y="330" font-family="Inter, sans-serif" font-size="17" fill="var(--mute)" text-anchor="middle">input images</text>
+<line x1="125" y1="175" x2="180" y2="175" stroke="var(--mute)" stroke-width="2.5" marker-end="url(#pa-ar1)"/>
+<rect x="200" y="70" width="30" height="210" rx="5" fill="var(--line)" fill-opacity="0.6" stroke="var(--mute)" stroke-width="1.2"/>
+<line x1="230" y1="175" x2="250" y2="175" stroke="var(--mute)" stroke-width="1.5"/>
+<rect x="250" y="70" width="30" height="210" rx="5" fill="var(--line)" fill-opacity="0.6" stroke="var(--mute)" stroke-width="1.2"/>
+<line x1="280" y1="175" x2="300" y2="175" stroke="var(--mute)" stroke-width="1.5"/>
+<rect x="300" y="70" width="30" height="210" rx="5" fill="var(--line)" fill-opacity="0.6" stroke="var(--mute)" stroke-width="1.2"/>
+<line x1="330" y1="175" x2="350" y2="175" stroke="var(--mute)" stroke-width="1.5"/>
+<rect x="350" y="70" width="30" height="210" rx="5" fill="var(--c-set-2)" fill-opacity="0.35" stroke="var(--c-set-2)" stroke-width="3"/>
+<line x1="380" y1="175" x2="400" y2="175" stroke="var(--mute)" stroke-width="1.5"/>
+<rect x="400" y="70" width="30" height="210" rx="5" fill="var(--line)" fill-opacity="0.6" stroke="var(--mute)" stroke-width="1.2"/>
+<line x1="430" y1="175" x2="450" y2="175" stroke="var(--mute)" stroke-width="1.5"/>
+<rect x="450" y="70" width="30" height="210" rx="5" fill="var(--line)" fill-opacity="0.6" stroke="var(--mute)" stroke-width="1.2"/>
+<text x="340" y="55" font-family="Inter, sans-serif" font-size="17" fill="var(--mute)" text-anchor="middle">network (ResNet-20)</text>
+<text x="365" y="310" font-family="Inter, sans-serif" font-size="18" fill="var(--fg)" text-anchor="middle" font-weight="600">layer ℓ</text>
+<text x="340" y="336" font-family="Inter, sans-serif" font-size="16" fill="var(--mute)" text-anchor="middle">…at one checkpoint in training</text>
+<line x1="385" y1="100" x2="590" y2="60" stroke="var(--c-set-2)" stroke-width="1.5" stroke-dasharray="5 4"/>
+<line x1="385" y1="250" x2="590" y2="320" stroke="var(--c-set-2)" stroke-width="1.5" stroke-dasharray="5 4"/>
+<rect x="590" y="40" width="390" height="290" rx="10" fill="var(--c-set-2)" fill-opacity=".05" stroke="var(--c-set-2)" stroke-width="2"/>
+<text x="785" y="30" font-family="Inter, sans-serif" font-size="17" fill="var(--fg)" text-anchor="middle">activations at layer ℓ: one point per image</text>
+<circle cx="692" cy="168" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="670" cy="162" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="684" cy="134" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="732" cy="143" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="689" cy="156" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="715" cy="139" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="703" cy="119" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="682" cy="130" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="661" cy="107" r="6" fill="var(--c-set-0)" fill-opacity=".85"/>
+<circle cx="834" cy="245" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="866" cy="243" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="872" cy="221" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="868" cy="255" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="887" cy="231" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="861" cy="206" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="859" cy="202" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="839" cy="274" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="822" cy="268" r="6" fill="var(--c-set-1)" fill-opacity=".85"/>
+<circle cx="867" cy="104" r="6" fill="var(--mute)" fill-opacity=".85"/>
+<circle cx="869" cy="121" r="6" fill="var(--mute)" fill-opacity=".85"/>
+<circle cx="881" cy="105" r="6" fill="var(--mute)" fill-opacity=".85"/>
+<circle cx="848" cy="98" r="6" fill="var(--mute)" fill-opacity=".85"/>
+<circle cx="840" cy="109" r="6" fill="var(--mute)" fill-opacity=".85"/>
+<circle cx="844" cy="131" r="6" fill="var(--mute)" fill-opacity=".85"/>
+<ellipse cx="690" cy="140" rx="70" ry="60" fill="none" stroke="var(--c-set-0)" stroke-width="2.5" stroke-dasharray="6 4"/>
+<text x="690" y="232" font-family="Inter, sans-serif" font-size="17" fill="var(--fg)" text-anchor="middle">close together =</text>
+<text x="690" y="254" font-family="Inter, sans-serif" font-size="17" fill="var(--fg)" text-anchor="middle" font-weight="600">treated alike</text>
+</svg>
+<figcaption>Run images through the network and stop at one layer, at one checkpoint. Each image is now a point in that layer's activation space.</figcaption>
+</figure>
+
+<p><strong>Which inputs does a network treat the same, at which layer, and since when in training?</strong> I ask this without labels: only the network's own activations go in.</p>
+
+<h2 id="primer-cells">Activation cells</h2>
+
+<figure class="fig wide">
+<svg viewBox="0 0 1000 410" role="img" aria-label="Left: activation space tiled into Voronoi-like cells, with a dashed interpolation path crossing one boundary. Right: the rest of the network's output along that path is flat inside each cell and jumps at the boundary." style="width:100%;height:auto">
+<defs><marker id="pa-ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--fg)"/></marker></defs>
+<polygon points="20,20 220,20 180,170 20,180" fill="var(--c-set-0)" fill-opacity=".13" stroke="var(--fg)" stroke-width="2.2" stroke-linejoin="round"/>
+<circle cx="116" cy="122" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="124" cy="123" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="137" cy="127" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="123" cy="77" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="137" cy="125" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="141" cy="102" r="5.5" fill="var(--c-set-0)"/>
+<polygon points="220,20 400,20 460,150 330,200 180,170" fill="var(--c-set-1)" fill-opacity=".13" stroke="var(--fg)" stroke-width="2.2" stroke-linejoin="round"/>
+<circle cx="334" cy="95" r="5.5" fill="var(--c-set-1)"/>
+<circle cx="343" cy="116" r="5.5" fill="var(--c-set-1)"/>
+<circle cx="302" cy="86" r="5.5" fill="var(--c-set-1)"/>
+<circle cx="345" cy="141" r="5.5" fill="var(--c-set-1)"/>
+<circle cx="287" cy="130" r="5.5" fill="var(--c-set-1)"/>
+<circle cx="311" cy="91" r="5.5" fill="var(--c-set-1)"/>
+<polygon points="400,20 580,20 580,190 460,150" fill="var(--c-set-2)" fill-opacity=".13" stroke="var(--fg)" stroke-width="2.2" stroke-linejoin="round"/>
+<circle cx="489" cy="111" r="5.5" fill="var(--c-set-2)"/>
+<circle cx="533" cy="68" r="5.5" fill="var(--c-set-2)"/>
+<circle cx="514" cy="68" r="5.5" fill="var(--c-set-2)"/>
+<circle cx="522" cy="85" r="5.5" fill="var(--c-set-2)"/>
+<circle cx="534" cy="124" r="5.5" fill="var(--c-set-2)"/>
+<circle cx="505" cy="125" r="5.5" fill="var(--c-set-2)"/>
+<polygon points="20,180 180,170 330,200 250,370 20,370" fill="var(--c-set-3)" fill-opacity=".13" stroke="var(--fg)" stroke-width="2.2" stroke-linejoin="round"/>
+<circle cx="146" cy="233" r="5.5" fill="var(--c-set-3)"/>
+<circle cx="168" cy="230" r="5.5" fill="var(--c-set-3)"/>
+<circle cx="137" cy="252" r="5.5" fill="var(--c-set-3)"/>
+<circle cx="168" cy="237" r="5.5" fill="var(--c-set-3)"/>
+<circle cx="125" cy="280" r="5.5" fill="var(--c-set-3)"/>
+<circle cx="146" cy="286" r="5.5" fill="var(--c-set-3)"/>
+<polygon points="330,200 460,150 580,190 580,370 250,370" fill="var(--c-set-0)" fill-opacity=".13" stroke="var(--fg)" stroke-width="2.2" stroke-linejoin="round"/>
+<circle cx="470" cy="249" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="437" cy="257" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="451" cy="262" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="445" cy="263" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="473" cy="256" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="435" cy="269" r="5.5" fill="var(--c-set-0)"/>
+<circle cx="120" cy="300" r="8" fill="var(--c-set-3)" stroke="var(--fg)" stroke-width="2"/>
+<circle cx="480" cy="300" r="8" fill="var(--c-set-0)" stroke="var(--fg)" stroke-width="2"/>
+<line x1="128" y1="300" x2="470" y2="300" stroke="var(--fg)" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#pa-ar2)"/>
+<circle cx="283" cy="300" r="7" fill="none" stroke="var(--c-neg)" stroke-width="3"/>
+<text x="300" y="395" font-family="Inter, sans-serif" font-size="17" fill="var(--mute)" text-anchor="middle">motivating cartoon, not measured cells in this model</text>
+<line x1="650" y1="320" x2="970" y2="320" stroke="var(--mute)" stroke-width="1.5"/>
+<line x1="650" y1="320" x2="650" y2="60" stroke="var(--mute)" stroke-width="1.5"/>
+<polyline points="650,250 658,251 666,251 674,252 682,252 690,253 698,253 706,253 714,253 722,253 730,252 738,252 746,251 754,251 762,250 770,249 778,249 786,248 794,248" fill="none" stroke="var(--c-set-3)" stroke-width="4"/>
+<polyline points="802,107 810,107 818,107 826,107 834,107 842,108 850,108 858,109 866,109 874,110 882,111 890,111 898,112 906,112 914,113 922,113 930,113 938,113 946,113 954,112 962,112 970,111" fill="none" stroke="var(--c-set-0)" stroke-width="4"/>
+<line x1="795" y1="250" x2="795" y2="110" stroke="var(--c-neg)" stroke-width="2.5" stroke-dasharray="4 4"/>
+<text x="794.8366013071895" y="345" font-family="Inter, sans-serif" font-size="16" fill="var(--c-neg)" text-anchor="middle" font-weight="600">boundary</text>
+<text x="810.0" y="372" font-family="Inter, sans-serif" font-size="16" fill="var(--mute)" text-anchor="middle">position along the dashed path</text>
+<text x="638" y="190.0" font-family="Inter, sans-serif" font-size="16" fill="var(--mute)" text-anchor="middle" transform="rotate(-90 638 190.0)">rest of network's output</text>
+<text x="710" y="235" font-family="Inter, sans-serif" font-size="16" fill="var(--fg)" text-anchor="middle">flat</text>
+<text x="910" y="95" font-family="Inter, sans-serif" font-size="16" fill="var(--fg)" text-anchor="middle">flat</text>
+<text x="806.8366013071895" y="185" font-family="Inter, sans-serif" font-size="17" fill="var(--c-neg)" text-anchor="start" font-weight="600">jump</text>
+</svg>
+<figcaption>Interpolate between real activations and run the rest of the network: its output does not blend smoothly but stays nearly flat inside a cell and jumps at a boundary.</figcaption>
+</figure>
+
+<ul>
+<li>Stefan Heimersheim and collaborators observed that a layer's activation space behaves as if tiled into Voronoi-like <em>cells</em>.</li>
+<li>If the rest of the network computes nearly the same thing everywhere in a cell, which cell an input lands in carries most of what the rest of the network uses.</li>
+<li>At that layer the network then behaves like a machine with discrete states, which could in principle be read off.</li>
+</ul>
+
+<h2 id="primer-reframe">Find the groups, not the walls</h2>
+
+<figure class="fig wide">
+<svg viewBox="0 0 1000 430" role="img" aria-label="Left: finding a cell boundary directly means probing in every direction around every point, which is too expensive. Right: the same points joined to their nearest neighbours; links are dense within each group and few cross between groups, so the groups can be found without the boundary." style="width:100%;height:auto">
+<defs><marker id="pa-ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--mute)"/></marker><marker id="pa-ar3b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--fg)"/></marker></defs>
+<text x="235" y="30" font-family="Inter, sans-serif" font-size="20" fill="var(--fg)" text-anchor="middle" font-weight="600">Find the walls</text>
+<path d="M245,55 C285,150 205,250 250,350" fill="none" stroke="var(--fg)" stroke-width="3"/>
+<line x1="90" y1="150" x2="119" y2="158" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="90" y1="150" x2="98" y2="179" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="90" y1="150" x2="69" y2="171" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="90" y1="150" x2="61" y2="142" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="90" y1="150" x2="82" y2="121" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="90" y1="150" x2="111" y2="129" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="90" cy="150" r="7" fill="var(--c-set-0)"/>
+<line x1="130" y1="120" x2="159" y2="128" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="130" y1="120" x2="138" y2="149" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="130" y1="120" x2="109" y2="141" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="130" y1="120" x2="101" y2="112" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="130" y1="120" x2="122" y2="91" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="130" y1="120" x2="151" y2="99" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="130" cy="120" r="7" fill="var(--c-set-0)"/>
+<line x1="175" y1="165" x2="204" y2="173" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="175" y1="165" x2="183" y2="194" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="175" y1="165" x2="154" y2="186" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="175" y1="165" x2="146" y2="157" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="175" y1="165" x2="167" y2="136" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="175" y1="165" x2="196" y2="144" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="175" cy="165" r="7" fill="var(--c-set-0)"/>
+<line x1="110" y1="210" x2="139" y2="218" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="110" y1="210" x2="118" y2="239" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="110" y1="210" x2="89" y2="231" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="110" y1="210" x2="81" y2="202" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="110" y1="210" x2="102" y2="181" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="110" y1="210" x2="131" y2="189" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="110" cy="210" r="7" fill="var(--c-set-0)"/>
+<line x1="150" y1="245" x2="179" y2="253" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="150" y1="245" x2="158" y2="274" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="150" y1="245" x2="129" y2="266" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="150" y1="245" x2="121" y2="237" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="150" y1="245" x2="142" y2="216" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="150" y1="245" x2="171" y2="224" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="150" cy="245" r="7" fill="var(--c-set-0)"/>
+<line x1="80" y1="265" x2="109" y2="273" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="80" y1="265" x2="88" y2="294" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="80" y1="265" x2="59" y2="286" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="80" y1="265" x2="51" y2="257" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="80" y1="265" x2="72" y2="236" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="80" y1="265" x2="101" y2="244" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="80" cy="265" r="7" fill="var(--c-set-0)"/>
+<line x1="190" y1="225" x2="219" y2="233" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="190" y1="225" x2="198" y2="254" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="190" y1="225" x2="169" y2="246" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="190" y1="225" x2="161" y2="217" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="190" y1="225" x2="182" y2="196" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="190" y1="225" x2="211" y2="204" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="190" cy="225" r="7" fill="var(--c-set-0)"/>
+<line x1="125" y1="305" x2="154" y2="313" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="125" y1="305" x2="133" y2="334" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="125" y1="305" x2="104" y2="326" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="125" y1="305" x2="96" y2="297" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="125" y1="305" x2="117" y2="276" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="125" y1="305" x2="146" y2="284" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="125" cy="305" r="7" fill="var(--c-set-0)"/>
+<line x1="305" y1="140" x2="334" y2="148" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="305" y1="140" x2="313" y2="169" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="305" y1="140" x2="284" y2="161" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="305" y1="140" x2="276" y2="132" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="305" y1="140" x2="297" y2="111" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="305" y1="140" x2="326" y2="119" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="305" cy="140" r="7" fill="var(--c-set-1)"/>
+<line x1="355" y1="115" x2="384" y2="123" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="355" y1="115" x2="363" y2="144" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="355" y1="115" x2="334" y2="136" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="355" y1="115" x2="326" y2="107" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="355" y1="115" x2="347" y2="86" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="355" y1="115" x2="376" y2="94" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="355" cy="115" r="7" fill="var(--c-set-1)"/>
+<line x1="395" y1="170" x2="424" y2="178" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="395" y1="170" x2="403" y2="199" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="395" y1="170" x2="374" y2="191" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="395" y1="170" x2="366" y2="162" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="395" y1="170" x2="387" y2="141" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="395" y1="170" x2="416" y2="149" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="395" cy="170" r="7" fill="var(--c-set-1)"/>
+<line x1="325" y1="205" x2="354" y2="213" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="325" y1="205" x2="333" y2="234" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="325" y1="205" x2="304" y2="226" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="325" y1="205" x2="296" y2="197" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="325" y1="205" x2="317" y2="176" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="325" y1="205" x2="346" y2="184" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="325" cy="205" r="7" fill="var(--c-set-1)"/>
+<line x1="375" y1="245" x2="404" y2="253" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="375" y1="245" x2="383" y2="274" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="375" y1="245" x2="354" y2="266" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="375" y1="245" x2="346" y2="237" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="375" y1="245" x2="367" y2="216" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="375" y1="245" x2="396" y2="224" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="375" cy="245" r="7" fill="var(--c-set-1)"/>
+<line x1="300" y1="285" x2="329" y2="293" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="300" y1="285" x2="308" y2="314" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="300" y1="285" x2="279" y2="306" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="300" y1="285" x2="271" y2="277" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="300" y1="285" x2="292" y2="256" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="300" y1="285" x2="321" y2="264" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="300" cy="285" r="7" fill="var(--c-set-1)"/>
+<line x1="405" y1="290" x2="434" y2="298" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="405" y1="290" x2="413" y2="319" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="405" y1="290" x2="384" y2="311" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="405" y1="290" x2="376" y2="282" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="405" y1="290" x2="397" y2="261" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="405" y1="290" x2="426" y2="269" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="405" cy="290" r="7" fill="var(--c-set-1)"/>
+<line x1="350" y1="320" x2="379" y2="328" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="350" y1="320" x2="358" y2="349" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="350" y1="320" x2="329" y2="341" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="350" y1="320" x2="321" y2="312" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="350" y1="320" x2="342" y2="291" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<line x1="350" y1="320" x2="371" y2="299" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#pa-ar3)"/>
+<circle cx="350" cy="320" r="7" fill="var(--c-set-1)"/>
+<text x="235" y="375" font-family="Inter, sans-serif" font-size="16" fill="var(--mute)" text-anchor="middle">probe every direction, at every point, every layer</text>
+<rect x="120" y="385" width="230" height="38" rx="6" fill="var(--c-neg)" fill-opacity=".12" stroke="var(--c-neg)" stroke-width="2"/>
+<text x="235" y="411" font-family="Inter, sans-serif" font-size="19" fill="var(--c-neg)" text-anchor="middle" font-weight="600">too expensive</text>
+<line x1="465" y1="215" x2="525" y2="215" stroke="var(--fg)" stroke-width="3" marker-end="url(#pa-ar3b)"/>
+<text x="755" y="30" font-family="Inter, sans-serif" font-size="20" fill="var(--fg)" text-anchor="middle" font-weight="600">Find the groups</text>
+<line x1="610" y1="150" x2="650" y2="120" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="650" y1="120" x2="695" y2="165" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="630" y1="210" x2="670" y2="245" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="630" y1="210" x2="645" y2="305" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="610" y1="150" x2="630" y2="210" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="670" y1="245" x2="710" y2="225" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="600" y1="265" x2="645" y2="305" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="695" y1="165" x2="630" y2="210" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="610" y1="150" x2="695" y2="165" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="670" y1="245" x2="600" y2="265" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="695" y1="165" x2="710" y2="225" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="630" y1="210" x2="710" y2="225" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="650" y1="120" x2="630" y2="210" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="670" y1="245" x2="645" y2="305" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="630" y1="210" x2="600" y2="265" stroke="var(--c-set-0)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="825" y1="140" x2="875" y2="115" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="915" y1="170" x2="895" y2="245" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="875" y1="115" x2="915" y2="170" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="845" y1="205" x2="895" y2="245" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="825" y1="140" x2="845" y2="205" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="895" y1="245" x2="925" y2="290" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="820" y1="285" x2="870" y2="320" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="915" y1="170" x2="845" y2="205" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="925" y1="290" x2="870" y2="320" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="825" y1="140" x2="915" y2="170" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="895" y1="245" x2="820" y2="285" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="820" y1="285" x2="925" y2="290" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="875" y1="115" x2="845" y2="205" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="895" y1="245" x2="870" y2="320" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="845" y1="205" x2="820" y2="285" stroke="var(--c-set-1)" stroke-width="2.5" stroke-opacity=".75"/>
+<line x1="710" y1="225" x2="845" y2="205" stroke="var(--mute)" stroke-width="2" stroke-dasharray="5 5"/>
+<line x1="670" y1="245" x2="820" y2="285" stroke="var(--mute)" stroke-width="2" stroke-dasharray="5 5"/>
+<circle cx="610" cy="150" r="7" fill="var(--c-set-0)"/>
+<circle cx="650" cy="120" r="7" fill="var(--c-set-0)"/>
+<circle cx="695" cy="165" r="7" fill="var(--c-set-0)"/>
+<circle cx="630" cy="210" r="7" fill="var(--c-set-0)"/>
+<circle cx="670" cy="245" r="7" fill="var(--c-set-0)"/>
+<circle cx="600" cy="265" r="7" fill="var(--c-set-0)"/>
+<circle cx="710" cy="225" r="7" fill="var(--c-set-0)"/>
+<circle cx="645" cy="305" r="7" fill="var(--c-set-0)"/>
+<circle cx="825" cy="140" r="7" fill="var(--c-set-1)"/>
+<circle cx="875" cy="115" r="7" fill="var(--c-set-1)"/>
+<circle cx="915" cy="170" r="7" fill="var(--c-set-1)"/>
+<circle cx="845" cy="205" r="7" fill="var(--c-set-1)"/>
+<circle cx="895" cy="245" r="7" fill="var(--c-set-1)"/>
+<circle cx="820" cy="285" r="7" fill="var(--c-set-1)"/>
+<circle cx="925" cy="290" r="7" fill="var(--c-set-1)"/>
+<circle cx="870" cy="320" r="7" fill="var(--c-set-1)"/>
+<text x="755" y="375" font-family="Inter, sans-serif" font-size="16" fill="var(--mute)" text-anchor="middle">link each input to its nearest neighbours</text>
+<text x="755" y="405" font-family="Inter, sans-serif" font-size="18" fill="var(--fg)" text-anchor="middle" font-weight="600">many links inside a group, few leaving it</text>
+</svg>
+<figcaption>Left: a boundary is where the downstream computation changes, so finding it directly means Jacobians or interpolations in many directions around every point, at every layer. Right: the same inputs joined to their nearest neighbours.</figcaption>
+</figure>
+
+<ul>
+<li>Measuring boundaries directly does not scale, and the data only sample the space, so most of any boundary is never seen.</li>
+<li>Instead I ask which inputs the network treats as interchangeable. A cell is then a group of inputs that few neighbourhood links leave.</li>
+<li>Finding such groups is what spectral clustering does: one similarity matrix per layer, one forward pass per input and checkpoint, no Jacobians.</li>
+</ul>
+
+<aside class="callout key"><strong>Takeaway:</strong> instead of mapping where the network's behaviour changes, I look for groups of inputs that neighbourhood links rarely leave, at a cost that grows with the number of inputs rather than the size of the network.</aside>
+
+<aside class="callout caveat">The cell picture, and the working hypothesis that inside a cell the downstream output is close to the average over nearby inputs (a limited form of harmonic label propagation), are motivation. A first labelled test has been designed but not yet run; until it has, this is not a result.</aside>

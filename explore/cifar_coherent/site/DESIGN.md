@@ -1,8 +1,16 @@
 # Site design notes (for writers of content fragments)
 
-The site is one page with five hash-routed tabs, in this order: `#overview`, `#explorer` (the centrepiece; its tab
-is marked), `#findings`, `#measurements`, `#method`. `build_site.py <tag> [layout_tag]` assembles `site/` into
+The site is one page of hash-routed panels. The tab bar holds the **main text**: `#overview`, `#primer`, `#explorer`
+(the centrepiece; its tab is marked), `#findings`, `#method`, and `#appendices` (an index page). The **appendices** are
+their own panels, reached from that index and from a strip at the top of each (`.appx-nav`); the "Appendices" tab stays
+highlighted while one is open (`APPENDICES` in `js/main.js`): A `#measurements`, B `#baselines` (Baselines and nulls),
+C `#method-details` (kernel sweep, average versus product, layouts, per-image diagnostics, statistic and baseline definitions, reproduce), D `#alignment`
+(only with `--alignment`). `build_site.py <tag> [--layout-tag ...] [--baselines r20s0c]` assembles `site/` into
 `viewer/site/` (deploy root, `.nojekyll`).
+
+Curation rule (2026-11-19): the main text carries the argument; systematic charts and full definitions go in an
+appendix. Within an appendix section, show one or two headline charts and put the other views of the same quantity
+in `<details class="more"><summary>More views: ...</summary>` under them (live figures render when opened).
 
 ## Routing and old URLs (the site is published)
 
@@ -18,15 +26,17 @@ is marked), `#findings`, `#measurements`, `#method`. `build_site.py <tag> [layou
   |---|---|
   | `overview/treated-alike` | `overview/procedure` |
   | `overview/blocks`, `overview/through-training` | `overview/step-3` |
-  | `overview/hankel` | `method/avgprod` |
+  | `overview/hankel` | `method-details/avgprod` |
   | `overview/kernel` | `method/kernel` |
   | `overview/reading` | `method/reading` |
   | `overview/panels` | `method/reading` |
-  | `overview/limits`, `method/limits` | `method/checks` |
+  | `overview/limits`, `method/limits`, `method/checks` | `findings/next-checks` |
+  | `method/sweep`, `method/avgprod`, `method/product-blocks`, `method/questions`, `method/stat-*`, `method/baselines-*`, `method/reproduce`, `method/umap`, `method/perimage` | `method-details/<same id>` (by the generic rule below) |
   | `method/glossary-cell` | `method/glossary-snapshot` |
   | `method/glossary-single-cell-block` | `method/glossary-single-snapshot-block` |
 
-  When you move or rename a section that may have been linked, add a row here and in `ANCHOR_ALIAS`. Never reuse an
+  Generic rule: a `#<tab>/<id>` whose id now lives in another panel goes to that panel (so moving a section with its
+  id needs no alias). When you rename a section that may have been linked, add a row here and in `ANCHOR_ALIAS`. Never reuse an
   old id for something with a different meaning.
 
 ## How content is included
@@ -35,8 +45,10 @@ is marked), `#findings`, `#measurements`, `#method`. `build_site.py <tag> [layou
 |---|---|---|
 | `site/content/overview.html` | Overview tab | a placeholder paragraph |
 | `site/content/findings.html` | Findings tab | a placeholder paragraph |
-| `site/content/measurements.html` | Measurements tab (was `questions.html`) | a placeholder with the default decodability charts |
+| `site/content/measurements.html` | Appendix A, Measurements (was `questions.html`) | a placeholder with the default decodability charts |
 | `site/content/method.html` | Method tab | a placeholder paragraph |
+| `site/content/method_details.html` | Appendix C, Method details (`#method-details`) | a placeholder paragraph |
+| `site/content/baselines.html` | Appendix B, Baselines and nulls (live figures `data-live="bn-*"`, `js/baselines.js`) | a placeholder paragraph |
 | `site/content/header.json` (optional) | page header: `{"title", "subtitle", "short_title", "date", "description"?}`. The title is set large and balanced; the subtitle (e.g. "or, ...") sits under it in italics; `short_title` is the compact title in the tab bar on the other tabs; `description` is the `<meta>` description (default: title + subtitle). There is no "joke" line any more (a `joke` key is ignored). | the owner's title and subtitle, "Coherent sets in ResNet-20", today's date |
 | `site/content/tours.json` (optional) | the explorer's Tours menu (see "Tours" below) | no menu |
 
@@ -131,7 +143,9 @@ blocks); `a`, `b` = first and last site index (layer) or checkpoint index (time)
 `m` = kappa mode index; `c` = `seba` | `nodal` | `eig` | `class` | `loss` | `correct` | `jac` | `gcos` | `gdot` |
 `px:<stat>` (a per-image pixel statistic, `<stat>` one of `mean_r mean_g mean_b luminance contrast saturation bc_r
 bc_g bc_b bc_lum bc_dist hf_frac`; write `px%3Aluminance` or `px:luminance` in a link);
-`k` = eigenfunction 1..8; `r` = SEBA rank (2, 3, 4, 6, 8); `j` = focused set (0-based); `at` = `own` | `final`
+`k` = eigenfunction 1..8; `r` = SEBA rank (2, 3, 4, 6, 8); `j` = focused set (0-based); `src` = "Sets from" source
+id (`M0` default, `L1 L2 L3 G1 G1n G2 C1first C1mid C1last C2 C3 I1 I2 I3 Y1 Y2 N3 N2a N2b N4 N5`, `js/sources.js`;
+kernel rule 0 and the average operator only; an unavailable source falls back to `M0` with a status message); `at` = `own` | `final`
 (for per-image diagnostics); `lay` = `0` | `1` (which seed's UMAP lays out the points); `tour` = a tour id (below).
 
 ## The explorer
@@ -173,6 +187,24 @@ substituted. The build validates the file and fails with a message if it is malf
 `#explorer?tour=<id>`: it applies exactly the tour's parameters (others in the same URL are ignored) and shows the
 note above the grid. Link to one from prose with `<a class="explore-link" href="#explorer?tour=late-layers">`. Once
 the reader changes the view, the URL drops `tour=` and the note dims with a "back to this tour's view" button.
+
+### Sets from (baselines study)
+
+`build_site.py ... --baselines r20s0c` runs `site/baselines.py`: per-block chunks `d/src/<fam>/<anchor>/<pair>.bin.gz`
+(nibble-packed labels of the stored sources, then f32 agreement rows; layout in `d/src/index.json`), `d/src/i1.bin`,
+`d/src/rep/<id>.bin` (stored null draws of the representative blocks) and the tab's `d/bn/*.json`. The registry of
+sources (label, status tag, definition) is `js/sources.js`; the side card's agreement box is `agreementBox()` in
+`js/explorer.js`. Where every number comes from: `explore/cifar_baselines/NOTES_SITE.md`.
+
+### Alignment tab (spectral-alignment study)
+
+`build_site.py ... --alignment ../spectral_align/data` (or `data_fixture`) runs `site/alignment.py`: it reuses or
+reruns `explore/spectral_align/analyze.py` (output in `explore/spectral_align/analysis/<data dir name>/`, rerun when
+the data directory's stamp changes; needs torch and dtw-python, see the command in `alignment.py`), copies it to
+`d/al/` and adds the `al.*` facts. Without the flag the tab link is hidden and its panel is a placeholder. The tab is
+`content/alignment.html`; its live figures are `data-live="al-w1"` .. `"al-w4"`, `"al-c1"` .. `"al-c5"` (`js/alignment.js`,
+no attributes). Data layout: `analyze.py`'s docstring. A fixture build says so in a banner at the top of the tab and
+above every figure (`al.data_note`, `index.fixture`). Verdict slots are `aside.callout.al-slot`.
 
 ## Live mini-figures
 

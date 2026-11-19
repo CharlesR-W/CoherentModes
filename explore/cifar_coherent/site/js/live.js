@@ -12,6 +12,8 @@ const seg = (opts, val, on) => {
 const onResize = (elm, fn) => { let w = elm.clientWidth; new ResizeObserver(() => { if (Math.abs(elm.clientWidth - w) > 4) { w = elm.clientWidth; fn(); } }).observe(elm); };
 
 export async function render(kind, body, ds) {
+  if (kind.startsWith("bn-")) return (await import("./baselines.js")).render(kind, body, ds);
+  if (kind.startsWith("al-")) return (await import("./alignment.js")).render(kind, body, ds);
   const fn = { decod, curves, lines, heatmap: heat, kernel, cells, images }[kind];
   if (!fn) throw new Error(`unknown live figure "${kind}"`);
   await fn(body, ds);

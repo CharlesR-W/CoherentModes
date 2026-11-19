@@ -50,6 +50,12 @@
         <button type="button" data-v="final" title="Every row shows the diagnostic at the final checkpoint">final</button>
       </div>
     </div>
+    <div class="ctl" id="ex-src-ctl">
+      <label class="ctl-label" for="ex-src">Sets from</label>
+      <select id="ex-src" title="Which source's sets colour every panel (the block stays the same)"></select>
+      <button type="button" class="info-btn" id="ex-src-btn" aria-expanded="false" aria-controls="ex-src-help" title="What are the sources and their status tags?">?</button>
+      <span class="ctl-sub" id="ex-src-note" hidden></span>
+    </div>
     <div class="ctl" id="ex-lay-ctl">
       <span class="ctl-label">Layout</span>
       <div class="seg" id="ex-lay" role="radiogroup" aria-label="Which network's UMAP lays out the points">
@@ -65,6 +71,11 @@
       <button type="button" class="guide-btn" id="ex-howto-btn" aria-controls="ex-howto" aria-expanded="false">How to use</button>
     </div>
     <span class="status" id="ex-status" aria-live="polite"></span>
+    <div class="ex-help" id="ex-src-help" hidden>
+      <p><b>Sets from</b> keeps the selected block and chooses whose sets colour every panel: the method (default), a simpler method run on the same block, the method on other data (pixels, the untrained network, a second training seed), the class labels, or one stored draw of a null. Each source gives hard labels for the same probe images; the side panel shows their sizes, class make-up and images, and their agreement with the method's sets for the same block and $r$, with its permutation value. Sources that do not exist for the current block are greyed out with the reason.</p>
+      <p><b>Status tags.</b> <b>S</b>: a label-free spectral object built from dot products (an eigenvector computation on the images). <b>P</b>: post-processing, a diagnostic or a null generator (SEBA rounding, a vote, a shuffle). <b>B</b>: a fitted baseline outside the construction (k-means and spherical k-means are fits). <b>V</b>: uses the CIFAR class labels (validation, or a null whose strata are classes). "S+P" means an S object rounded by a P step.</p>
+      <p>Every source except the method itself was computed for kernel rule 0 (kNN graph, $k = 15$) and the average operator $\bar M$; with another kernel rule or a product operator only the method is available. Definitions and charts over all blocks: <a href="#baselines">Baselines and nulls</a>.</p>
+    </div>
     <div class="ex-help" id="ex-kappa-help" hidden>
       <p>The <b>kernel rule</b> decides which probe images count as neighbours in each snapshot before the walk $P_c$ is built. With cosine similarity $C$ and distance $d = 1 - C$, a temperature rule uses $K_{ij} = e^{-\kappa d_{ij}}$; $\kappa$ is the inverse temperature. The answer depends on the rule, so it is exposed here rather than hidden.</p>
       <ul>

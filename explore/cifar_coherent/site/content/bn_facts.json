@@ -1,0 +1,13 @@
+{
+  "source": "explore/cifar_baselines/NOTES_B.md, section 'Review and fix', paragraph 'Cross-host reproducibility, measured from the two runs' (the two runs' per-row comparison is not stored as a data file; values copied from that note, 2026-11-15)",
+  "facts": {
+    "rr.n_medians": "4,839",
+    "rr.max_diff": "0.10",
+    "rr.p99_diff": "0.014",
+    "rr.share_over_001": "1.4%",
+    "rr.share_over_005": "0.04%",
+    "rr.headline_max": "0.007",
+    "rr.intersection_rows_differ": "750",
+    "rr.intersection_rows": "2,340"
+  }
+}
