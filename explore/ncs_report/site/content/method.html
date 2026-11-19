@@ -1,0 +1,82 @@
+<p class="lede">Reference material: what each term means, what differs from the <a href="https://charlesr-w.github.io/CoherentModes/">ResNet report</a> for each network, the checks on the eigen-structure, and where the older pages went.</p>
+
+<nav class="callout" id="method-toc"><p class="callout-title">Contents</p><ol>
+<li><a href="#method/glossary">Glossary</a></li>
+<li><a href="#method/vit">The ViT run</a></li>
+<li><a href="#method/mamba">The Mamba run</a></li>
+<li><a href="#method/kernel">The kernel rule</a></li>
+<li><a href="#method/sanity">Is the eigen-structure sound?</a></li>
+<li><a href="#method/certificate">Spectral gaps</a></li>
+<li><a href="#method/earlier-vit">The earlier ViT study</a></li>
+<li><a href="#method/older">The older pages</a></li>
+<li><a href="#method/reproduce">Rebuilding this page</a></li>
+</ol></nav>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+<dt id="glossary-item">item</dt><dd>One thing the network is shown: an image (ViT) or a token context (Mamba). Items never enter as labels.</dd>
+<dt id="glossary-token-context">token context</dt><dd>A snippet's prefix up to and including the token at position $t$. Its activations are the model's at that token. {{fact:m.per_snippet}} positions are drawn from each of {{fact:m.n_snippets}} snippets.</dd>
+<dt id="glossary-snapshot">snapshot</dt><dd>One place where activations are read: a site (ViT block), a layer and view (Mamba), or a layer at a lag $\tau$. A <em>panel</em> is its picture in the explorer.</dd>
+<dt id="glossary-view">view</dt><dd>Mamba: the <em>residual</em> stream $h^l_t$ after layer $l$; the <em>state</em> of layer $l$ (its convolution buffer and SSM state, each turned into a cosine Gram matrix and averaged with equal weight); the <em>whole state</em> (all {{fact:m.n_constituents}} state constituents of the {{fact:m.n_layers}} layers, Gram-averaged).</dd>
+<dt id="glossary-block">block, all-layer block</dt><dd>A run of snapshots whose lazy walks are averaged into one operator $\bar M$. The all-layer residual block averages the walks of all {{fact:m.n_layers}} layers; it averages operators, not activations or set labels. A single-snapshot block is one snapshot.</dd>
+<dt id="glossary-object">object</dt><dd>Mamba: any stored block or snapshot with its eigenfunctions and sets; the explorer's "Colour from" menu lists them.</dd>
+<dt id="glossary-lag">lag $\tau$, along reading</dt><dd>The same contexts read $\tau$ more tokens, $\tau$ = {{fact:m.lags}}. A lag block averages the walks of one view at all lags.</dd>
+<dt id="glossary-reference">reference</dt><dd>A comparison object, put through the same kernel, walk and eigen-decomposition as the model's views. <em>bag</em>: the average of the trained model's input embeddings of the tokens over the whole prefix (positions 1 to $t$). <em>recent</em>: the same average over the last 16 tokens up to and including $t$. Both ignore token order and bypass the recurrent layers, so they show what the tokens alone, embedded by the model, would group. <em>pred</em>: the trained model's own next-token distribution at $t$, used as a view (the cosine of square-root probabilities, the Bhattacharyya coefficient).</dd>
+<dt id="glossary-eigenfunction">eigenfunction $\psi_k$</dt><dd>The $k$-th eigenvector of a block's operator, a function on the items; $\lambda_k$ its eigenvalue, decreasing from $\lambda_0 = 1$ (the constant). Its sign is arbitrary. Its <em>ends</em> are the items with its largest and smallest entries.</dd>
+<dt id="glossary-coherent-set">coherent set (SEBA), $r$</dt><dd>One of the $r$ sparse vectors SEBA finds in the span of $\psi_0..\psi_{r-1}$, made hard by giving each item to its largest vector; items where all are zero are <em>unassigned</em>. Sets are numbered by SEBA's reliability order.</dd>
+<dt id="glossary-retention">retention</dt><dd>$f^\top M_c f / f^\top f$ (or with $P_c$ along reading): how little a function changes over one step of a snapshot's walk.</dd>
+<dt id="glossary-excess-share">excess share</dt><dd>For a grouping, how much more often than chance a step of the walk lands on an item of the same group, on a scale where 0 is chance and 1 is every step: $(S - S_0)/(1 - S_0)$, with $S$ the walk's share of off-diagonal mass between items of the same group and $S_0$ its chance value.</dd>
+<dt id="glossary-kappa">predictive coherence $\tilde\kappa$, $\tilde\kappa_{|T}$</dt><dd>The excess Bhattacharyya similarity of the trained model's next-token distributions over linked contexts (from different snippets); $\tilde\kappa_{|T}$ uses a null that keeps the token at $t$, so it measures what is shared beyond that token.</dd>
+<dt id="glossary-agreement">agreement $a_r$, AMI, matched Jaccard, $\eta^2$, PN</dt><dd>$a_r$: mean squared cosine of the principal angles between the spans of $\psi_1..\psi_r$ of two objects (1 = same span). AMI: adjusted mutual information between two labellings. Matched Jaccard: match the sets of one labelling one-to-one with those of another so as to maximise the total Jaccard, then average the Jaccard over the first labelling's sets (an unmatched set scores 0). Each set keeps all its members, so an item unassigned in one labelling still counts in the other's set; the explorer uses the same convention. $\eta^2$: between-group share of a function's variance. PN: participation number of an eigenfunction, roughly how many items it spreads over.</dd>
+<dt id="glossary-token-class">token class, source (kind of source)</dt><dd>Twelve classes of the token at $t$ (newline, indentation, number, LaTeX, brackets, punctuation, symbol, function word, word start, word continuation, other) and the snippet's source, one of five kinds ({{fact:m.sources}}; {{fact:m.snippets_per_source}} snippets each). Validation only. In token lists, ↵ is a newline and ⇥ a tab; quoted tokens keep their leading space.</dd>
+</dl>
+
+<h2 id="vit">The ViT run</h2>
+<p>DINOv2 ViT-S/14 with its released weights (trained by self-distillation, without labels). Items: {{fact:v.n}} images, {{fact:v.per_class}} from each of the {{fact:v.n_fine}} classes of ImageNet-100, from the ImageNet validation split. Snapshots: the CLS token after each of the {{fact:v.n_sites}} blocks, read through the model's final LayerNorm, centred over the images and normalised. There is one checkpoint, so the explorer has one row of twelve panels and only layer blocks. The ten class groups that colour the explorer merge WordNet superclasses of the 100 classes; they and the fine classes only describe and validate. The explorer, its data and its conventions are the ResNet report's; the stored per-image training diagnostics and attention-head loadings of the earlier ViT page are not shown.</p>
+
+<h2 id="mamba">The Mamba run</h2>
+<p>Mamba-130m ({{fact:m.n_layers}} layers), released weights, and the same architecture at initialisation as a control. Items: {{fact:m.n}} token contexts, {{fact:m.per_snippet}} positions $t$ between {{fact:m.t_min}} and {{fact:m.t_max}} in each of {{fact:m.n_snippets}} snippets of {{fact:o.snippet_len}} tokens from {{fact:m.n_sources}} kinds of source (the snippets of the earlier studies); no two contexts end in the same 16 tokens. Views and blocks are in the glossary. Spectral objects are stored for the residual and the state at layers {{fact:m.single_layers}}, for the all-layer and third-of-depth residual blocks, the all-layer state block, the whole state, the lag snapshots and blocks, and the references; the explorer offers exactly these. The explorer's layouts are UMAPs of $\psi_1..\psi_{16}$ of {{fact:m.n_layouts}} of these objects, not of activations; single layers are painted on them.</p>
+<p>The build reconstructs every object's SEBA sets from the stored eigenvectors and rotations and checks them against the stored labels (agreement {{fact:x.mamba.seba_agree}} or better), and checks the per-set token, class and source summaries the explorer computes against the stored descriptors ({{fact:x.mamba.summaries_checked}} sets).</p>
+
+<h2 id="kernel">The kernel rule</h2>
+<p>Both runs use the ResNet report's default: link items $i$ and $j$ if either is among the other's 15 nearest neighbours in cosine distance, then Sinkhorn-scale to a symmetric walk. It is rank-based, so it adapts to how dense each part of a snapshot is, and has no temperature. The ViT explorer also offers the four other rules of the ResNet report (two per-item perplexity rules and two single-temperature rules) under "Kernel rule". The Mamba run stores two other neighbour counts, $k$ = 8 and 30, for the all-layer residual block.</p>
+
+<h2 id="sanity">Is the eigen-structure sound?</h2>
+<p>Each row is one check, named by its metric; a dot means not stored for that object.</p>
+<div class="table-scroll wide"><table class="facts">
+<tr><th>check (metric)</th><th>ViT, block L9–L12</th><th>ViT, L12 alone</th><th>Mamba, residual all layers</th><th>Mamba, whole state</th></tr>
+<tr><td>Spread: smallest participation number among $\psi_1..\psi_8$ (ViT) or $\psi_1..\psi_{16}$ (Mamba), and its share of $N$</td><td class="num">{{fact:s.vit.pn}}</td><td class="num">{{fact:s.vit.pn_l12}}</td><td class="num">{{fact:s.m.pn}}</td><td class="num">{{fact:s.m.pn_whole}}</td></tr>
+<tr><td>Other neighbour counts: $a_8$ against $k$ = 8 and $k$ = 30</td><td class="num">·</td><td class="num">·</td><td class="num">{{fact:m.sens.a8.k8}}, {{fact:m.sens.a8.k30}}</td><td class="num">·</td></tr>
+<tr><td>Other kernel rules: $a_8$ and matched Jaccard ($r = 8$) against the two per-item perplexity rules</td><td class="num">{{fact:v.rules.L9_L12.a8.pp}}; {{fact:v.rules.L9_L12.mj8.pp}}</td><td class="num">·</td><td class="num">·</td><td class="num">·</td></tr>
+<tr><td>Untrained network: $a_8$ against the same object at initialisation</td><td class="num">·</td><td class="num">·</td><td class="num">{{fact:m.init.a8.Bpoint}}</td><td class="num">{{fact:m.init.a8.whole}}</td></tr>
+<tr><td>Reference that bypasses the network's layers: $a_8$ against <em>bag</em> (Mamba; <a href="#method/glossary-reference">glossary</a>); largest |correlation| of $\psi_1..\psi_8$ with 12 pixel statistics of the image (ViT)</td><td class="num">·</td><td class="num">{{fact:q.img.L12_max}}</td><td class="num">{{fact:m.cmp.Bpoint.bag.a8}}</td><td class="num">{{fact:m.cmp.whole.bag.a8}}</td></tr>
+<tr><td>Disjoint halves of the items</td><td>not measured</td><td>not measured</td><td>not measured</td><td>not measured</td></tr>
+</table></div>
+<p>Reading it: no leading eigenfunction of these objects sits on a handful of items, though the least spread ones of the whole state and of L12 alone cover only {{fact:m.pn.whole.min16_frac}} and {{fact:v.L12.pn_min_frac}} of the items. Mamba's all-layer block keeps its leading subspace under other neighbour counts ($a_{16}$: {{fact:m.sens.a16.k8}} and {{fact:m.sens.a16.k30}}), shares almost none of its leading subspace with the untrained network's, and is far from the bag reference. The ViT's late block is close under the perplexity rules. L12 alone is the case where classes separate into nearly disconnected pieces (finding 4). The pixel statistics are most correlated with an eigenfunction at {{fact:q.img.max_site}} ({{fact:q.img.max}}, {{fact:q.img.max_stat}}), early, as expected. Split halves are the first check on the <a href="#findings/next-checks">list</a>.</p>
+
+<h2 id="certificate">Spectral gaps</h2>
+<p>None of the four studies shows a clear spectral gap that would certify a number of clusters (the earlier pages tested this with a calibrated clustering ratio; nothing in the token-context run was certified). That is not the standard used here: the eigenfunctions are read as directions of the network's geometry, and the sets as a way to read them.</p>
+
+<h2 id="earlier-vit">The earlier ViT study</h2>
+<p>Before this run, the same ViT was studied on a larger image set with other kernels (a fixed-temperature kernel and self-tuned kernels) and with operators that compare smoothness between layers. Its leading modes reproduced across disjoint halves of the images at most layers and aligned more with classes at depth; importing DINO's own kNN temperature made the modes sit on single images; and hard sets did not reproduce across halves under those kernels. That last verdict was about a different construction and does not transfer to this one, where split halves have not been measured yet. Its write-up is <code>explore/vit_coherent/VERDICT.md</code>.</p>
+
+<h2 id="older">The older pages</h2>
+<p>This report replaces four pages. Their files stay in the repository:</p>
+<ul>
+<li><b>ViT, ResNet construction</b> (the data behind findings 1 to 4; no findings were written): <code>explore/vit_coherent/viewer/site/</code>.</li>
+<li><b>Mamba-130m over token contexts</b> (findings 5 to 9; pre-registered targets and clustering tests): <code>explore/mamba_contexts/published/</code>.</li>
+<li><b>Mamba-130m over whole snippets</b> (v1; its diagnosis motivated token contexts): <code>explore/mamba_coherent/published/</code> and <code>diagnosis/DIAG_NOTES.md</code>.</li>
+<li><b>Pythia-160m over whole snippets, five checkpoints</b>: <code>explore/lm_coherent/published/</code>.</li>
+</ul>
+<p>Left out here: the pre-registered targets and their tables, the clustering certificates, pilots and budgets, the zoom trees (a different analysis: recursive two-way cuts, omitted for brevity), the per-position views of the snippet studies, and the earlier ViT study's smoothness-change operators.</p>
+
+<h2 id="reproduce">Rebuilding this page</h2>
+<p><code>explore/ncs_report/build.sh</code> runs the analyses, draws the figures, exports the explorer data and assembles the page; it reads the four studies' stored results in place and checks the export against them. Every number in the prose comes from those results through the build. The explorer screenshots in Findings are refreshed with <code>shoot_views.sh</code>. Notes: <code>explore/ncs_report/NOTES.md</code>.</p>
+
+<h3 id="refs">References</h3>
+<ul>
+<li>G. Froyland, C. P. Rock, K. Sakellariou. Sparse eigenbasis approximation (SEBA). <i>Communications in Nonlinear Science and Numerical Simulation</i> 77, 2019.</li>
+<li>M. Oquab et al. DINOv2: learning robust visual features without supervision. 2023.</li>
+<li>A. Gu, T. Dao. Mamba: linear-time sequence modeling with selective state spaces. 2023.</li>
+<li>S. Biderman et al. Pythia: a suite for analyzing large language models across training and scaling. 2023.</li>
+</ul>

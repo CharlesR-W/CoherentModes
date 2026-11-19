@@ -1,0 +1,198 @@
+<p class="lede">Every definition and setting, in the order the pipeline runs. The construction is the one in the
+<a href="https://github.com/CharlesR-W/CoherentModes/tree/main/explore/cifar_coherent">ResNet-20 study</a>, run
+unchanged (same code, same five kernel rules, same SEBA); only the model, the probe images and the sites differ.</p>
+
+<h2 id="glossary">Glossary</h2>
+
+<ul>
+<li id="glossary-probe-image"><b>Probe image.</b> One of the $N = {{fact:n_images}}$ ImageNet-100 images fed to the
+network; the same images, indexed $i = 1..N$, are used at every site.</li>
+<li id="glossary-site"><b>Site.</b> A place in the network where activations are recorded: $L1$ to $L12$, the CLS
+token after transformer block $l$, read out through the model's final LayerNorm ({{fact:n_sites}} in all).</li>
+<li id="glossary-cell"><b>Cell.</b> One site (there is one checkpoint: the released weights). Its data are the $N$
+activation vectors of the probe images at that site.</li>
+<li id="glossary-block"><b>Block.</b> A run of consecutive sites $a..b$ whose operators are averaged (a <b>layer
+block</b>; 78 in all). A <b>single-cell block</b> ($a = b$) is ordinary spectral clustering (diffusion maps) of that
+site alone.</li>
+<li id="glossary-kernel-rule"><b>Kernel rule.</b> The recipe that turns a cell's cosine distances into a symmetric,
+non-negative weight matrix $K$ with zero diagonal. There are five (<a href="#method/kappa">table</a>); the default is
+the {{fact:default_mode}}.</li>
+<li id="glossary-walk"><b>Walk $P_c$.</b> The Sinkhorn scaling $\mathrm{diag}(v)\,K\,\mathrm{diag}(v)$ of cell $c$'s
+kernel: symmetric, non-negative, zero on the diagonal, every row and column summing to 1.</li>
+<li id="glossary-lazy-walk"><b>Lazy walk $M_c$.</b> $M_c = \tfrac12(I + P_c)$. Same eigenvectors as $P_c$, eigenvalues
+in $[0, 1]$.</li>
+<li id="glossary-block-operator"><b>Block operator $\bar M$.</b> The equal-weight average $\bar M = \frac{1}{|B|}
+\sum_{c \in B} M_c$ over the sites of block $B$.</li>
+<li id="glossary-eigenfunction"><b>Eigenfunction $\psi_k$.</b> The $k$-th unit eigenvector of $\bar M$ in decreasing
+order of eigenvalue, read as a function on the probe images. $\psi_0 = \mathbf 1/\sqrt N$ is the constant.</li>
+<li id="glossary-spectrum"><b>Spectrum.</b> The eigenvalues $1 = \lambda_0 \ge \lambda_1 \ge \dots$ of $\bar M$; for a
+unit eigenfunction, $1 - \lambda_k$ is its average lazy penalty over the block's sites. For SEBA with $r$ sets the
+relevant gap is $\lambda_{r-1} - \lambda_r$.</li>
+<li id="glossary-retention"><b>Retention $\rho_c$.</b> For a function $f$ and any site $c$, inside or outside the
+block, $\rho_c(f) = f^\top M_c f / f^\top f \in [0, 1]$. A block eigenvalue is the mean retention of its eigenfunction
+over the block: $\lambda_k = \frac{1}{|B|} \sum_{c \in B} \rho_c(\psi_k)$.</li>
+<li id="glossary-seba-vector"><b>SEBA vector.</b> One of the $r$ sparse vectors that SEBA returns from
+$\mathrm{span}(\psi_0, \dots, \psi_{r-1})$: soft-thresholded, sign-fixed, scaled to a maximum of 1, negative entries
+clipped to 0.</li>
+<li id="glossary-coherent-set"><b>Coherent set.</b> The images at which SEBA vector $j$ is the largest of the $r$ and
+positive (the hard assignment), numbered by reliability.</li>
+<li id="glossary-unassigned"><b>Unassigned.</b> An image at which all $r$ SEBA vectors are 0 after clipping; drawn
+grey.</li>
+<li id="glossary-participation"><b>Participation number (PN).</b> $(\sum_i \psi_i^2)^2 / \sum_i \psi_i^4$, roughly
+how many images a mode is spread over.</li>
+<li id="glossary-matched-jaccard"><b>Matched Jaccard.</b> For two collections of hard sets: the Jaccard overlap of
+every pair, a one-to-one matching that maximises the total, and the mean over matched pairs; null band from permuting
+one side's labels.</li>
+</ul>
+
+<h2 id="data">Model, probe, sites</h2>
+
+<ul>
+<li><b>Model.</b> DINOv2 ViT-S/14 (<code>dinov2_vits14</code>, 12 blocks, width 384, 6 heads), the released weights
+(Hugging Face <code>facebook/dinov2-small</code>, key-mapped into the official hub architecture), frozen, 224 px
+inputs (resize 256, centre crop 224). Activations come from the float64 re-implementation of each block used by the
+earlier ViT run (<code>explore/vit_coherent/acts.py</code>; maximum deviation from the hub model's float32 readout
+$1.3 \times 10^{-4}$).</li>
+<li><b>Probe.</b> $N = {{fact:n_images}}$ images of <code>clane9/imagenet-100</code> (100 ImageNet classes; images
+stored at 160 px on the short side, so upsampled before cropping): 20 per class, drawn with
+<code>numpy.RandomState(0)</code> from that class's 50 ImageNet-val images in the earlier run's probe set. Drawing a
+class-balanced probe is the only use of labels before the sets exist.</li>
+<li><b>Sites</b> ($S = {{fact:n_sites}}$): $v_l(x) = \mathrm{LN}(h_l(x))_\text{CLS}$, $l = 1..12$, with $h_l$ the
+residual stream after block $l$ and LN the model's final LayerNorm (its own readout). $L0$, the CLS token before any
+block, is the same vector for every image and is left out.</li>
+<li><b>Class groups</b> (colour and validation only). The 100 classes are shown in 10 groups merged from the 18
+WordNet superclasses of <code>classes.json</code> (themselves a fixed rule, <code>superclasses.py</code>): dogs;
+other mammals; birds; reptiles; invertebrates; food and plants (with fungi); clothing (with other coverings);
+devices (with instruments and household commodities); containers &amp; vehicles; structures (with furniture). The tooltip shows the fine class. WordNet quirks are
+kept (an ambulance is a container).</li>
+</ul>
+
+<h2 id="operator">Per-site operator</h2>
+
+<p>For site $c$ with activations $h_i \in \mathbb{R}^{384}$:</p>
+
+$$ \hat h_i = \frac{h_i - \bar h}{\lVert h_i - \bar h\rVert}, \quad \bar h = \tfrac1N \textstyle\sum_i h_i, \qquad
+C_{ij} = \langle \hat h_i, \hat h_j \rangle, \qquad d_{ij} = 1 - C_{ij}. $$
+
+<p>$K$ is a symmetric non-negative kernel with $K_{ii} = 0$ from one of five <a href="#method/kappa">kernel rules</a>.
+Sinkhorn: find $u$ with $\sum_j \exp(\log K_{ij} + u_i + u_j) = 1$ for all $i$, in the log domain in float64 (ten
+fixed-point steps, then line-searched Newton); every site and rule here reached a maximum row error below $2 \times 10^{-12}$ (largest $1.3 \times 10^{-12}$). Then</p>
+
+$$ P = \mathrm{diag}(v)\, K\, \mathrm{diag}(v), \qquad M = \tfrac12 (I + P), \qquad
+f^\top (I - P)\, f = \tfrac12 \sum_{i,j} P_{ij}\,(f_i - f_j)^2 . $$
+
+<p>The zero diagonal and the lazy walk are a stated variant of the project's theory (THEORY.md, Section 3.1); the
+reasons are given in the ResNet study's Method tab (self-weight under sharp kernels, a common laziness, no slow modes
+from near-bipartite alternation).</p>
+
+<h3 id="kappa">The five kernel rules</h3>
+
+<p>$d_{ij} = 1 - C_{ij}$, $k = 15$, $K_{ii} = 0$ throughout. $d_k$ = median over images of the distance to the
+$k$-th nearest other image.</p>
+
+<table class="data">
+<tr><th>#</th><th>rule</th><th>kernel ($i \ne j$)</th></tr>
+<tr><td>0</td><td><b>kNN graph, $k = 15$</b> (default)</td><td>$K_{ij} = 1$ if $j \in \mathrm{NN}_{15}(i)$ or
+$i \in \mathrm{NN}_{15}(j)$, else $10^{-6}$. Rank-based; the same neighbourhood size as the UMAP layouts.</td></tr>
+<tr><td>1, 2</td><td><b>per-image perplexity 100, 300</b></td><td>For each $i$, $\kappa_i$ by bisection so that
+$p(j \mid i) \propto \exp(-\kappa_i d_{ij})$ has perplexity 100 (or 300); $K_{ij} = \tfrac12\big(p(j \mid i) +
+p(i \mid j)\big)$.</td></tr>
+<tr><td>3</td><td><b>kNN scale</b></td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa = 1/d_k$ per site.</td></tr>
+<tr><td>4</td><td><b>half-mass, calibrated</b></td><td>$K_{ij} = \exp(-\kappa d_{ij})$, $\kappa$ per site so that
+$\mathrm{median}_i \sum_{j \in \mathrm{NN}_k(i)} K_{ij} \big/ \sum_{j \ne i} K_{ij} = \tfrac12$.</td></tr>
+</table>
+
+<table class="data">
+<tr><th>site</th><th class="num">kNN graph, k = 15</th><th class="num">per-point perplexity 100</th><th class="num">per-point perplexity 300</th><th class="num">kNN scale</th><th class="num">half-mass, calibrated</th></tr>
+<tr><td>L1</td><td class="num">– / 0.75</td><td class="num">14.8 / 0.41</td><td class="num">8.9 / 0.20</td><td class="num">3.6 / 0.05</td><td class="num">15.8 / 0.50</td></tr>
+<tr><td>L2</td><td class="num">– / 0.71</td><td class="num">14.6 / 0.41</td><td class="num">8.9 / 0.21</td><td class="num">3.4 / 0.05</td><td class="num">15.5 / 0.50</td></tr>
+<tr><td>L3</td><td class="num">– / 0.75</td><td class="num">14.5 / 0.42</td><td class="num">8.9 / 0.21</td><td class="num">3.3 / 0.05</td><td class="num">15.3 / 0.50</td></tr>
+<tr><td>L4</td><td class="num">– / 0.75</td><td class="num">14.7 / 0.42</td><td class="num">9.1 / 0.21</td><td class="num">2.9 / 0.04</td><td class="num">15.5 / 0.50</td></tr>
+<tr><td>L5</td><td class="num">– / 0.75</td><td class="num">14.8 / 0.42</td><td class="num">9.4 / 0.22</td><td class="num">2.7 / 0.03</td><td class="num">15.4 / 0.50</td></tr>
+<tr><td>L6</td><td class="num">– / 0.75</td><td class="num">14.7 / 0.42</td><td class="num">9.4 / 0.22</td><td class="num">2.6 / 0.03</td><td class="num">15.4 / 0.50</td></tr>
+<tr><td>L7</td><td class="num">– / 0.75</td><td class="num">14.6 / 0.44</td><td class="num">9.6 / 0.24</td><td class="num">2.4 / 0.03</td><td class="num">14.8 / 0.50</td></tr>
+<tr><td>L8</td><td class="num">– / 0.75</td><td class="num">14.1 / 0.44</td><td class="num">9.5 / 0.24</td><td class="num">2.3 / 0.03</td><td class="num">14.3 / 0.50</td></tr>
+<tr><td>L9</td><td class="num">– / 0.75</td><td class="num">13.0 / 0.44</td><td class="num">8.9 / 0.24</td><td class="num">2.4 / 0.03</td><td class="num">13.4 / 0.50</td></tr>
+<tr><td>L10</td><td class="num">– / 0.75</td><td class="num">14.0 / 0.44</td><td class="num">9.1 / 0.24</td><td class="num">2.7 / 0.03</td><td class="num">14.4 / 0.50</td></tr>
+<tr><td>L11</td><td class="num">– / 0.79</td><td class="num">15.4 / 0.44</td><td class="num">10.0 / 0.23</td><td class="num">2.7 / 0.03</td><td class="num">15.8 / 0.50</td></tr>
+<tr><td>L12</td><td class="num">– / 0.83</td><td class="num">11.3 / 0.59</td><td class="num">9.7 / 0.41</td><td class="num">1.5 / 0.02</td><td class="num">10.3 / 0.50</td></tr>
+</table>
+<p class="byline">Each entry: $\kappa$ (median $\kappa_i$ for the perplexity rules; none for the kNN graph) / median
+15-NN share of kernel mass before Sinkhorn; source <code>data/vits_b2k/meta.json</code>.</p>
+
+<h2 id="blocks">Blocks and retention</h2>
+
+<ul>
+<li><b>Layer blocks</b>: sites $a..b$, all $1 \le a \le b \le 12$ (78). Block operator $\bar M = \frac{1}{|B|}
+\sum_{c \in B} M_c$; its leading eigenfunctions are the unit functions orthogonal to the constant and to each other
+with the smallest <em>average</em> penalty over the block. No map between layers is used.</li>
+<li>Eigenpairs by a dense float64 symmetric eigensolver; $\psi_1..\psi_8$ stored with unit norm, sign fixed so the
+largest-magnitude entry is positive, quantised to int16 relative to $\max_i |\psi_k(i)|$ (int8 in the browser).</li>
+<li><b>Retention</b> $\rho_c(f)$ is stored for $\psi_1..\psi_8$ and every SEBA vector at every site, inside and outside
+the block. A high $\lambda_k$ is a high average, not high retention at every site; the retention strip shows each
+site's value.</li>
+<li>The averaging over sites follows Froyland's dynamic Laplacian (Froyland 2015; Froyland and Junge 2018) and Banisch
+and Koltai's space-time diffusion maps (2017), with depth in place of time.</li>
+</ul>
+
+<h2 id="seba">SEBA sets</h2>
+
+<p>Sparse Eigenbasis Approximation (Froyland, Rock and Sakellariou 2019, Algorithm 3.1), ported from the authors'
+reference code. Input $V = [\psi_0, \dots, \psi_{r-1}]$ (constant included), $r \in \{2, 3, 4, 6, 8\}$,
+$\mu = 0.99/\sqrt N$; iterate soft-thresholding and the polar rotation until $\lVert R_\text{new} - R \rVert \le
+10^{-14}$. Flip each column to a positive sum, divide by its maximum, order by reliability (decreasing minimum entry),
+clip negatives to 0. Hard label: $\arg\max_j S_{ij}$ if positive, else unassigned. The rotation and permutation are
+stored, so the browser reconstructs the full vectors for loadings and retention.</p>
+
+<h2 id="umap">Layouts (display only)</h2>
+
+<ul>
+<li><code>umap.AlignedUMAP</code> across the 12 sites (identity relations between consecutive sites),
+<code>n_neighbors=15</code>, <code>min_dist=0.1</code>, <code>alignment_regularisation=0.02</code>,
+<code>random_state=0</code>, on the top 50 principal components of each site's centred cosine Gram matrix $C$.</li>
+<li>No quantity is computed from the 2-d coordinates.</li>
+</ul>
+
+<h2 id="loadings">Head loadings</h2>
+
+<p>The ResNet explorer's "channel loadings" use each cell's spatially averaged channels. Here the per-site
+"channels" are the 6 attention heads of block $l$: $\lVert A_{l,h}(x) \rVert_2$, the norm of head $h$'s output
+written to the CLS position (after the output projection and LayerScale). For the selected $\psi_k$ or SEBA vector
+$f$: Pearson $\mathrm{corr}(f, \lVert A_{l,h} \rVert)$ per head, and $R^2$ of in-sample least squares of centred $f$
+on the six head norms at every site (descriptive, not held out; chance about $6/N$). There is no classifier head, so
+the ResNet panel's "alignment with the classifier" is absent.</p>
+
+<h2 id="earlier">Relation to the earlier ViT run</h2>
+
+<p>An earlier page on this model (<code>explore/vit_coherent/viewer</code>, "Smoothness across depth") followed a
+different plan: 10,000 images, per-layer Sinkhorn walks with self-loops kept, a von Mises-Fisher kernel ($\kappa = 5$, with a
+self-tuned $k = 7$ kernel as second default) chosen by a label-free stability rule, smoothness profiles $s_l^t(f) = f^\top P_l^{2t} f$ and
+$\Delta$-modes between pairs of layers, SEBA only for single layers ($r \ge 8$). This page instead runs the ResNet
+construction (block averages of lazy walks over runs of layers, SEBA at $r = 2..8$) on a 2,000-image subset of the
+same probe, so that the two networks can be read with the same plots. Results of the two constructions are not
+interchangeable.</p>
+
+<h2 id="reproduce">Reproduce</h2>
+
+<pre><code>uv run --with modal python -I explore/vit_coherent/blocks_v2.py run     # Modal, A100, about 4 minutes
+uv run --with modal python -I explore/vit_coherent/blocks_v2.py fetch   # -> data/vits_b2k/
+uv run --with numpy --with pillow python explore/vit_coherent/site/prep_vit.py vits_b2k
+uv run --with numpy --with pillow python explore/vit_coherent/site/build_site.py vits_b2k</code></pre>
+
+<p><code>blocks_v2.py</code> imports <code>coherent.py</code>, <code>seba.py</code>, <code>sweep_math.py</code> and
+<code>schema_v2.py</code> from <code>explore/cifar_coherent</code> unchanged, and reads the float64 views stored by the
+earlier ViT run on its Modal volume.</p>
+
+<h2 id="refs">References</h2>
+
+<ul>
+<li>Oquab et al. (2023), DINOv2: Learning robust visual features without supervision.</li>
+<li>Froyland (2015), Dynamic isoperimetry and the geometry of Lagrangian coherent structures. Froyland and Junge
+(2018), Robust FEM-based extraction of finite-time coherent sets using scattered, sparse, and incomplete
+trajectories.</li>
+<li>Banisch and Koltai (2017), Understanding the geometry of transport: diffusion maps for Lagrangian trajectory
+data unravel coherent sets.</li>
+<li>Froyland, Rock and Sakellariou (2019), Sparse eigenbasis approximation: multiple feature extraction across
+spatiotemporal scales with application to coherent set identification.</li>
+<li>McInnes, Healy and Melville (2018), UMAP: Uniform manifold approximation and projection.</li>
+</ul>

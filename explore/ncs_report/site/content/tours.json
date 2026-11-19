@@ -1,0 +1,86 @@
+[
+  {
+    "id": "vit-late",
+    "label": "ViT: the last four blocks, eight sets",
+    "hash": "#explorer?net=vit&fam=layer&t=0&a=8&b=11&m=0&c=seba&r=8",
+    "note": "Layer block: sites L9 to L12 of DINOv2 ViT-S/14 (released weights); kernel rule: kNN graph, k = 15.<br>Colour: each image's coherent set ($r = 8$) from this block, painted on all 12 panels; grey = unassigned.<br>Try: hover a set's row in the side panel; then set $r$ to 2, or move the block's start back to L1."
+  },
+  {
+    "id": "vit-psi1",
+    "label": "ViT: the leading eigenfunction of the last four blocks",
+    "hash": "#explorer?net=vit&fam=layer&t=0&a=8&b=11&m=0&c=eig&k=1",
+    "note": "Layer block: sites L9 to L12; kernel rule: kNN graph, k = 15.<br>Colour: $\\psi_1 / \\max|\\psi_1|$ of this block's operator, on every panel. The side panel shows the images at its two ends.<br>Try: step through $\\psi_2$ and $\\psi_3$; each has its own two ends."
+  },
+  {
+    "id": "vit-l1",
+    "label": "ViT: block 1 alone",
+    "hash": "#explorer?net=vit&fam=layer&t=0&a=0&b=0&m=0&c=seba&r=8",
+    "note": "Single-snapshot block: site L1 (the CLS token after block 1); kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 8$) of L1, painted on all 12 panels.<br>Try: compare the side panel's images with those of L6 and L9 (next tours)."
+  },
+  {
+    "id": "vit-l6",
+    "label": "ViT: block 6 alone",
+    "hash": "#explorer?net=vit&fam=layer&t=0&a=5&b=5&m=0&c=seba&r=8",
+    "note": "Single-snapshot block: site L6; kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 8$) of L6, painted on all 12 panels."
+  },
+  {
+    "id": "vit-l9",
+    "label": "ViT: block 9 alone",
+    "hash": "#explorer?net=vit&fam=layer&t=0&a=8&b=8&m=0&c=seba&r=8",
+    "note": "Single-snapshot block: site L9; kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 8$) of L9, painted on all 12 panels."
+  },
+  {
+    "id": "vit-two",
+    "label": "ViT: the last four blocks, two sets",
+    "hash": "#explorer?net=vit&fam=layer&t=0&a=8&b=11&m=0&c=seba&r=2",
+    "note": "Layer block: sites L9 to L12; kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 2$) of this block; grey = unassigned ({{fact:v.L9_L12.r2.n_unassigned}} images).<br>Try: switch the colouring to the class groups (validation only)."
+  },
+  {
+    "id": "vit-l12",
+    "label": "ViT: block 12 alone, where single classes split off",
+    "hash": "#explorer?net=vit&fam=layer&t=0&a=11&b=11&m=0&c=seba&r=8",
+    "note": "Single-snapshot block: site L12; kernel rule: kNN graph, k = 15.<br>Colour: coherent sets ($r = 8$) of L12. λ₁, λ₂, λ₃ = {{fact:v.L12.lam1}}, {{fact:v.L12.lam2}}, {{fact:v.L12.lam3}}.<br>Try: open the spectrum in the side panel and compare it with the L9 to L12 block."
+  },
+  {
+    "id": "m-all",
+    "label": "Mamba: the residual stream over all 24 layers, 16 sets",
+    "hash": "#explorer?net=mamba&o=Bpoint&ck=trained&c=seba&r=16",
+    "note": "Colour from: the residual stream averaged over all 24 layers (the walks of the 24 layers averaged), trained; kNN graph, k = 15.<br>Colour: coherent sets ($r = 16$); grey = unassigned. Every panel holds the same 8,000 contexts.<br>Try: click a set in the side panel to read 12 of its contexts."
+  },
+  {
+    "id": "m-psi1",
+    "label": "Mamba: the leading eigenfunctions of the all-layer residual block",
+    "hash": "#explorer?net=mamba&o=Bpoint&ck=trained&c=eig&k=2",
+    "note": "Colour from: the residual stream, all 24 layers, trained.<br>Colour: $\\psi_2 / \\max|\\psi_2|$ of the object's averaged operator. The side panel lists the 12 contexts at each end.<br>Try: step through $\\psi_1$ to $\\psi_6$."
+  },
+  {
+    "id": "m-l4",
+    "label": "Mamba: residual layer 4 alone, eight sets",
+    "hash": "#explorer?net=mamba&o=point_L4&ck=trained&c=seba&r=8",
+    "note": "Colour from: the residual stream after layer 4, trained; kNN graph, k = 15.<br>Colour: coherent sets ($r = 8$), painted on the stored layouts of the residual blocks and the state.<br>Try: colour by ψ₁ of this layer, then by the token class at $t$."
+  },
+  {
+    "id": "m-l24",
+    "label": "Mamba: residual layer 24 alone, eight sets",
+    "hash": "#explorer?net=mamba&o=point_L24&ck=trained&c=seba&r=8",
+    "note": "Colour from: the residual stream after layer 24 (the last), trained; kNN graph, k = 15.<br>Colour: coherent sets ($r = 8$).<br>Try: open set 2 and read what follows the token at $t$."
+  },
+  {
+    "id": "m-catchall",
+    "label": "Mamba: inside the large set of word pieces",
+    "hash": "#explorer?net=mamba&o=Bpoint&ck=trained&c=seba&r=16&j=0&sel=24.22",
+    "note": "Colour from: the residual stream, all 24 layers. Selected: set 1 of $r = 16$ ({{fact:m.Bpoint.r16.catch.size}} contexts), intersected with set {{fact:m.Bpoint.catch.r24.largest_set}} of $r = 24$ of the same object.<br>Try: pick another $r$ under “Selected members under another r”, or step back with the breadcrumb."
+  },
+  {
+    "id": "m-whole",
+    "label": "Mamba: the whole recurrent state, eight sets",
+    "hash": "#explorer?net=mamba&o=whole&ck=trained&c=seba&r=8&lay=lags",
+    "note": "Colour from: the whole recurrent state (all 48 state constituents of the 24 layers), trained.<br>Colour: coherent sets ($r = 8$), painted on six layouts plus the two along-reading blocks.<br>Try: colour by kind of source (validation only); then choose “whole state read 16 tokens further” as the object."
+  },
+  {
+    "id": "m-init",
+    "label": "Mamba: the same block at initialisation",
+    "hash": "#explorer?net=mamba&o=Bpoint&ck=init&c=seba&r=16",
+    "note": "Colour from: the residual stream over all 24 layers of the <b>untrained</b> network (same architecture, initial weights).<br>Colour: its coherent sets ($r = 16$), painted on the trained network's layouts.<br>Try: switch back to trained."
+  }
+]

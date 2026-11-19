@@ -1,0 +1,18 @@
+<p class="lede">The construction is the ResNet-20 report's, unchanged except for the counts; its <a href="https://charlesr-w.github.io/CoherentModes/#method">Method</a> tab has the formulas. This page lists only what differs.</p>
+
+<h2 id="differences">Differences from the ResNet-20 report</h2>
+<ul>
+<li><b>Rules.</b> Only the kNN graph (k = 15) and per-point perplexity 100 are computed.</li>
+<li><b>Counts.</b> $K$ = {{fact:n_vecs}} non-trivial eigenfunctions per block (stored as 16-bit integers, shown as 8-bit for colouring; the error is below 1/127 of max $|\psi_k|$); SEBA ranks r = {{fact:seba_r}}.</li>
+<li><b>SEBA in the browser.</b> Set labels, each image's SEBA value in its own set and the representative images are computed from double-precision vectors; the page does not recompute SEBA.</li>
+<li><b>Coincident images.</b> When many probe images have (numerically) identical activations, as in a collapsed early network, an image whose nearest set of exact ties (cosine distance within $10^{-9}$) has 100 or more members cannot reach perplexity 100 at any temperature; it takes the limit, a uniform distribution over those tied images. Every other image is calibrated exactly as in the report. Affected images per snapshot are in <code>meta.json</code> (<code>perplexity_unattainable</code>).</li>
+<li><b>Stability horizon</b> (new). See <a href="#overview/horizon">Overview</a>; details below.</li>
+</ul>
+
+<h2 id="stability">Stability: exact definition</h2>
+<p>A fixed random permutation of the probe positions (seed 20261113; labels play no part) is cut into three parts: core $C$ ({{fact:stab_core}} images), $A$ and $B$. Subsets $S_1 = C \cup A$ and $S_2 = C \cup B$ ({{fact:stab_subset}} images each). For each subset separately, every snapshot's centred cosine Gram is recomputed from that subset's activations (centred over the subset) and the same kernel rule, scaling and lazy walk are built among the subset's images only. For every block and rule this gives eigenvectors $\psi^{(1)}_k$, $\psi^{(2)}_k$, $k = 1..K+16$. Their rows at $C$ are centred and normalised ($U^{(1)}, U^{(2)}$); for each $k$,</p>
+$$\mathrm{span}_k = \min_i \cos^2\theta_i\big(\mathrm{span}\,U^{(1)}_{1..k},\ \mathrm{span}\,U^{(2)}_{1..k}\big),$$
+<p>and the horizon is $h = \max\{k : \mathrm{span}_k \ge 0.5\}$ (0 if none). Hovering a mode in the explorer also shows a descriptive <i>local index agreement</i>: the mean, over both directions, of the squared norm of the projection of $u_k$ onto the other subset's $u_{k-2}..u_{k+2}$. It under-reads inside groups of close eigenvalues wider than five and plays no part in $h$. Parameters (threshold 0.5, 16 guard modes, window 2) were fixed on synthetic tests before any network was measured: a planted 5-dimensional cluster span gives $h = 5$; an 11-dimensional symmetric group with $K = 8$ gives $h = 11$ through the guard modes; an isotropic cloud gives $h = 0$.</p>
+
+<h2 id="reproduce">Reproduce</h2>
+<p>Code: <code>explore/cifar_more/</code> in the <a href="https://github.com/CharlesR-W/CoherentModes">repository</a> (<code>README.md</code> has the commands, the Modal spend and the run records). The construction is imported from <code>explore/cifar_coherent/</code>.</p>

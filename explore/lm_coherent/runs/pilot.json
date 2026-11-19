@@ -1,0 +1,12 @@
+{
+ "stage": "pilot",
+ "call_id": "fc-01M78KFDJTPNG2G954ZNP5QVGT",
+ "launched": "Thu Nov 12 11:24:11 2026",
+ "fingerprint": "b27966b7644d32b94b798ceb5c1b62899560d6036d09339d3699a1417602f5ee",
+ "timeouts": {
+  "U0": 1800,
+  "U1": 900,
+  "U2": 2400,
+  "U3": 2400
+ }
+}

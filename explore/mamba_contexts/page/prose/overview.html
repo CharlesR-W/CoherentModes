@@ -1,0 +1,148 @@
+<!-- Overview prose. Sections are placed by build_page.py in this order: _head, answer (the diagnosis in detail),
+     (figure F1 summary), v2, found, map, (experiment map table). Numbers only through fact slots; give every number
+     its meaning and comparison point in words at first use. -->
+<p><b>The question.</b> The first Mamba study ("v1", <code>explore/mamba_coherent/</code>) found little in mamba-130m:
+its headline sets recovered the five document sources, which a bag of tokens also recovers, and almost none of its
+zoom cuts read as a clear split. Were we looking at the wrong things?</p>
+<!-- real -->
+<div class="answer">
+<h3>The answer: partly</h3>
+<p><b>v1 missed token-level organisation, because it scored its sets mainly against document source. The follow-up
+(v2) makes that organisation visible. It does not find clear clusters, and it finds no source grouping stronger than a
+bag-of-tokens reference gives.</b> Three of the seven pre-registered targets failed.</p>
+<ul>
+<li><b>Two separate problems in v1.</b>
+  <ul>
+  <li><em>It scored the wrong labels.</em> Its "depth blocks" (one position, read across layers) group contexts by
+  the kind of token just read (newlines, function words, punctuation, LaTeX), but v1 scored them only against
+  source.</li>
+  <li><em>There were no clear clusters to recover.</em> Its spectra have no strong gap, and changing the labels would
+  not have created one.</li>
+  </ul></li>
+<li><b>v2's items are single token contexts</b>: {{fact:n_items}} prefixes, each ending at a sampled token. Their
+coherent sets are scored against the token, the next token, the snippet and the model's own predictions.</li>
+<li><b>The residual stream</b> groups contexts by the class of the token just read. Agreement with that class is
+{{fact:ami8.trained.Bpoint.Cc}} on a 0 (chance) to 1 scale, against {{fact:ami8.trained.Bpoint.W}} with source. On
+top of that there is a small association with what the model predicts next, beyond what sharing the token explains.
+These groupings fade within one or two tokens of further reading.</li>
+<li><b>The recurrent state</b> groups contexts by source (agreement {{fact:ami8.trained.whole.W}}), and its groupings
+mostly last at least sixteen tokens.
+  <ul>
+  <li><b>A plain bag of the prefix's tokens groups by source just as strongly</b>, so this probe cannot show that the
+  state tracks the document beyond its vocabulary.</li>
+  <li>The state also carries the token-class and predictive associations, which the bag does not.</li>
+  </ul></li>
+<li><b>Not found.</b>
+  <ul>
+  <li>No object is certified as clustered at the tested numbers of parts. The residual block is excluded under
+  the θ = {{fact:theta}} rule; the state blocks leave some cases undetermined (not evidence either way).</li>
+  <li>The whole state keeps more of its walk within a snippet than the residual block does (excess share
+  {{fact:tgt.K2.U_whole}} against {{fact:tgt.K2.U_Bpoint}}), but the gap is below the 0.2 the target required (K2).</li>
+  <li>Predictive coherence does not rise by the predicted amount from layer 4 to layer 24 (K3).</li>
+  </ul></li>
+</ul>
+<p>Targets met: {{fact:v.met_list}}; not met: {{fact:v.not_met_list}}; every control passes. Read on:
+<a href="#tab=findings">Findings</a> (claims, evidence, alternatives), <a href="#tab=explorer">Explorer</a> (the sets
+themselves), <a href="#tab=measurements">Measurements</a> (one figure per question).</p>
+</div>
+<!-- /real -->
+
+<!-- section: answer -->
+<h3>The diagnosis of v1 in detail</h3>
+<p>v1 had two kinds of block, and the diagnosis concerns both. A <b>reading block</b> follows one layer along a
+snippet (positions 4..128) and averages the walks; a <b>depth block</b> takes one position and averages across
+layers L4..L24. AMI below is the agreement between a block's hard sets and a labelling (0 = chance, 1 = identical);
+r is the number of sets.</p>
+<ol>
+<li><b>Reading blocks were scored against source, and recover it the way a bag of tokens does.</b> Averaging along a
+snippet keeps what persists along a document, which on that probe is its vocabulary. The {{fact:v1.n_reading}}
+reading blocks' sets agree with source at AMI {{fact:v1.reading.src.range}}, and a bag-of-tokens reference finds the
+same partition.</li>
+<li><b>Depth blocks group by the kind of token just read, which v1 never scored.</b>
+<ul>
+<li>Their sets agree with the current token's class at mean AMI {{fact:v1.depth.cc.by_r}} for r =
+{{fact:v1.r_list}}, against {{fact:v1.depth.src.by_r}} with source.</li>
+<li>The class signal holds within one source (AMI {{fact:v1.cc_within_source.range}}), while source within one class
+is weak ({{fact:v1.src_within_class.range}}).</li>
+<li>{{fact:v1.sets.n_class70}} of the {{fact:v1.sets.n}} depth-block sets at r = 8 are at least 70% one class:
+function words, line ends, punctuation, LaTeX. The rest are mixtures or broad word buckets.</li>
+</ul></li>
+<li><b>Separately, there were no clear clusters to recover.</b>
+<ul>
+<li>v1 called a cut "clear" when its two-way ratio Υ reached 3. {{fact:v1.tree.ups_ge3}} of {{fact:v1.tree.internal}}
+cuts did, and {{fact:v1.tree.balanced2pct}} fell within 2% of an even split, which is what a cut with no bottleneck
+does.</li>
+<li>Asking for more parts does not help. At v1's two block roots, the multi-way ratio $\hat\Upsilon(k)$ for k =
+{{fact:v1.T1.k.range}} parts is {{fact:v1.T1.ups.range}} and {{fact:v1.T4.ups.range}}, against the same threshold of 3.
+Even the partition into the five sources scores only {{fact:v1.T1.src5}} and {{fact:v1.T4.src5}}.</li>
+<li>The spectral cap $2\mu_k/\mu_{k-1}$, which no partition can exceed, is {{fact:v1.T1.cap.range}} and
+{{fact:v1.T4.cap.range}}. Where it is above 3 (T4 at {{fact:v1.T4.cap_ge3}}; T1 at {{fact:v1.T1.cap_ge3}}) a clear partition is possible in
+principle, but none of the tested ones reaches it, and the spectra show no large gap at any k.</li>
+</ul></li>
+<li><b>The walk merges two of the five sources.</b> In v1's whole-state snapshot the walk crosses between code and
+forum more often than chance (mixing ratio {{fact:v1.X.stack_L24_t128.code_forum}}, where 1 means no avoidance and
+the null band tops out at {{fact:v1.X.stack_L24_t128.null_hi}}). Every other pair is avoided (at most
+{{fact:v1.X.stack_L24_t128.others_max}}). This describes how the model treats the texts, not a flaw in the probe's
+design; it means source is a roughly four-group labelling.</li>
+</ol>
+<p>The figure is the short version (full version: <a href="#tab=measurements">Measurements, F1</a>; details in
+<code>explore/mamba_coherent/diagnosis/DIAG_NOTES.md</code>).</p>
+
+<!-- section: v2 -->
+<h3>What v2 looks at instead</h3>
+<ul>
+<li><b>Items.</b> A token context is the prefix of a v1 snippet ending at a sampled token t: {{fact:per_snippet}}
+positions in each of {{fact:n_snippets}} snippets, t = {{fact:t_min}}..{{fact:t_max}}, N = {{fact:n_items}}.</li>
+<li><b>Views at every layer</b> (diagram above):
+<ul>
+<li>the residual after each block (<b>point</b>);</li>
+<li>each layer's recurrent state (<b>state</b>);</li>
+<li>the <b>whole</b> state.</li>
+</ul>
+The headline block, B-point, is the residual across L1..L24; B-state does the same for the states. Reading is measured
+by re-reading the same items τ = {{fact:lags}} tokens later.</li>
+<li><b>Groupings to score against.</b>
+<ul>
+<li>Label-free: the token at t, the token at t+1, the snippet.</li>
+<li>The model's own outputs: its top prediction, and predictive coherence, which is how similar the next-token
+distributions of contexts the walk links are. Its conditional form asks the same beyond what sharing the token
+explains.</li>
+<li>For validation only: source and a {{fact:n_classes}}-class token taxonomy.</li>
+</ul></li>
+<li><b>References</b> that use no model state at all: a bag of the prefix's tokens, the last 16 tokens, and the model's
+next-token distribution. They show how much of a grouping plain token statistics already give.</li>
+<li><b>Readouts that need no clusters</b>: walk shares, η² of each eigenfunction, retention along reading, span
+agreement. There is also a multi-way clustering certificate with three outcomes (certified, excluded, undetermined).
+The formulas are in <a href="#tab=method">Method</a>.</li>
+</ul>
+
+<!-- section: found -->
+<!-- mockup -->
+<h3>What v2 found</h3>
+<div class="placeholder">
+<p>The real run has not happened. This box will state the answer to (a)–(d) in four sentences, from the real data.
+On this fixture the wiring reads: B-point's r = 8 sets have AMI {{fact:ami8.trained.Bpoint.Cc}} with the class at t and
+{{fact:ami8.trained.Bpoint.W}} with source; κ̃<sub>|T</sub> of B-point is {{fact:share.trained.Bpoint.kappaT}}; the whole
+cell's r = 8 sets have AMI {{fact:ami8.trained.whole.W}} with source; B-point is certified at
+{{fact:certified.trained.Bpoint}}; mean retention of B-point's sets in point L16 is {{fact:ret.point_L16.tau2}} at τ = 2.
+Verdict: {{fact:v.n_met}} of {{fact:v.n_hyp}} hypotheses met ({{fact:v.met_list}}).</p>
+</div>
+<!-- /mockup -->
+<!-- real -->
+<h3>Where each question is answered</h3>
+<ol type="a">
+<li><b>What the residual's depth sets group:</b> the class of the token just read, plus a small predictive part
+beyond the token (<a href="#tab=findings">Findings 1–2</a>, Measurements F2 and F4).</li>
+<li><b>What the state's sets group:</b> source, matched by the bag reference for source but not for token class or
+prediction (<a href="#tab=findings">Finding 3</a>, F2 and F4).</li>
+<li><b>How long sets last along reading:</b> residual sets about one or two tokens; state sets mostly beyond sixteen,
+with one fast-fading exception (<a href="#tab=findings">Finding 4</a>, F5).</li>
+<li><b>Clear multi-way structure:</b> not certified anywhere; excluded under the θ rule for the residual, with
+undetermined cases left for the state (<a href="#tab=findings">Finding 5</a>, F3 and F6).</li>
+</ol>
+<!-- /real -->
+
+<!-- section: map -->
+<details class="more"><summary>Experiment map</summary>
+<p>The model is the released mamba-130m and its HF random initialisation; nothing is trained here, so there are no
+training curves.</p>

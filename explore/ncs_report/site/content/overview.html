@@ -1,0 +1,54 @@
+<p class="lede">Which inputs does a network treat the same, and at which layer? The <a href="https://charlesr-w.github.io/CoherentModes/">ResNet-20 report</a> asked this of an image classifier with a label-free spectral construction I call <em>Neural Coherent Sets</em>. Here it runs on <b>DINOv2 ViT-S/14</b>, a vision transformer trained without labels ({{fact:v.n}} ImageNet images), and on <b>Mamba-130m</b>, a state-space language model ({{fact:m.n}} token contexts). <b>In the ViT's last blocks the images group into kinds of thing. In Mamba's residual stream the contexts group by the token just read, and over all layers by families of tokens, punctuation and layout; its recurrent state groups them by kind of source (maths, code, wiki, forum or poetry).</b></p>
+
+<h2 id="hero">The sets, at a glance</h2>
+
+<figure class="fig wide" id="hero-vit">
+  <a href="#explorer?tour=vit-late"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/hero_vit.png"><img loading="eager" src="assets/fig/hero_vit.png" alt="UMAP panels of the ViT's 2,000 images coloured by their eight coherent sets at L1, L6, L9 and the block L9 to L12, each with rows of member images per set."></picture></a>
+  <figcaption><b>Plotted:</b> DINOv2 ViT-S/14, the same {{fact:v.n}} images in every column. Top: a UMAP of one snapshot's activations (for the block L9 to L12, L12's), coloured by the $r = 8$ coherent sets of the named layer or block; grey = unassigned. Below: each set, largest first, with its size and the five images that belong to it most strongly (largest SEBA value).<span class="phone-only"> On a phone: L1 and the block only, four images per set.</span> <a class="explore-link" href="#explorer?tour=vit-late">Open the explorer here</a></figcaption>
+</figure>
+
+<figure class="fig wide" id="hero-mamba">
+  <a href="#explorer?tour=m-all"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/hero_mamba.png"><img loading="eager" src="assets/fig/hero_mamba.png" alt="Three panels of the same UMAP of Mamba's 8,000 token contexts, coloured by the coherent sets of residual layer 4, of the all-layer residual block and of layer 24, each with a list of its sets and their commonest tokens."></picture></a>
+  <figcaption><b>Plotted:</b> Mamba-130m. All three panels place the same {{fact:m.n}} contexts at the same positions (one UMAP of the all-layer residual block's eigenfunctions); only the colour changes: the coherent sets of residual layer 4 ($r = 8$), of the residual stream with all 24 layers' walks averaged ($r = 16$), and of layer 24 ($r = 8$). Below each: its sets, largest first, with size, commonest tokens at $t$ and, after the arrow, at $t+1$.<span class="phone-only"> On a phone: the eight largest sets of each.</span> <a class="explore-link" href="#explorer?tour=m-all">Open the explorer here</a></figcaption>
+</figure>
+
+<h2 id="what-ran">What was run, and how</h2>
+
+<div class="table-scroll wide stack-phone"><table class="facts">
+<tr><th>network</th><th>items</th><th>where it looks</th><th>in this report</th></tr>
+<tr><td data-label="network"><b>DINOv2 ViT-S/14</b>, released weights (trained without labels)</td><td data-label="items">{{fact:v.n}} images, {{fact:v.per_class}} from each of {{fact:v.n_fine}} ImageNet classes</td><td data-label="where">the CLS token after each of the {{fact:v.n_sites}} blocks</td><td data-label="here">explorer; findings 1 to 4</td></tr>
+<tr><td data-label="network"><b>Mamba-130m</b>, released weights and untrained</td><td data-label="items">{{fact:m.n}} token contexts, {{fact:m.per_snippet}} positions in each of {{fact:m.n_snippets}} snippets</td><td data-label="where">the residual stream and the recurrent state at the token just read; single layers, thirds of depth, all layers, and the same contexts read further</td><td data-label="here">explorer; findings 5 to 9</td></tr>
+<tr><td data-label="network">Mamba-130m and Pythia-160m, earlier</td><td data-label="items">{{fact:o.n_snippets}} whole snippets</td><td data-label="where">along depth and along reading; Pythia at {{fact:o.py.n_steps}} training checkpoints</td><td data-label="here"><a href="#findings/earlier">one short section</a></td></tr>
+</table></div>
+
+<p id="procedure">The procedure is the ResNet report's, unchanged (<a href="https://charlesr-w.github.io/CoherentModes/#overview/procedure">step by step there</a>): in each snapshot, link every item to its 15 nearest neighbours by cosine and turn the links into a random walk; average the walks over a block of snapshots; take the eigenfunctions of the average, the primary object; and read the leading ones as <em>coherent sets</em> with SEBA, as an aid to reading them.</p>
+
+<p id="one-or-many"><b>One layer or many.</b> A single layer's sets show what that layer treats alike. A block's sets show what its layers treat alike together: a function on the items counts as smooth only if it changes little, on average, along the links of all the layers' walks. So if layer 4 links two contexts because both end in “ the” but the later layers do not, the all-layer walk links them only weakly, and its sets keep the groupings that persist through depth.</p>
+
+<details class="more"><summary>The maths, in one place</summary>
+<p>With $\hat h_i$ the centred, unit-normalised activation of item $i$ in snapshot $c$, $C_{ij} = \langle \hat h_i, \hat h_j\rangle$. The kernel $K_c$ is the symmetrised kNN graph ($k = 15$) on $d_{ij} = 1 - C_{ij}$; Sinkhorn finds $v > 0$ with $P_c = \mathrm{diag}(v) K_c \mathrm{diag}(v)$ doubly stochastic, and $M_c = \tfrac12(I + P_c)$. A block $B$ has $\bar M = \frac{1}{|B|}\sum_{c\in B} M_c$, whose eigenvectors in decreasing order of eigenvalue minimise the block-average penalty $\frac{1}{|B|}\sum_c \tfrac12\sum_{ij}(P_c)_{ij}(f_i - f_j)^2$ among unit functions orthogonal to the constant and to each other. SEBA (Froyland, Rock and Sakellariou 2019) rotates $[\psi_0, \dots, \psi_{r-1}]$ and soft-thresholds at $0.99/\sqrt N$ until the columns are sparse; item $i$ goes to the column that is largest there if it is positive. What differs here from the ResNet run is in <a href="#method/vit">Method</a>.</p>
+</details>
+
+<h2 id="answers">The short answer for each network</h2>
+
+<div class="callout key"><p class="callout-title">DINOv2 ViT-S/14</p>
+<p><b>Early blocks group images by look; the last four group them by what they show.</b> At L1 every set mixes unrelated classes; by L6 rough groupings appear. In the block L9 to L12, seven of the eight sets are each mostly one or two kinds, which I name from their classes: dogs and other mammals; snakes, spiders, crabs and insects; road vehicles; birds; food; buildings and monuments; devices, containers and clothing. {{fact:v.L9_L12.r8.n_ge16}} of the {{fact:v.n_fine}} classes have at least 16 of their 20 images in one set. The block's first eigenfunction has primates at one end and food and devices at the other, and {{fact:v.L9_L12.eta2_group.psi1_pc}} of its variance lies between the ten class groups. At L12 alone, single classes split off as sets of their own. <a href="#findings/v-kinds">Findings 1 to 4</a> · <a class="explore-link" href="#explorer?tour=vit-psi1">the eigenfunction</a></p>
+</div>
+<div class="callout key"><p class="callout-title">Mamba-130m</p>
+<p><b>The residual stream groups contexts by the token just read and, over all layers, by families of tokens, punctuation and layout; the recurrent state groups them by kind of source.</b> At layer 4 a step of the walk lands on a context with the same token at $t$ far more often than chance (excess share {{fact:m.T_ex.L4}}; 0 is chance, 1 is every step), though two broad sets hold {{fact:m.L4.r8.broad_frac}} of the contexts. With all 24 layers' walks averaged, one set is led by {{fact:m.Bpoint.r16.set12.tok_t}}, another by {{fact:m.Bpoint.r16.set15.tok_t}}; others hold digits, LaTeX, the line ends of poems, sentence ends or code indentation, and one large set holds word pieces. By layer 24 linked contexts share their token less ({{fact:m.T_ex.L24}}) and have more similar next-token distributions. Along reading, the residual block's set vectors lose most of their smoothness on the walk within two tokens (retention {{fact:m.ret.Bpoint_on_L16.t0}} → {{fact:m.ret.Bpoint_on_L16.t2}} on layer 16's walk: a property of these vectors on later walks, not of what the network remembers); the whole state's keep most of theirs for sixteen ({{fact:m.lag.whole.t0}} → {{fact:m.lag.whole.t16}}). <a href="#findings/m-token">Findings 5 to 9</a> · <a class="explore-link" href="#explorer?tour=m-psi1">the eigenfunctions</a></p>
+</div>
+
+<p id="healthy"><b>Is the eigen-structure sound?</b> As far as I have checked, yes: the leading eigenfunctions spread over many items (at least {{fact:v.L9_L12.pn_min}} images and {{fact:m.pn.Bpoint.min16}} contexts by participation number), Mamba's change little when the neighbour count goes from 15 to 8 or 30 and share almost nothing with the untrained network's. The exception is the ViT's L12 alone (finding 4), and reproducibility on disjoint halves of the items is not yet measured. <a href="#method/sanity">The checks</a></p>
+
+<h2 id="next">Three things to look at</h2>
+<div class="cards3">
+<div class="callout"><p class="callout-title">Kinds of thing, from images alone</p>
+<a href="#explorer?tour=vit-late"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_vit-late.png"><img src="assets/fig/view_vit-late.png" alt="The ViT explorer at the block L9 to L12 with eight sets."></picture></a>
+<p>The block L9 to L12, its eight sets and their images. <a class="explore-link" href="#explorer?tour=vit-late">Open</a></p></div>
+<div class="callout"><p class="callout-title">Token families, from a language model</p>
+<a href="#explorer?tour=m-all"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_m-all.png"><img src="assets/fig/view_m-all.png" alt="The Mamba explorer at the all-layer residual block with sixteen sets."></picture></a>
+<p>The 16 sets of Mamba's residual stream over all layers; click a set to read it. <a class="explore-link" href="#explorer?tour=m-all">Open</a></p></div>
+<div class="callout"><p class="callout-title">Sets along reading</p>
+<a href="#explorer?tour=m-whole"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_m-whole.png"><img src="assets/fig/view_m-whole.png" alt="The Mamba explorer at the whole recurrent state with eight sets."></picture></a>
+<p>The whole recurrent state's sets, with the two along-reading layouts. <a class="explore-link" href="#explorer?tour=m-whole">Open</a></p></div>
+</div>

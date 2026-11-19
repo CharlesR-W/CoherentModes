@@ -1,0 +1,7 @@
+{
+  "title": "Coherent sets of data through the layers of a ViT",
+  "subtitle": "DINOv2 ViT-S/14, CLS token, 2,000 ImageNet-100 images: the ResNet-20 explorer's construction, unchanged",
+  "short_title": "Coherent sets in DINOv2 ViT-S/14",
+  "date": "2026-11-12",
+  "description": "Label-free coherent sets of probe images across the 12 blocks of DINOv2 ViT-S/14, with the explorer and measurement charts of the ResNet-20 study."
+}

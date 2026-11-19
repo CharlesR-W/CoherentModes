@@ -1,0 +1,129 @@
+<!-- Method prose, and the short intros of the Explorer and Measurements tabs. Sections are placed by
+     build_page.py; numbers only through fact slots. -->
+
+<!-- section: explorer_intro -->
+<p>F7: read the sets directly. Each point is one item (a token context). The controls work as follows:</p>
+<ul>
+<li><b>object</b> picks whose sets you see: a block (B-point is the residual across layers, B-state the per-layer
+states, the whole state, or a lag block), or a reference.</li>
+<li><b>colour by</b> paints the points: its sets, a validation label, the snippet, or an eigenfunction ψ.</li>
+<li><b>SEBA rank r</b> is the number of sets (8 or 16).</li>
+<li><b>eigenfunction ends</b> picks which ψ's extremes are listed at the bottom.</li>
+</ul>
+<p>Below the layout, the set cards list what each hard set contains: its commonest tokens at t and t+1, how
+concentrated it is on one token, its class and source make-up, and example contexts with the item's token marked.
+Click a point for its context, or a card's header to isolate that set. The eigenfunction ends need no clustering to
+read. Lag blocks' sets are described with the lag-0 tokens (the card says so).</p>
+<!-- mockup -->
+<div class="mockup-note"><b>MOCKUP.</b> Fixture tokens and contexts are random draws from a small fake vocabulary;
+the planted classes are what the sets should recover here.</div>
+<!-- /mockup -->
+
+<!-- section: measurements_intro -->
+<p>One figure per line of SPEC section 9, in its order (F7 is the Explorer). <!-- mockup -->Each figure carries the
+sentence a reader should be able to say after reading it; the Findings fill those sentences in. <!-- /mockup --><!-- real -->Each
+figure opens with one line saying what it shows, filled from the data; the Findings interpret it. <!-- /real -->Groupings marked validation (source W,
+token classes C<sub>c</sub>, C<sub>n</sub>) are used only to score results; A, κ̃ and κ̃<sub>|T</sub> use the trained
+model's outputs. F1 is computed from v1's stored data and is real on every build.</p>
+<!-- mockup -->
+<div class="mockup-note"><b>MOCKUP.</b> F2–F8 show the synthetic fixture <code>{{fact:data_dir}}</code>
+({{fact:fixture}}). F1 is real (v1 data).</div>
+<!-- /mockup -->
+
+<!-- section: construction -->
+<h2>Construction</h2>
+<p>The construction is inherited from v1 (<code>../mamba_coherent/SPEC.md</code>) and, through it, from the Pythia
+study; only the items, views, blocks and statistics below are new (<code>SPEC.md</code> is the authority).</p>
+<ol>
+<li><b>Items.</b> For each of the {{fact:n_snippets}} v1 snippets, {{fact:per_snippet}} distinct positions t from
+{{fact:t_min}} to {{fact:t_max}}, drawn with a per-snippet seed; item (i, t) is the prefix [EOT] + tokens 1..t. No two
+items share the same multiset of their last 16 tokens (label-free de-duplication; {{fact:dedup_redraws}} redraws). Items are stored in a
+seeded random order. Lags τ ∈ {{{fact:lags}}}: the same item read τ tokens later.</li>
+<li><b>Views.</b> point: the raw residual after block l. state: layer l's recurrent state, the Gram average of its
+conv buffer c and SSM state z. whole: the Gram average of all 48 constituents. References (never in a block): bag
+(mean input embedding of tokens 1..t), recent (of tokens t−15..t), pred ($\sqrt{p_t}$, the trained model's
+next-token distribution).</li>
+<li><b>Operator per snapshot</b> (inherited): cosine on unit-normalised vectors, union kNN graph with k =
+{{fact:k}} and floor $10^{-6}$, Sinkhorn balancing, lazy walk $P$.</li>
+<li><b>Blocks.</b> B-point (point, L1..L24, the headline), its thirds, B-state (state, L1..L24), B-lag-whole (whole at
+every τ), B-lag-point (point L16 at every τ). The block operator is the running mean of its snapshots' operators;
+its eigenpairs give the eigenfunctions $\psi_k$ and, by SEBA at r ∈ {{{fact:ranks}}}, the coherent sets.</li>
+<li><b>Statistics.</b> Excess walk shares against each grouping with exact chance and a {{fact:n_perm}}-permutation
+band; κ̃ and κ̃<sub>|T</sub> (pairs from the same snippet excluded); η² of ψ₁..ψ{{fact:n_eta}} against each grouping;
+AMI and matched Jaccard of the hard sets; span agreement a<sub>r</sub> between objects; lag retention; zoom trees;
+and the multi-way ratio $\hat\Upsilon(k) = \mu_k/\hat\rho(k)$ with its cap $2\mu_k/\mu_{k-1}$.</li>
+</ol>
+<p><b>Reading rule for clusters (SPEC 5).</b> $\hat\Upsilon(k)$ uses two label-free roundings (SEBA argmax and
+k-means on ψ₁..ψ<sub>k−1</sub>) and keeps the larger; any complete partition gives a lower bound on Peng, Sun and
+Zanetti's $\Upsilon(k)$, and the higher-order Cheeger inequality caps every partition at $2\mu_k/\mu_{k-1}$.
+<em>Certified</em>: $\hat\Upsilon(k) \ge \theta$. <em>Excluded</em>: cap below θ. <em>Undetermined</em> otherwise;
+that is not evidence of absence. θ = {{fact:theta}} was fixed on the fixture before the run ({{fact:theta_rule}}) and
+is a reading convention, not a recovery guarantee.</p>
+
+<!-- section: labels -->
+<h2>What is label-free and what is validation</h2>
+<table class="doc">
+<tr><th>quantity</th><th>kind</th><th>enters the construction?</th></tr>
+<tr><td>activations (point, state, whole) and the operators, eigenfunctions, sets built from them</td><td>label-free</td><td>yes: this is the construction</td></tr>
+<tr><td>token at t (T), token at t+1 (Nx), snippet (U), token at t+τ</td><td>label-free groupings (input, training target)</td><td>no: used to score</td></tr>
+<tr><td>the trained model's top-1 prediction (A), κ, κ̃<sub>|T</sub>, the <code>pred</code> reference</td><td>the network's own output</td><td>no: scoring and a reference snapshot, never in a block (D-C6)</td></tr>
+<tr><td>source (W), class of the token at t and t+1 (C<sub>c</sub>, C<sub>n</sub>; {{fact:n_classes}} regular-expression classes: {{fact:classes}})</td><td>validation</td><td>no</td></tr>
+<tr><td>bag and recent references</td><td>label-free references</td><td>no: comparison snapshots, never in a block</td></tr>
+</table>
+
+<!-- section: controls -->
+<h2>Controls, calibration and the pilot gate</h2>
+<p>The statuses are in the verdict box on the <a href="#tab=findings">Findings</a> tab. Calibration of θ on the
+fixture (check seeds): planted minimum $\hat\Upsilon$ {{fact:calib.planted_min}} over {{fact:calib.n_planted}} planted
+blocks, structureless maximum {{fact:calib.structureless_max}} over {{fact:calib.n_structureless}}; P1′
+{{fact:calib.P1}}. Share of planted cases certified, by planted signal strength s (the
+size of the planted cluster offset relative to the noise): {{fact:calib.detection}}. Full-size check (N = 8,000):
+planted {{fact:calib.full.planted}}, structureless {{fact:calib.full.structureless}}: {{fact:calib.full.status}}.
+Run checks on this data: largest Sinkhorn row error {{fact:val.row_err.max}}; smallest off-diagonal cosine distance
+{{fact:val.min_dist.min}}; smallest PN(ψ₁) over blocks {{fact:val.pn.min}}; worst SEBA label reconstruction (the fraction of items whose stored set label is reproduced from the stored
+vectors; 1 = all)
+{{fact:val.seba_agree}} over {{fact:val.records}} spectral records.</p>
+
+<!-- section: hazards -->
+<h2>Hazards</h2>
+<ul>
+<li><b>K1 has no null.</b> It compares two AMIs; a structureless walk can "meet" it by noise. Read it with K1b and
+with F4's η² against its band.</li>
+<li><b>Token identity explains much.</b> Token classes are functions of the token at t, and the token predicts much of
+p<sub>t</sub>, so high C̃<sub>c</sub> or κ̃ alone means "grouped by current token". Only κ̃<sub>|T</sub> above its band
+says more. Items whose token is unique in the probe keep their own prediction in the null (B-point share:
+{{fact:kappa.trained.Bpoint.unique_share}}).</li>
+<li><b>κ is normalised by the walk mass it scores</b> (README deviation 2); the SPEC form is stored as
+<code>kappa_raw</code>. Block κ is κ of the block's $\bar P$, not a mean of its snapshots' κ.</li>
+<li><b>θ is a convention.</b> "Excluded" is a theorem about the operator; "certified" depends on θ; "undetermined" is
+silence.</li>
+<li><b>Layouts are display only</b> (UMAP of ψ₁..ψ₁₆, fixed seed). Distances in the picture are not the method's.</li>
+<li><b>Sets are hard SEBA sets on assigned items</b>; unassigned items are grey and excluded from AMI.</li>
+<li><b>Source is confounded</b> (code and forum mix; Overview, point 4), so source-based targets (K2) are read with
+that in mind.</li>
+</ul>
+
+<!-- section: decisions -->
+<h2>Design decisions made on the owner's behalf</h2>
+<table class="doc">
+<tr><th>id</th><th>decision (default)</th><th>alternative</th><th>how to test</th></tr>
+<tr><td>D-C1</td><td>Items are token contexts, {{fact:per_snippet}} per v1 snippet (N = {{fact:n_items}})</td><td>new snippets, one position each</td><td>Ũ in F2 shows how much same-snippet structure the walks carry</td></tr>
+<tr><td>D-C2</td><td>Headline block along depth, all 24 layers</td><td>every 4th layer; reading blocks as headline</td><td>the thirds (F4 table) and B-lag-point (F4, F5)</td></tr>
+<tr><td>D-C3</td><td>k = {{fact:k}} at N = {{fact:n_items}}; k = {{fact:k_sens}} as sensitivity</td><td>scale k with N</td><td>B-point at k = 8 and k = 30: a₈ against k = 15 {{fact:cmp.Bpoint.Bk8.a8}} and {{fact:cmp.Bpoint.Bk30.a8}}; F3 lists both</td></tr>
+<tr><td>D-C4</td><td>$\hat\Upsilon(k)$ from complete partitions (SEBA and k-means roundings) as the multi-way statistic; v1's Υ kept in the trees</td><td>eigengap alone</td><td>F3 shows gap ratios and the cap beside $\hat\Upsilon$</td></tr>
+<tr><td>D-C5</td><td>Token classes by a fixed regular-expression taxonomy, validation only</td><td>a POS tagger (does not cover code or LaTeX)</td><td>set cards show the tokens themselves</td></tr>
+<tr><td>D-C6</td><td>Model outputs used for validation and as a reference snapshot, never in a block</td><td>no use of outputs</td><td>F4: pred against B-point</td></tr>
+<tr><td>D-C7</td><td>Reuse the v1 snippets, so sources stay as a contrast grouping</td><td>drop sources</td><td>W against C<sub>c</sub> in F4 (K1, K2)</td></tr>
+</table>
+
+<!-- section: page -->
+<h2>Page decisions</h2>
+<table class="doc">
+<tr><th>decision (default)</th><th>alternative</th><th>why</th></tr>
+<tr><td>Built with the experiment-notebooks engine (Plotly and MathJax from CDNs)</td><td>v1's offline page framework</td><td>the skill's engine; v1's page carried sections this study does not need</td></tr>
+<tr><td>"Snapshot" for a (checkpoint, view, layer, lag) unit in page text</td><td>"cell", as in SPEC.md</td><td>the owner reserves "cell" for activation cells (the cifar page's glossary)</td></tr>
+<tr><td>F1 also summarised on the Overview</td><td>F1 only in Measurements</td><td>the Overview leads with the answer to "were we looking at the wrong things?"</td></tr>
+<tr><td>v1's roots T1 and T4 added to F3's object list</td><td>F3 for v2 objects only</td><td>shows the diagnosis's point 3 on the same axes as v2's readout</td></tr>
+<tr><td>Explorer layouts normalised to a square box (0.5–99.5 percentile), outliers clipped to the edge</td><td>raw UMAP coordinates</td><td>a few far points would otherwise shrink the picture</td></tr>
+<tr><td>No gifs or filmstrips</td><td>the skill's default for evolution figures</td><td>no figure here is about evolution over training (two checkpoints only)</td></tr>
+</table>

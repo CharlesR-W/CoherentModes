@@ -1,0 +1,14 @@
+{
+  "classes": ["#2a78d6", "#16a39a", "#eda100", "#d6336c", "#7a8b12", "#eb6834", "#008300", "#e87ba4", "#6250d6", "#33508f"],
+  "sets": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"],
+  "diverging": {"neg": "#2166ac", "mid": "#d3d2cc", "pos": "#b2182b"},
+  "sequential": ["#e9f1fc", "#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"],
+  "ordinal": ["#b7d3f6", "#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281", "#0d366b", "#081f40"],
+  "unassigned": "#d4d4d4",
+  "accent": "#c2410c",
+  "bg": "#fafaf8",
+  "surface": "#ffffff",
+  "fg": "#16161a",
+  "mute": "#6b6b70",
+  "line": "#e4e3de"
+}

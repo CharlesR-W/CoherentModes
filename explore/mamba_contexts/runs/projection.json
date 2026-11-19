@@ -1,0 +1,84 @@
+{
+ "rule": "timeout = max(900 s, 2 x projected seconds), per unit",
+ "parts": {
+  "U1_trained": {
+   "decode": 382.9,
+   "grams": 529.8,
+   "writes": 321.9,
+   "predictions": 10.3,
+   "controls": 373.2,
+   "load": 60
+  },
+  "U2_trained": {
+   "cells": 265.2,
+   "spectra": 1084.4,
+   "block_stats": 7.7,
+   "reads": 166.3,
+   "spill": 12.7
+  },
+  "U1_init": {
+   "decode": 63.8,
+   "grams": 88.3,
+   "writes": 90.9,
+   "load": 30
+  },
+  "U2_init": {
+   "cells": 111.1,
+   "spectra": 253.0,
+   "block_stats": 0.9,
+   "reads": 90.3,
+   "spill": 5.1
+  },
+  "U3": {
+   "T1": 107.1,
+   "T2": 144.1,
+   "T2_load": 156.1,
+   "layouts": 241.0,
+   "compare_finalize": 180
+  }
+ },
+ "seconds": {
+  "U1_trained": 1678,
+  "U2_trained": 1536,
+  "U1_init": 273,
+  "U2_init": 460,
+  "U3": 828
+ },
+ "usd": {
+  "U1_trained": 1.395,
+  "U2_trained": 1.283,
+  "U1_init": 0.286,
+  "U2_init": 0.434,
+  "U3": 0.724
+ },
+ "pilot_usd": 2.678,
+ "pilot_seconds": 3214,
+ "full_usd": 1.445,
+ "full_seconds": 1562,
+ "total_usd": 4.163,
+ "timeouts": {
+  "U1_trained": 3356,
+  "U2_trained": 3072,
+  "U1_init": 900,
+  "U2_init": 920,
+  "U3": 1656
+ },
+ "spent_usd": 1.896,
+ "projected_study_total_usd": 6.059,
+ "reservation_at_pilot_launch_usd": 7.228,
+ "reservation_at_full_launch_if_pilot_as_projected_usd": 7.648,
+ "reservation_everything_at_timeout_usd": 10.302,
+ "fits_ceiling": true,
+ "ceiling": 8.0,
+ "rates": {
+  "L40S": 0.000542,
+  "cpu_core": 1.31e-05,
+  "mem_gib": 2.22e-06,
+  "unit_rate": 0.0007888799999999998
+ },
+ "assumptions": {
+  "decode_per_pass_s": 63.300000000000004,
+  "v1_decode_s": 42.2,
+  "margin": 1.5
+ }
+}

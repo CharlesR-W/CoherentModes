@@ -1,0 +1,5 @@
+{"title": "Coherent sets in a small language model",
+ "subtitle": "a toy test of whether the ResNet construction gives readable structure on pythia-160m, out of the box",
+ "short_title": "Coherent sets in pythia-160m",
+ "banner": "One model (pythia-160m), one training run, 1,000 snippets from five sources. A side study, not a stage of the main experiments.",
+ "date": ""}

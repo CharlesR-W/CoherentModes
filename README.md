@@ -40,6 +40,8 @@ As far as we know none of the ingredients is new: diffusion maps, Sinkhorn scali
 
 ## Status and what would help
 
+- **Toy-model training-speed experiments moved:** all SGD/Adam sweeps, Gemma-like comparisons, raw results and reports now live in the separate [TMoS_SpeedTest repository](../TMoS_SpeedTest/README.md).
+
 - **Exploratory side study (not an `EXPERIMENTS.md` stage):** an interactive look at coherent sets across the layers and training checkpoints of a ResNet-20 on CIFAR-10, at <https://charlesr-w.github.io/CoherentModes/>; source in [`explore/cifar_coherent/`](explore/cifar_coherent/). One model, one seed; nothing there is a validated result.
 
 - **Next step:** the shared library and Stage 0 (synthetic calibration), then Stage 1 (toy models of superposition).

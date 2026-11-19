@@ -1,0 +1,14 @@
+<h2 id="training">Training</h2>
+<figure class="fig wide live" data-live="curves"><figcaption><b>Plotted:</b> accuracy and cross-entropy loss on the training subset (5,000 images) and the test set at every saved checkpoint, step on a symmetric-log axis; dots: the {{fact:n_checkpoints}} checkpoints in the explorer. TRAIN_DESC</figcaption></figure>
+
+<h2 id="horizons">Stability horizons</h2>
+<p>Horizon $h$ of a block: the largest $k$ such that $\psi_1..\psi_k$ built from two overlapping random {{fact:stab_subset}}-image subsets agree on their {{fact:stab_core}} shared images with every principal angle's squared cosine at least 0.5 (<a href="#overview/horizon">definition</a>). Computed up to $k$ = {{fact:n_vecs}} + 16; values above {{fact:n_vecs}} mean "reproducible beyond the stored modes".</p>
+<figure class="fig wide live" data-live="lines" data-src="d/measure.json#single_rule0"><figcaption><b>Plotted:</b> horizon $h$ of every single-snapshot block (one site at one checkpoint), by site; one line per checkpoint (light = early, dark = final). Kernel rule: kNN graph, k = 15.</figcaption></figure>
+<figure class="fig wide live" data-live="lines" data-src="d/measure.json#single_rule1"><figcaption><b>Plotted:</b> as above, kernel rule per-point perplexity 100.</figcaption></figure>
+<figure class="fig wide live" data-live="lines" data-src="d/measure.json#time_full_rule0"><figcaption><b>Plotted:</b> horizon of the time block spanning all {{fact:n_checkpoints}} checkpoints at each site (solid) and of the single-snapshot block at the final checkpoint (dashed). Kernel rule: kNN graph, k = 15.</figcaption></figure>
+<figure class="fig wide live" data-live="heatmap" data-src="d/measure.json#layer_heat_rule0"><figcaption><b>Plotted:</b> horizon of every layer block (row: first site, column: last site; the diagonal is the single-snapshot blocks); slider: checkpoint. Kernel rule: kNN graph, k = 15.</figcaption></figure>
+
+<h2 id="decodability">Linear decodability at the final checkpoint</h2>
+<p>A <b>validation fit</b>, not part of the construction: closed-form ridge regression on one-hot labels and a cosine 20-nearest-neighbour vote, fitted on DECOD_FIT and scored on all 10,000 test images, at the final checkpoint only.</p>
+<figure class="fig wide live" data-live="lines" data-src="d/measure.json#decod_flat"><figcaption><b>Plotted:</b> test accuracy by site, features = flattened activations (all positions). Chance: dashed.</figcaption></figure>
+<figure class="fig wide live" data-live="lines" data-src="d/measure.json#decod_gap"><figcaption><b>Plotted:</b> as above, features = spatial channel means (convolutional sites only).</figcaption></figure>

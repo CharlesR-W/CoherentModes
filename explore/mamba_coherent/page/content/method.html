@@ -1,0 +1,158 @@
+<p class="lede">Definitions, the choices I made, what could go wrong and how it was checked, and how to rebuild the page.
+The construction is the Pythia study's, unchanged; what is new is the recurrent state and its two views, listed under
+<a href="#method/deviations">deviations</a>.</p>
+
+<h2 id="substrate">Model, probe and cells</h2>
+
+<p><b>Model.</b> <code>{{fact:model_full}}</code> at revision <code>{{fact:revision}}</code>: Mamba-1, {{fact:n_layers}}
+blocks on the residual stream, width {{fact:d_model}}, inner width {{fact:d_inner}}, SSM state size {{fact:d_state}},
+conv kernel {{fact:conv_kernel}}, RMSNorm, residual kept in float32, trained on the Pile (about 300B tokens) with the
+GPT-NeoX-20B tokenizer. It runs through Hugging Face's reference (torch) implementation of the scan; the fused
+<code>mamba-ssm</code> and <code>causal-conv1d</code> kernels are not installed. Checkpoints: the pinned trained weights,
+and <code>MambaForCausalLM(config)</code> after <code>torch.manual_seed({{fact:init_seed}})</code> (HF's re-implementation of
+the reference init; no intermediate training checkpoints are published). Transformers {{fact:transformers}}, torch
+{{fact:torch}}.</p>
+
+<p><b>Probe.</b> The Pythia study's {{fact:n_items}} snippets, copied verbatim: {{fact:n_per_source}} per source, 128 tokens
+after an end-of-text token, de-duplicated without labels and shuffled. Both models share the tokenizer backend, so item
+$i$ is the same token sequence in both studies; the check is described under <a href="#method/deviations">deviations</a>.</p>
+
+<p><b>Cells and the state.</b> The model reads each snippet one token at a time with HF's cache, batched over
+snippets. After each step, a forward hook gives the residual after block $l$ (before the final norm at L24), and the
+cache gives every layer's conv buffer and SSM state. The conv buffer kept is the last three columns of HF's four-column
+buffer: the next step discards the oldest column, so only those three are carried forward. Positions 0 to 3 are left out
+as in the Pythia study.</p>
+
+<h3 id="views">Views</h3>
+<table class="data">
+<thead><tr><th>view</th><th>$\phi(i)$ at (checkpoint, layer $l$, position $t$)</th><th>cells</th></tr></thead>
+<tbody>
+<tr><td><b>point</b></td><td>$h^l_t(i)$, the residual stream after block $l$</td><td>{{fact:n_cells_view}}</td></tr>
+<tr><td><b>state</b></td><td>layer $l$'s state: Gram average of the conv buffer $c^l_t$ (flattened) and the SSM state $z^l_t$ (flattened), equal weight</td><td>{{fact:n_cells_view}}</td></tr>
+<tr><td><b>stack</b></td><td>the states of layers $1..l$: Gram average over the $2l$ constituents $\{c^m_t, z^m_t\}_{m \le l}$, all layers (not only the sampled ones); at $l = 24$ the whole state $\Sigma_t$</td><td>{{fact:n_cells_view}}</td></tr>
+<tr><td><b>bag</b> (reference)</td><td>$\frac1t \sum_{u \le t} E[x_u(i)]$, the mean input embedding of tokens 1 to $t$</td><td>one per checkpoint and position</td></tr>
+</tbody></table>
+<p>Every vector goes through the same standard step: centre over the $N$ snippets, scale each row to unit length, take
+cosines, in float64. For the state and stack views each constituent goes through that step on its own, the cosine
+matrices are averaged with equal weight, and the average is double-centred and renormalised, as the Pythia slab was.
+This equals the cosine matrix of the concatenated normalised constituents scaled by $1/\sqrt{\#\text{constituents}}$
+<b>[thm]</b> (checked in P3). The equal weighting is a choice (D-M1): the conv inputs and the accumulated SSM products have
+unrelated scales, and raw concatenation would let the parameterisation decide.</p>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="gloss">
+<dt id="glossary-item">item, snippet</dt><dd>One of the {{fact:n_items}} probe texts (a <em>site</em> in the theory's language).</dd>
+<dt id="glossary-cell">cell</dt><dd>A (checkpoint, layer, position, view); its walk $P_c$ is built from that view.</dd>
+<dt id="glossary-state">recurrent state, constituent</dt><dd>Layer $m$'s conv buffer $c^m_t$ and SSM state $z^m_t$ after $t$ tokens; each is one constituent of the state and stack views. The whole state $\Sigma_t$ is all {{fact:n_layers}} layers' pairs.</dd>
+<dt id="glossary-block">block</dt><dd>A run of cells along one axis, with equal weights. <b>Reading block</b>: one layer, positions 4 to 128, trained, one view. <b>Depth block</b>: one position, layers L4 to L24, trained, point view. A single cell is also a block.</dd>
+<dt id="glossary-walk">walk $P_c$, lazy walk $M_c$</dt><dd>$P_c$ is the Sinkhorn-scaled kernel of a cell (symmetric, rows sum to 1, zero diagonal); $M_c = \frac12(I + P_c)$.</dd>
+<dt id="glossary-mbar">block operator $\bar M$</dt><dd>The mean of the block's $M_c$. Its eigenpairs are $\lambda_k$, $\psi_k$ (with $\psi_0$ constant, $\lambda_0 = 1$).</dd>
+<dt id="glossary-retention">retention $\rho_c$</dt><dd>$\rho_c(f) = f^\top M_c f / f^\top f$ in cell $c$; $\lambda_k$ is the mean of $\rho_c(\psi_k)$ over the block.</dd>
+<dt id="glossary-pn">participation number PN</dt><dd>$(\sum_i \psi_i^2)^2 / \sum_i \psi_i^4$: about $N$ for a spread function, small for one sitting on a few items. Below 10 flags a localised mode.</dd>
+<dt id="glossary-sets">coherent sets</dt><dd>The hard assignment from SEBA's $r$ sparse vectors on $\psi_0..\psi_{r-1}$; unassigned items are zero on all of them.</dd>
+<dt id="glossary-shares">walk shares $T$, $W$</dt><dd>Equation (2) on the Overview with the grouping by the token at $t$ ($T$) or by source ($W$). Linear in $P$, so a block's value is the mean of its cells' values.</dd>
+<dt id="glossary-x">pair mixing ratio $X$</dt><dd>$X_c(A, B) = \frac{N-1}{|A||B|}\sum_{i \in A, j \in B} (P_c)_{ij}$: 1 for a walk that ignores sources.</dd>
+<dt id="glossary-a">span agreement $a_r$</dt><dd>Mean $\cos^2$ of the principal angles between the spans of $\psi_1..\psi_r$ of two cells, constant removed; null $r/(N-1)$.</dd>
+<dt id="glossary-jaccard">matched Jaccard</dt><dd>Mean Jaccard index of two partitions' sets after the best one-to-one matching (Hungarian); null from {{fact:n_perm}} permutations, and a ceiling set by the set sizes.</dd>
+<dt id="glossary-own">own-source walk share</dt><dd>Per item and point cell, the share of its row of $P_c$ that lands on its own source (validation).</dd>
+<dt id="glossary-upsilon">conductance $\phi$, clustering ratio $\Upsilon$</dt><dd>See <a href="#method/zoom-maths">the zoom</a>.</dd>
+</dl>
+
+<h2 id="zoom-maths">The zoom, precisely</h2>
+<p>For a node with snippets $S$ and the block's averaged zero-diagonal walk $\bar P^S$ (rebuilt on $S$), the conductance of
+$A \subset S$ is $\phi(A) = \sum_{i \in A, j \notin A} \bar P^S_{ij} / \min(|A|, n - |A|)$. Because every cell's walk has
+the uniform stationary measure, the block's $\phi$ is exactly the mean of the cells' $\phi$ <b>[thm]</b>. Candidates are
+the level sets of $\psi_1$, $\psi_2$ and $\psi_3$; the cheapest with both sides at least $\max(16, \lceil 0.05 n \rceil)$
+wins. With $\mu_k = 1 - \lambda_k(\bar P^S)$, the unconstrained $\psi_1$ sweep satisfies $\mu_1/2 \le h \le
+\phi_{\text{free}} \le \sqrt{2\mu_1}$ <b>[thm]</b>, $h$ being the smallest conductance of any cut; the constrained $\phi^*$
+satisfies only $\phi^* \ge h \ge \mu_1/2$. The clustering ratio $\Upsilon = \mu_2/\phi^*$ follows Peng, Sun and Zanetti
+(2015). For T4 the rebuild on $S$ restricts each constituent's raw inner-product matrix to $S$, double-centres it over
+$S$, normalises it to a cosine matrix, averages over constituents and then double-centres and renormalises, which is
+the stack view's own construction applied to the snippets in $S$; restricting the parent's averaged matrix is not the
+same thing and is not used.</p>
+
+<h2 id="deviations">Deviations</h2>
+<p>From the Pythia study (SPEC sections 1 to 8 of this study, and its README):</p>
+<ol>
+<li>The prefix slab is dropped; the state and stack views replace it (D-M4). The training axis is dropped; the HF
+initialisation is the one comparison checkpoint (D-M3).</li>
+<li>C1 splits in two. C1a compares recurrent decoding with the parallel forward pass; HF's Mamba casts parts of the
+computation to float32 even after <code>.double()</code>, so C1a is a mixed-precision check at 1e-4, not Pythia's float64
+gate at 1e-10. C1b, the exact identity, resumes the decode at $t = 64$ from the stored state alone (column 0 of the
+rebuilt conv buffer is set to NaN, so any read of it would poison the result) and compares with the original
+decode.</li>
+<li>The decode is fed <code>cache_position</code> = max($u$, 3) rather than $u$: HF's decode branch writes the new conv
+input at that index clamped to 0..3, so the true index below 3 would put it in the wrong column. Every value from 3 on
+is equivalent.</li>
+<li>The probe check is reformulated: the literal check (re-encoding each stored text gives the stored ids) fails on 16
+items under Pythia's own tokenizer too, because a snippet can end inside a merge. What is asserted instead: identical
+tokenizer backends, every id below the vocabulary size, exact decoding of every text, and the same 16 re-encoding
+failures under both tokenizers.</li>
+<li>The cross-architecture comparison goes in its own file, <code>cross_arch.json</code>, made locally after the run.</li>
+<li>Layouts: AlignedUMAP for the point grid, and separately for the state and stack grids (the explorer's view switch);
+the strip is the point view across the two checkpoints.</li>
+</ol>
+
+<h2 id="decisions">Decisions made on the owner's behalf</h2>
+<div class="table-scroll"><table class="data">
+<thead><tr><th>#</th><th>decision</th><th>default</th><th>alternative</th><th>test</th></tr></thead>
+<tbody>
+<tr><td>D-M1</td><td>weighting of state constituents</td><td>equal weight per constituent (conv, SSM; per layer in the stack), each after its own normalisation</td><td>raw concatenation (scale set by the parameterisation)</td><td>each constituent alone against the state view, $a_3$ per cell (<a href="#measurements/q3">Q3</a>)</td></tr>
+<tr><td>D-M2</td><td>model</td><td>mamba-130m (Mamba-1): same data, tokenizer and probe as Pythia; {{fact:state.layer_numbers}} state numbers per layer</td><td>mamba2-130m (larger state, heads); mamba-370m (48 layers)</td><td>a rerun</td></tr>
+<tr><td>D-M3</td><td>training axis</td><td>none; HF initialisation as the step-0 comparison</td><td>train a small Mamba with checkpoints (a different study)</td><td>none</td></tr>
+<tr><td>D-M4</td><td>prefix slab</td><td>dropped for Mamba; the state and stack replace it</td><td>keep it for symmetry with Pythia</td><td>none</td></tr>
+<tr><td>D-M5</td><td>layers</td><td>every 4th ({{fact:layers}}), matching Pythia's relative depths</td><td>all 24</td><td>units are independent</td></tr>
+<tr><td>D5 (inherited)</td><td>kernel</td><td>the ResNet union kNN, k = {{fact:k}}</td><td>perplexity 100; k = 8 or 30</td><td>not run (toy)</td></tr>
+<tr><td>D6 (inherited)</td><td>geometry</td><td>plain cosine after centring</td><td>z-scored coordinates</td><td>not run; top-coordinate share reported (F11)</td></tr>
+<tr><td>D8 (inherited)</td><td>zoom</td><td>rebuild on the subset; sweep over $\psi_{1..3}$, sides ≥ max(16, 5 %); depth 3; $\Upsilon$ read at the fixed threshold</td><td>restrict and rescale; $\psi_1$ only</td><td>which $\psi$ won; SEBA vs cut per node</td></tr>
+<tr><td>D9 (inherited)</td><td>page engine</td><td>one file with the ResNet site's CSS and renderers, copied from the Pythia page</td><td>the notebook engine with Plotly</td><td>owner preference</td></tr>
+</tbody></table></div>
+
+<h2 id="hazards">Hazards and checks</h2>
+<div class="table-scroll"><table class="data">
+<thead><tr><th>hazard</th><th>design</th><th>what the data show</th></tr></thead>
+<tbody>
+<tr><td><b>float32 casts in HF's Mamba</b></td><td>C1a at 1e-4 in float64 parameters and cache; the exact identity is C1b</td><td>C1a float64: {{fact:c1a.f64}}; float32 by layer: {{fact:c1a.f32.by_layer}}</td></tr>
+<tr><td>arbitrary scales of state constituents</td><td>each constituent normalised on its own, equal weights (D-M1)</td><td>conv buffer alone vs state view $a_3$ {{fact:parts.c.a3.range}}; SSM state alone {{fact:parts.z.a3.range}}</td></tr>
+<tr><td>rogue (dominant) coordinates</td><td>plain cosine after centring; no metric added (D6)</td><td>largest top-1 coordinate share of centred variance in a trained point cell {{fact:rogue1.point.max}} (at initialisation {{fact:rogue1.init.max}}); top five up to {{fact:rogue5.point.max}}; not computed for the state and stack views, whose constituents are normalised separately</td></tr>
+<tr><td>localised leading modes</td><td>rank-based kernel; PN and smallest set reported</td><td>smallest PN($\psi_1$) by view (trained): {{fact:pn1.trained.by_view}}; smallest anywhere {{fact:pn1.min}}; cells with an empty $r = 4$ set: {{fact:n_empty_sets}}</td></tr>
+<tr><td>exact duplicates; zero-norm constituents</td><td>asserted per cell and per constituent</td><td>smallest pairwise distance {{fact:min_dist.min}}; zero-norm: {{fact:zero_norm}}; {{fact:removed_items}} items removed</td></tr>
+<tr><td>initialisation is a re-implementation</td><td>stated</td><td>HF's <code>_init_weights</code> under seed {{fact:init_seed}}, not the authors' saved initial state</td></tr>
+<tr><td>positions 1 to 3 absent</td><td>excluded (identical inputs possible)</td><td>reading starts at $t = 4$</td></tr>
+<tr><td>no replicate probe</td><td>one probe of {{fact:n_items}} snippets</td><td>permutation nulls test against chance, not against a second draw</td></tr>
+<tr><td>clustering-ratio threshold calibrated on synthetic data</td><td>threshold fixed on isotropic 32-dimensional fixtures before any real tree was opened</td><td>it separates planted from structureless splits there; it is not calibrated for residual or state geometry</td></tr>
+</tbody></table></div>
+
+<details class="more"><summary>Diagnostics per cell (F11)</summary>
+<figure class="fig wide live" data-live="f11">
+<figcaption><b>Plotted (F11):</b> top, the mean norm of the residual stream at each position (0 is the end-of-text
+token), per layer, trained, both axes logarithmic. Bottom, one diagnostic per cell (choose above), point view, one
+panel per checkpoint, rows bag and L4 to L24, columns $t$, one colour range for both panels. <b>Values:</b> Sinkhorn
+row error at most {{fact:row_err.max}}; {{fact:sinkhorn_failures}} failures. Mean norm at position 0:
+{{fact:norm.pos0.range}} by layer; median elsewhere {{fact:norm.rest.median.range}}.</figcaption>
+</figure>
+</details>
+
+<h2 id="reproduce">How to reproduce</h2>
+<p>The pipeline (<code>explore/mamba_coherent/</code>) runs on Modal: a probe unit, one GPU unit per checkpoint for the
+recurrent decode, the states and the cosine matrices, one CPU unit per checkpoint for kernels, walks, blocks,
+statistics, and a final unit for trees, layouts and validation. The cross-architecture comparison and the page are
+then built on the orchestration machine:</p>
+<pre><code>export TMPDIR=/var/tmp/cm-mb
+cd explore/mamba_coherent
+uv run --with torch --with numpy --with scipy python -I cross_arch.py ../lm_coherent/data/p160t data/{{fact:tag}}
+uv run --with numpy --with matplotlib --with pillow python -I page/build_page.py {{fact:tag}}
+bash page/verify.sh /var/tmp/cm-mb/shots</code></pre>
+<p>Construction fingerprint <code>{{fact:fingerprint}}</code>; data tag <code>{{fact:tag}}</code>; Modal spend
+{{fact:run.cost}}. Run ids and the spend table are in <code>explore/mamba_coherent/README.md</code>.</p>
+
+<h2 id="references">References</h2>
+<ul class="refs">
+<li>Gu and Dao (2023), Mamba: linear-time sequence modeling with selective state spaces.</li>
+<li>Biderman et al. (2023), Pythia: a suite for analyzing large language models across training and scaling.</li>
+<li>Gao et al. (2020), The Pile: an 800GB dataset of diverse text for language modeling.</li>
+<li>Froyland (2015), Dynamic isoperimetry and the geometry of Lagrangian coherent structures.</li>
+<li>Froyland, Rock and Sakellariou (2019), Sparse eigenbasis approximation (SEBA).</li>
+<li>Peng, Sun and Zanetti (2015), Partitioning well-clustered graphs: spectral clustering works!</li>
+<li>McInnes, Healy and Melville (2018), UMAP: uniform manifold approximation and projection; AlignedUMAP from the umap-learn package (layouts only).</li>
+</ul>

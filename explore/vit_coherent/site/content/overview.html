@@ -1,0 +1,29 @@
+<p class="lede">The ResNet-20 study's label-free procedure for finding which images a network treats alike, run
+unchanged on a second, quite different network: DINOv2 ViT-S/14 (self-supervised, released weights), read at the CLS
+token after each of its 12 transformer blocks, on {{fact:n_images}} ImageNet-100 images.</p>
+
+<p>The procedure, as in the ResNet study: at each site, compare the probe images by cosine similarity of their
+activations and turn that into a symmetric random walk ($P_c$, Sinkhorn-scaled, made lazy:
+$M_c = \tfrac12(I + P_c)$). For a block of consecutive sites, average the walks ($\bar M$), take the slowest
+eigenfunctions of the average, and turn their span into $r$ sparse, near-disjoint sets with SEBA. The sets are
+candidates for groups of images the network treats alike across the block. Nothing is trained, and labels enter only as colours and
+as validation.</p>
+
+<p>There are no training checkpoints, so where the ResNet explorer has a grid of checkpoints by sites, this one has a
+single row of twelve sites in reading order, wrapping to fit the screen (two lines of six on a desktop). Everything else (the side panel, the colourings, the kernel
+rules, $r = 2..8$) follows the same conventions, so the two pages can be read side by side.</p>
+
+<p class="cta"><a class="explore-link big" href="#explorer">Open the explorer</a></p>
+
+<h2 id="tabs">On this page</h2>
+
+<ul>
+<li><a href="#explorer"><b>Explorer.</b></a> Pick a block of sites; its coherent sets (or one eigenfunction) colour
+the same 2,000 images at every site. The side panel shows the block's spectrum, representative images of each set,
+retention at every site, and head loadings.</li>
+<li><a href="#measurements"><b>Measurements.</b></a> Charts of the same statistics as in the ResNet study, where they
+apply with one checkpoint: agreement of the sets between sites, their class make-up, the $r = 2$ split against an
+animal / non-animal partition, image statistics, and decodability by layer.</li>
+<li><a href="#method"><b>Method.</b></a> Definitions, the five kernel rules with their values at every site, and how
+this page relates to the earlier ViT run on this model.</li>
+</ul>

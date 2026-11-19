@@ -1,0 +1,31 @@
+<p class="lede">An explorer of the eigenfunctions and coherent sets of <b>{{fact:model}}</b> trained on <b>{{fact:dataset}}</b>: {{fact:n_images}} test images seen by the network at {{fact:n_sites}} sites and {{fact:n_checkpoints}} checkpoints. It applies the construction of the <a href="https://charlesr-w.github.io/CoherentModes/">ResNet-20 / CIFAR-10 report</a> to another network, pared down to the explorer, and stores <b>{{fact:n_vecs}} eigenfunctions</b> per block with a check of how many of them are reproducible.</p>
+
+<p class="cta"><a class="explore-link big" href="#explorer">Open the explorer</a></p>
+
+<h2 id="what">What is here</h2>
+<table class="data">
+<tr><th>Network</th><td>{{fact:model}}, one seed, final test accuracy {{fact:final_val_acc}}</td></tr>
+<tr><th>Probe images</th><td>{{fact:n_images}} {{fact:dataset}} test images, PROBE_DESC</td></tr>
+<tr><th>Checkpoints</th><td>steps {{fact:steps}} (rows of the grid)</td></tr>
+<tr><th>Sites</th><td>{{fact:sites}} (columns): SITES_DESC</td></tr>
+<tr><th>Kernel rules</th><td>15-nearest-neighbour graph (default) and per-point perplexity 100, the two well-behaved rules of the ResNet-20 report</td></tr>
+<tr><th>Per block</th><td>eigenvalues and eigenfunctions $\psi_1..\psi_{ {{fact:n_vecs}} }$ of the block operator $\bar M$; SEBA coherent sets for r = {{fact:seba_r}}; retention in every snapshot; the stability horizon</td></tr>
+<tr><th>Colouring labels</th><td>CLASS_DESC; labels only colour and validate, they never enter a kernel, a basis or a set</td></tr>
+</table>
+
+<h2 id="method">Method in one paragraph</h2>
+<p>For each snapshot (a checkpoint and a site), the probe images' activations are centred and compared by cosine; a kernel rule turns the cosine distances into an affinity, which is scaled to a symmetric doubly stochastic walk $P_c$ and made lazy, $M_c = (I + P_c)/2$. A <i>block</i> is a run of snapshots along a row (a layer block: consecutive sites at one checkpoint) or a column (a time block: consecutive checkpoints at one site). The block operator $\bar M$ is the mean of its snapshots' $M_c$; its leading eigenfunctions are the functions on the images that vary least, on average, across the block's walks. SEBA rotates the leading $r$ of them into $r$ sparse, nearly disjoint coherent sets. The eigenfunctions are the object; the sets are one reading of them. Everything is explained, with figures, in the <a href="https://charlesr-w.github.io/CoherentModes/#overview">ResNet-20 report</a>; this page repeats nothing of it.</p>
+
+<h2 id="horizon">How many eigenfunctions mean something?</h2>
+<p>The explorer stores {{fact:n_vecs}} eigenfunctions per block instead of the ResNet-20 report's 8. To tell which of them are more than noise, each block is rebuilt from two overlapping random subsets of the probe images ({{fact:stab_subset}} images each, sharing {{fact:stab_core}}; the split ignores labels), and the two eigenbases are compared on the shared images. For each $k$, the <b>span reproducibility</b> is the smallest squared cosine of the principal angles between $\psi_1..\psi_k$ from one subset and from the other. Individual eigenfunctions inside a group of nearly equal eigenvalues are not determined, only their span, so this score can dip inside such a group and recover at its end. The <b>horizon</b> $h$ of a block is the largest $k$ whose leading span scores at least 0.5: $\psi_1..\psi_h$ span a subspace that a second sample of images reproduces, and modes past $h$ are not reproduced. The explorer shows the scores as a strip under every block's spectrum and shades the modes inside the horizon; <a href="#measurements/horizons">Measurements</a> summarises the horizons.</p>
+<p>Across all blocks, the median horizon is {{fact:hz.rule0.layer.median}} for layer blocks (range {{fact:hz.rule0.layer.range}}) and {{fact:hz.rule0.time.median}} for time blocks (range {{fact:hz.rule0.time.range}}) under the default kNN-graph rule; {{fact:hz.rule1.layer.median}} and {{fact:hz.rule1.time.median}} under perplexity 100.</p>
+
+<h2 id="reading">Reading the explorer</h2>
+<ul>
+<li>Rows are checkpoints, columns are sites; every panel is a UMAP of the same probe images at one snapshot (display only).</li>
+<li>Click a panel to end the block there; shift-click or drag along the row (layer block) or column (time block) to set its start. The colouring comes from the outlined block and is painted on every panel, so the same images can be followed to other layers and checkpoints.</li>
+<li><i>Colour by</i>: coherent sets (choose r), an eigenfunction $\psi_k$ (choose k, or click a stem of the spectrum), its sign, the class labels, loss or correctness.</li>
+<li>The side panel shows representative images (the sets' top members, or the two ends of $\psi_k$), the spectrum with its stability strip and horizon, retention in every snapshot of the row or column, and per-snapshot kernel numbers.</li>
+</ul>
+
+<aside class="callout caveat"><p class="callout-title">Pared down</p>One network, one seed, no second-seed layouts; {{fact:n_checkpoints}} checkpoints; two kernel rules; no per-sample gradients, channel loadings, pixel statistics, average/product or normalisation comparisons. Decodability only at the final checkpoint. The horizon is reproducibility under resampling of the probe at {{fact:stab_subset}} images, not a guarantee for the full-sample vectors shown.</aside>

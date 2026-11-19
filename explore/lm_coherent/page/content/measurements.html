@@ -1,0 +1,174 @@
+<p class="lede">The measurements behind the verdict, one question at a time. Captions say what is plotted; the paragraph
+after each figure says what I observe, and the <a href="#findings">Findings</a> say how I read it. Every figure draws
+from the embedded data: hover for values.</p>
+
+<h2 id="q0">Q0. Do the controls hold?</h2>
+
+<p>Two identities and three planted checks come first. C1 checks that position $t$ means "tokens 1 to $t$ read"; C2
+that the bag view depends only on the token counts. P1 runs the zoom on a synthetic hierarchy with a known answer and
+fixes the reading threshold for $\Upsilon$ before any real tree is looked at.</p>
+
+<figure class="fig wide live" data-live="f2">
+<figcaption><i>Do the checks with known answers come out right?</i> <b>Plotted (F2):</b> top, each control with what was measured and whether it passed. Bottom, the zoom tree
+of the planted fixture P1 (eight planted groups of 125 nested three deep): width is node size, the bar in each node
+the share of each planted group in it, "J" the Jaccard index between the node and its planted counterpart.
+<b>Values:</b> threshold {{fact:threshold}} ({{fact:threshold_rule}}); planted $\Upsilon$ ≥
+{{fact:p1.min_planted_upsilon}}, structureless $\Upsilon$ ≤ {{fact:p1.max_structureless_upsilon}}; Sinkhorn failures
+{{fact:sinkhorn_failures}}.</figcaption>
+</figure>
+
+<p><b>Observed.</b> Every control passes: position $t$ really means "tokens 1 to $t$ read" (C1), the bag view depends
+only on token counts (C2), the zoom recovers a planted hierarchy (P1) and a planted demotion (P2), and block statistics
+are the means of their cells' (P3). C1 is decided in float64, where a pass on tokens 1 to 64 and the full pass
+agree exactly (largest relative difference {{fact:c1.f64}}). The run itself is in float32, and there the two passes
+differ by up to {{fact:c1.f32.max}} ({{fact:c1.f32.by_layer}}); that is reported as a hazard rather than a failure
+(<a href="#method/decisions">decision D12</a>). The bag view is bitwise identical for the original and reordered
+probes. The zoom recovers the planted tree exactly, with planted splits at $\Upsilon \ge$
+{{fact:p1.min_planted_upsilon}} and structureless ones at most {{fact:p1.max_structureless_upsilon}}, so the
+reading threshold stays at {{fact:threshold}}. The planted demotion check gives {{fact:p2.summary}}; block statistics
+equal the means of their cells' to {{fact:p3.maxdev}} on the real data.</p>
+
+<h2 id="q-sources">Which blocks find sets that line up with sources?</h2>
+
+<p>The four questions below are about walk shares and agreement. This one is about the coherent sets themselves:
+compare each block's $r = 4$ sets with the five sources (validation only).</p>
+
+<figure class="fig wide live" data-live="fsrc">
+<figcaption><i>How closely each block's sets reproduce the five sources (matched Jaccard: the mean overlap of each set with its best-matching source; 1 = identical).</i> <b>Plotted:</b> matched Jaccard between $r = 4$ coherent sets and the five sources. Left, at step
+{{fact:final_step}}, x: layer; thick line: the layer's reading block ($t$ = 4 to 128); thin lines, light to dark: the
+single cells at $t$ = 4 to 128; dashed: the slab cell at $t = 128$; dashed grey: the largest null (97.5th percentile
+of 200 permutations) of the reading blocks; grey line: the bag cell at $t = 128$. Right, at L8, x: training step on a
+log scale: the reading block and the cell at $t = 128$, with the reading block's null. <b>Values:</b> reading blocks
+{{fact:rd.sj.L4_12}} at L4 to L12 and {{fact:rd.sj.L2}} at L2 (size ceiling {{fact:rd.ceiling}}); point single cells
+{{fact:cell.sj.point.range}}; depth blocks {{fact:depth.sj.range}}.</figcaption>
+</figure>
+
+<p><b>Observed.</b> Reading blocks reproduce the source partition closely ({{fact:rd.ratio.L4_12}} of the best score their
+set sizes allow, at L4 to L12). Single cells, depth blocks and training blocks are associated with source above
+chance (each beats its own permutation null) but do not reproduce it: single cells reach {{fact:cell.ratio.point.range}}
+of their caps. At step 0 no reading block exceeds {{fact:rd.sj.step0.max}}; by step 512 they are at {{fact:rd.sj.step512.range}}.
+The slab cells at $t \ge 64$, whose geometry is itself an average over positions, match sources about as well as the
+reading blocks. See <a href="#findings/f-reading">finding 1</a>.</p>
+
+<h2 id="q1">Q1. Is the walk tied to the token just read, or to the source?</h2>
+
+<p>In plain words: $\tilde T$ is how much more often than chance a walk step joins two snippets that read <em>the same
+token</em> at position $t$; $\tilde W$ is the same for two snippets from <em>the same source</em>. Both are 0 for a walk
+that ignores the grouping and 1 for one that never leaves it ("excess" means measured above chance). Training enters
+as five panels side by side, one per checkpoint, on one colour scale.</p>
+
+<figure class="fig full live" data-live="f3">
+<figcaption><i>How tied the walk is to the token just read (top) and to the source (bottom), per cell.</i>
+<b>Plotted (F3):</b> rows of each panel: the bag reference and layers L2 to L12; columns: position $t$;
+one panel per checkpoint. Colour: top, $\tilde T$; bottom, $\tilde W$, both on $[0, 1]$ with a square-root colour scale (point view). Hover: the raw
+share, its chance level $S^0$ and the 2.5 to 97.5 % band of {{fact:n_perm}} permutations of group membership.
+<b>Values:</b> at step {{fact:final_step}}, largest $\tilde T$ at L2 {{fact:Tex.L2.max}}, at L12 {{fact:Tex.L12.max}};
+$\tilde W$ at (L8, 128) {{fact:Wex.L8.t128}}, bag {{fact:Wex.bag.t128}}.</figcaption>
+</figure>
+
+<p><b>Observed.</b> At step {{fact:final_step}}, $\tilde T$ is {{fact:Tex.L2.range}} at L2 at every position and
+{{fact:Tex.L12.range}} at L12, so E1 is met. It is already {{fact:Tex.L2.step0.range}} at L2 at step 0: the untrained
+network's early residual is tied to the token it reads. $\tilde W$ is {{fact:Wex.step0.range}} in every cell at step 0.
+At the final step, in L6 to L12, it rises with $t$ until $t$ = 32 or 64 and then flattens or falls back (L8: {{fact:Wex.L8.t4}} at $t$ = 4,
+{{fact:Wex.L8.t32}} at 32, {{fact:Wex.L8.t128}} at 128). From $t = 4$ to 128 it gains {{fact:H1.diffs}} at L6 to
+L12, short of the 0.2 that H1 predicted: <b>H1 is not met</b>. The bag row rises from {{fact:Wex.bag.t4}} to
+{{fact:Wex.bag.t128}}, above every layer at every $t$ (the largest layer value is {{fact:Wex.max.point}}).
+Targets: E1 ({{fact:v.E1.status}}), H1 ({{fact:v.H1.status}}).</p>
+
+<h2 id="q2">Q2. When does the walk stop linking maths and poetry?</h2>
+
+<p>The pair mixing ratio $X(A, B)$ is the walk mass between sources $A$ and $B$, scaled so that a walk ignoring sources
+gives 1. Below 1, the walk avoids crossing between them. Wikipedia against forum posts is the prose-to-prose
+contrast.</p>
+
+<figure class="fig full live" data-live="f4">
+<figcaption><i>How rarely the walk steps between the two chosen sources, compared with chance (blue: rarely).</i> <b>Plotted (F4):</b> $\log_2 X(A, B)$ per cell, diverging at 0 (blue: fewer crossings than chance), one panel
+per checkpoint, rows bag and L2 to L12, columns $t$; colour range ±4, values beyond it drawn at the end colour.
+Choose the pair above; click a cell for the full $5 \times 5$ matrix of $X$ there. Hover: the permutation band.
+<b>Values:</b> {{fact:v.H2.value}}.</figcaption>
+</figure>
+
+<p>To see what this means for single snippets, follow two of them. The ten follow items are the first two of each
+source in probe order, which is random, so the choice does not depend on any result.</p>
+
+<figure class="fig full live" data-live="f5">
+<figcaption><i>Where two individual snippets' walks go, cell by cell, and whether they end up in the same set.</i> <b>Plotted (F5):</b> top, the two snippets' 128 tokens, sampled positions underlined. Below, at the chosen
+checkpoint, rows L2 to L12 and columns $t$: for each snippet, a stacked bar of where its walk goes (its row of $P_c$,
+summed by source); right, whether the two share a coherent set of that cell ($r = 4$; filled: same set; open:
+different sets; grey: either unassigned).</figcaption>
+</figure>
+
+<p><b>Observed.</b> $X(\text{maths}, \text{poetry})$ drops below 0.5 at $t = 8$ in each of L6 to L12
+(first $t$ below 0.5: {{fact:X.mp.first_t_below_half.L6_12}}) and is {{fact:X.mp.L6_12.t32_128}} for $t \ge 32$.
+At (L8, 16) it is {{fact:X.mp.L8.t16}} against a permutation band of {{fact:X.mp.L8.t16.band}}, so H2 is met; the
+same cell gave {{fact:X.mp.L8.step0}} at step 0. At (L8, 16) maths and poetry are the {{fact:X.mp.L8.t16.rank}}rd most
+separated of the {{fact:X.pairs.n}} pairs: code against poetry is {{fact:X.cp.L8.t16}}, wiki against forum
+{{fact:X.wf.L8.t16}}, and code against forum {{fact:X.cf.L8.t16}}. L2 keeps mixing maths and poetry
+({{fact:X.mp.L2.range}}); the bag reference separates them almost completely by $t = 128$
+({{fact:X.mp.bag.t128}}). The two default follow snippets (items {{fact:follow.maths.item}} and
+{{fact:follow.poetry.item}}) send {{fact:follow.maths.own.L8}} and {{fact:follow.poetry.own.L8}} of their L8 walk to
+their own source across positions, and {{fact:follow.maths.own.L12.t128}} and {{fact:follow.poetry.own.L12.t128}}
+at (L12, 128). Even so they share a single-cell $r = 4$ set in {{fact:follow.same_cells}} cells at the final step:
+the cells' own sets are not sorted by source. Target: H2 ({{fact:v.H2.status}}).</p>
+
+<h2 id="q3">Q3. Does position $t$ tell the same story as the prefix?</h2>
+
+<p>Two views of the same cell are compared. The <b>point</b> view is the 768 numbers of the residual at position $t$:
+the cheap measurement. The <b>slab</b> view takes the residuals at positions 1 to $t$, centres each position over the
+snippets, scales it to unit length and joins them: a normalised view of the layer's states up to $t$. Those raw
+states determine everything later layers compute at these positions, including their entries in the KV cache; the
+slab view keeps their directions, not their norms. Agreement between the two views' eigenfunctions asks whether the
+cheap view organises the snippets the same way; it is not a measure of information.</p>
+
+<figure class="fig full live" data-live="f6">
+<figcaption><i>How similar the point and slab views' three slowest functions are (1: the same; about 0: unrelated).</i>
+<b>Plotted (F6):</b> $a_3$, the mean squared cosine of the principal angles between the spans of $\psi_1..\psi_3$
+of the point and slab single cells (constant removed), one panel per checkpoint, on $[0, 1]$; its null for unrelated
+spans is $3/(N-1)$ ≈ 0.003. Hover: $a_6$, and the $r = 4$ matched Jaccard between the two views' sets with its
+permutation null.</figcaption>
+</figure>
+
+<p><b>Observed.</b> Agreement is low everywhere: $a_3$ is at most {{fact:a3.final.max}} at the final step
+({{fact:a3.t128.final}} at $t = 128$) and at most {{fact:a3.all.max}} at any checkpoint, and the two views' $r = 4$
+sets match at {{fact:ps.jacc.final.range}}. H3 is met (L12 above L2 at $t = 128$), but both values are small. The slab
+separates sources far more: at $t = 128$ its $\tilde W$ is {{fact:Wex.slab.t128.L2_10}} at L2 to L10 against
+{{fact:Wex.point.t128.L2_10}} for the point view, and its sets match sources at
+{{fact:cell.sj.slab.t64_128.L2_10}} for $t \ge 64$ (L2 to L10). So the two views are not interchangeable, and the
+prefix view is the more source-associated; this does not say how much information the point residual retains. Target: H3
+({{fact:v.H3.status}}).</p>
+
+<h2 id="q4">Q4. When in training does source separation appear?</h2>
+
+<figure class="fig wide live" data-live="f7">
+<figcaption><i>When in training the walk starts to follow source, and how stable the sets are.</i> <b>Plotted (F7):</b> x: training step on a log scale with step 0 at the left. Left: $\tilde W$ at
+$t = 128$, one line per layer (light to dark: L2 to L12), the bag reference dashed. Right: matched Jaccard between each
+checkpoint's $r = 4$ sets and those of step {{fact:final_step}} (1 by definition there), at (L8, 16) and (L8, 128),
+with the permutation null shaded. <b>Values:</b> {{fact:v.H4.value}}.</figcaption>
+</figure>
+
+<p><b>Observed.</b> At (L8, 128), $\tilde W$ is {{fact:Wex.L8.t128.step0}} at step 0 and
+{{fact:Wex.L8.t128.step512}} by step 512, then {{fact:Wex.L8.t128.step2000}}, {{fact:Wex.L8.t128.step16000}} and
+{{fact:Wex.L8.t128.step143000}}: the association with source appears within the first 512 steps and then drifts
+down a little. H4 is met. The L8 reading block's match to sources follows the same course
+({{fact:rd.sj.L8.by_step}} over the five checkpoints). Single-cell sets settle much less: against the final
+checkpoint's sets they score {{fact:tf.t16}} at (L8, 16) for steps 0 to 16,000, and only {{fact:tf.t128.range}} at
+(L8, 128), barely above the null's upper end ({{fact:tf.t128.null_hi.range}}). Target: H4
+({{fact:v.H4.status}}).</p>
+
+<h2 id="q5">Q5. Does the order of the earlier tokens matter?</h2>
+
+<p>For each snippet, the reordered probe S shuffles tokens 1 to 127 and keeps token 128, and is read at $t = 128$ only.
+The two probes then have the same snippets, the same token counts and the same last token, so comparing them changes
+only the order of the earlier tokens. The bag view cannot tell them apart (C2). This is an association, not a causal
+claim about what the model uses.</p>
+
+<figure class="fig wide live" data-live="f8">
+<figcaption><i>What shuffling the earlier tokens does to the source share and to the sets.</i> <b>Plotted (F8):</b> at $t = 128$, step {{fact:final_step}}, x: layer. Left: $\tilde W$ for the original
+(solid) and reordered (dashed) probes; grey line, the bag value, identical for both. Right: matched Jaccard between the
+two probes' $r = 4$ sets, with the permutation null shaded.</figcaption>
+</figure>
+
+<p><b>Observed.</b> Reordering changes the sets little at L2 (matched Jaccard {{fact:S.jacc.L2}}), more at L4
+({{fact:S.jacc.L4}}) and a great deal at L6 to L12 ({{fact:S.jacc.L6_12}}; nulls {{fact:S.null.range}}). The walk's
+association with source survives the shuffle but moves: raw $W$ falls at {{fact:S.W.lower_layers}} and rises at
+{{fact:S.W.higher_layers}} (original to reordered: {{fact:S.W.all}}). This is an association, not a statement about what the model uses.</p>

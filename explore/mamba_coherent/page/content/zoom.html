@@ -1,0 +1,67 @@
+<p class="lede">Take a block, cut its snippets in two with the block's own averaged walk, redo the whole analysis on each
+half, and repeat. Each half is treated as a new probe: its cells are rebuilt on those snippets alone. The tree shows
+where the walk keeps finding a cheap cut and where it stops.</p>
+
+<p><b>How a node is cut.</b> A <b>cut</b> divides the node's snippets into two sides. For the node's snippets alone,
+I rebuild each cell of the block (centred over those snippets, {{fact:k}} nearest neighbours among them), average the
+walks, and try every threshold on each of the averaged walk's three slowest functions $\psi_1, \psi_2, \psi_3$. The
+cut kept is the one with the lowest <b>conductance</b> $\phi^*$: the share of walk steps that cross it, relative to
+the smaller side. Both sides need at least $\max(16, 5\%\ \text{of}\ n)$ snippets. SEBA with $r = 2$, run on the same
+walk, is shown beside the cut but never makes it. Nodes are split to depth 3, or until fewer than 64 snippets remain.</p>
+
+<p><b>How a split is read.</b> Compare the cut's cost with how fast the walk mixes otherwise. $\mu_2$ is the walk's
+second-slowest rate of mixing; the <b>clustering ratio</b> $\Upsilon = \mu_2 / \phi^*$ is large when the cut is much
+cheaper than anything else the walk offers, as for two groups with few links between them. I draw splits with
+$\Upsilon \ge {{fact:threshold}}$ as clear and the rest as weak (lighter, dashed outline; still clickable). The
+threshold was fixed before any real tree was opened, on synthetic data where the answer is known: planted groups gave
+$\Upsilon \ge$ {{fact:ups.planted.min}}, pure noise {{fact:ups.structureless.range}}. Those are <b>reference
+points</b>, not a test: the noise was isotropic and 32-dimensional, and $\Upsilon$ for structureless data depends on
+the geometry. $\Upsilon$ changes only how a split is drawn, never whether the recursion continues.</p>
+
+<div class="zoom" id="zoom"><div class="live-loading">loading…</div></div>
+
+<figure class="fig">
+<figcaption><b>Plotted (F9):</b> top, an icicle of the selected tree: one row per depth, width proportional to the
+number of snippets, a bar of source make-up in each node (validation only); children of weak splits
+($\Upsilon$ below {{fact:threshold}}) are faded, and ◆ marks a node whose kNN graph falls into three or more pieces
+(when the pipeline reports it). For the clicked node: (a) its snippets at $(\sqrt n\,\psi_{\text{cut}}, \sqrt n\,\psi_{\text{other}})$,
+where $\psi_{\text{cut}}$ is the eigenfunction the cut was taken along, with the cut dashed; (b) the conductance of every
+prefix of the sweep on a log scale, the excluded small sides shaded, $\phi^*$ and the bounds
+$\mu_1/2 \le h \le \phi_{\text{free}} \le \sqrt{2\mu_1}$; (c) the retention of the cut indicator in each cell of the
+block; (d) SEBA $r = 2$ against the cut; (e) the six snippets at each end of $\psi_{\text{cut}}$.
+<b>Values:</b> T1 root $\Upsilon$ = {{fact:T1.root.upsilon}}; {{fact:T1.n_weak}} of T1's {{fact:T1.n_splits}} splits are
+weak; roots of T2, T3, T4: $\Upsilon$ = {{fact:T2.root.upsilon}}, {{fact:T3.root.upsilon}}, {{fact:T4.root.upsilon}}.</figcaption>
+</figure>
+
+<p><b>Observed.</b> T1's first cut puts {{fact:T1.root.child0}} on one side (child 0) (H6: {{fact:v.H6.status}}). Its
+clustering ratio is {{fact:T1.root.upsilon}}; the {{fact:ups.real.n}} splits of the four trees have $\Upsilon$ between
+{{fact:ups.real.range}} (T1 {{fact:T1.ups.range}}, T2 {{fact:T2.ups.range}}, T3 {{fact:T3.ups.range}}, T4 on the whole
+state {{fact:T4.ups.range}}); at or above the threshold: {{fact:ups.real.n_clear}} of {{fact:ups.real.n}}. The largest number of
+connected pieces in any split node's kNN graph is {{fact:zoom.max_components}}. SEBA with $r = 2$ agrees with the cut at
+matched Jaccard {{fact:zoom.seba2.range}} across nodes. The root cut's retention in the six cells of T1's block is
+{{fact:T1.root.ret}}.</p>
+
+<figure class="fig wide live" data-live="fups">
+<figcaption><b>Plotted:</b> the clustering ratio $\Upsilon$ of every split, on a log scale: planted splits of the
+fixture P1, structureless splits (one isotropic-noise cell, and an extra split of each planted leaf), and every split
+node of T1 to T4. Dashed: the reading threshold {{fact:threshold}}, fixed on the fixture before any real tree was
+opened. Hover a point for its node.</figcaption>
+</figure>
+
+<p>The threshold was calibrated on isotropic synthetic noise in 32 dimensions, not on anything resembling a residual
+stream or a recurrent state; it is a reference point, not a test.</p>
+
+<details class="more"><summary>The four trees</summary>
+<ul>
+<li><b>T1</b> (the headline): the point reading block of L16, t = 4 to 128, trained.</li>
+<li><b>T2</b>: the point reading block of L4, trained, an early-layer contrast.</li>
+<li><b>T3</b>: the single cell (L16, t = 128), point view, to compare one cell with a block.</li>
+<li><b>T4</b>: the <b>whole-state</b> reading block (stack view at L24, t = 4 to 128), trained: the zoom on everything
+the model keeps. On each subset it repeats the stack view's own construction: each of the 48 constituents' raw
+inner-product matrices is restricted to the subset, re-centred and normalised there, and only then averaged.</li>
+</ul>
+<p>All four are precomputed; no recursion runs in the browser. Why the subset is rebuilt rather than restricted:
+restricting each cell's kernel (or, for T4, the parent's averaged Gram) to $S$ leaves snippets near the cut with few neighbours, whose floor links Sinkhorn then
+inflates, and keeps the parent's split direction as a common offset. A probe made of $S$ is centred over $S$, so the
+rebuild is what "the same analysis on those snippets" means.</p>
+</details>

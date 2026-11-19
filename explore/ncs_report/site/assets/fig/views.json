@@ -1,0 +1,170 @@
+{
+ "written_by": "shoot_views.sh",
+ "date": "2026-11-13",
+ "viewport": [
+  1200,
+  800
+ ],
+ "views": {
+  "m-all": {
+   "sha256": "c5e90bcba5d2b4a386145d344a585c76e96ab8de5c296a5743c9a69c3b16901e",
+   "size": [
+    1200,
+    640
+   ],
+   "label": "Mamba: the residual stream over all 24 layers, 16 sets",
+   "checked": {
+    "net": "mamba",
+    "title": "What a Vision Transformer and a Language Model Treat Alike",
+    "o": "Bpoint",
+    "c": "seba",
+    "k": "16",
+    "ck": "trained",
+    "lay": "main",
+    "cap": 571,
+    "side": 19,
+    "sub": "residual, all 24 layers \u00b7 trained \u00b7 kNN graph, k = 15"
+   }
+  },
+  "m-l24": {
+   "sha256": "01b87b76f707b0cab78fab1a929ea8c99a50c8b0f63de3861c78605b870e5929",
+   "size": [
+    1200,
+    621
+   ],
+   "label": "Mamba: residual layer 24 alone, eight sets",
+   "checked": {
+    "net": "mamba",
+    "title": "What a Vision Transformer and a Language Model Treat Alike",
+    "o": "point_L24",
+    "c": "seba",
+    "k": "8",
+    "ck": "trained",
+    "lay": "main",
+    "cap": 587,
+    "side": 11,
+    "sub": "residual L24 \u00b7 trained \u00b7 kNN graph, k = 15"
+   }
+  },
+  "m-l4": {
+   "sha256": "cc3a6ed1bf77b82e30f27e13beba664a0bc48d1d7a9ab8baed58e3d200001f9f",
+   "size": [
+    1200,
+    621
+   ],
+   "label": "Mamba: residual layer 4 alone, eight sets",
+   "checked": {
+    "net": "mamba",
+    "title": "What a Vision Transformer and a Language Model Treat Alike",
+    "o": "point_L4",
+    "c": "seba",
+    "k": "8",
+    "ck": "trained",
+    "lay": "main",
+    "cap": 586,
+    "side": 11,
+    "sub": "residual L4 \u00b7 trained \u00b7 kNN graph, k = 15"
+   }
+  },
+  "m-whole": {
+   "sha256": "53d6a021a8c2349b6b9816a8c8e3635bf3af7908ddebe6642c4dc6441dbc7074",
+   "size": [
+    1200,
+    911
+   ],
+   "label": "Mamba: the whole recurrent state, eight sets",
+   "checked": {
+    "net": "mamba",
+    "title": "What a Vision Transformer and a Language Model Treat Alike",
+    "o": "whole",
+    "c": "seba",
+    "k": "8",
+    "ck": "trained",
+    "lay": "lags",
+    "cap": 584,
+    "side": 11,
+    "sub": "whole state (all 48 state constituents) \u00b7 trained \u00b7 kNN graph, k = 15"
+   }
+  },
+  "vit-l12": {
+   "sha256": "f13332cd3ae9e8b7dc7fd1598b4c43f0d306627a7e25524f710f39ffe5121ff3",
+   "size": [
+    1200,
+    352
+   ],
+   "label": "ViT: block 12 alone, where single classes split off",
+   "checked": {
+    "net": "vit",
+    "title": "What a Vision Transformer and a Language Model Treat Alike",
+    "fam": "layer",
+    "a": "11",
+    "b": "11",
+    "m": "0",
+    "c": "seba",
+    "k": "8",
+    "cap": 634,
+    "side": "Single-snapshot block: L12 at released weights"
+   }
+  },
+  "vit-l6": {
+   "sha256": "633e70ac9d1846efcebfb6687539aecf9a372e0f638ad94251afc69edc4891df",
+   "size": [
+    1200,
+    352
+   ],
+   "label": "ViT: block 6 alone",
+   "checked": {
+    "net": "vit",
+    "title": "What a Vision Transformer and a Language Model Treat Alike",
+    "fam": "layer",
+    "a": "5",
+    "b": "5",
+    "m": "0",
+    "c": "seba",
+    "k": "8",
+    "cap": 633,
+    "side": "Single-snapshot block: L6 at released weights"
+   }
+  },
+  "vit-late": {
+   "sha256": "37b40b112e3a881e26129b1e55d6b1ad0cb22efc93034a1304aee81fbbbbf580",
+   "size": [
+    1200,
+    352
+   ],
+   "label": "ViT: the last four blocks, eight sets",
+   "checked": {
+    "net": "vit",
+    "title": "What a Vision Transformer and a Language Model Treat Alike",
+    "fam": "layer",
+    "a": "8",
+    "b": "11",
+    "m": "0",
+    "c": "seba",
+    "k": "8",
+    "cap": 645,
+    "side": "Layer block: L9 \u2192 L12 at released weights"
+   }
+  },
+  "vit-psi1": {
+   "sha256": "699f61a53da1ebfb05fddfbc891da3d4714437f03b6a083d9e00b180aa001f57",
+   "size": [
+    1200,
+    352
+   ],
+   "label": "ViT: the leading eigenfunction of the last four blocks",
+   "checked": {
+    "net": "vit",
+    "title": "What a Vision Transformer and a Language Model Treat Alike",
+    "fam": "layer",
+    "a": "8",
+    "b": "11",
+    "m": "0",
+    "c": "eig",
+    "k": "1",
+    "cap": 655,
+    "side": "Layer block: L9 \u2192 L12 at released weights"
+   }
+  }
+ }
+}

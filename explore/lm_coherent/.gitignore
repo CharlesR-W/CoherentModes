@@ -1,0 +1,6 @@
+data/
+__pycache__/
+page/build/
+page/*.html
+.playwright-cli/
+published/

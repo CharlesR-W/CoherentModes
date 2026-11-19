@@ -1,0 +1,289 @@
+<p class="lede" id="read-a-finding">These are readings of the two networks made with the procedure in the <a href="#overview/procedure">Overview</a>. Each finding opens with the explorer view it is about, then a claim with a tag: <em>observed</em> is a direct reading of a measured quantity, <em>reading</em> is an interpretation I would defend, <em>speculation</em> is a guess worth checking. Captions say only what is plotted. Class names, token classes and sources appear in the prose to describe what the method found without them.</p>
+
+<nav class="callout" id="findings-toc"><p class="callout-title">Contents</p>
+<p class="toc-net">DINOv2 ViT-S/14, {{fact:v.n}} images</p>
+<ol>
+<li><a href="#findings/v-kinds">The last four blocks group images into kinds of thing</a></li>
+<li><a href="#findings/v-psi">The leading eigenfunctions run between kinds</a></li>
+<li><a href="#findings/v-depth">With depth, classes stay together more and more</a></li>
+<li><a href="#findings/v-l12">Block 12 alone splits off single classes</a></li>
+</ol>
+<p class="toc-net">Mamba-130m, {{fact:m.n}} token contexts</p>
+<ol start="5">
+<li><a href="#findings/m-token">Early layers group contexts by the token just read</a></li>
+<li><a href="#findings/m-all">Across all layers, the sets mix token families, punctuation and layout</a></li>
+<li><a href="#findings/m-late">In late layers, linked contexts share the token less and have more similar next-token distributions</a></li>
+<li><a href="#findings/m-reading">Along reading, the residual block's set vectors lose most of their smoothness within two tokens; the state's keep most of it for sixteen</a></li>
+<li><a href="#findings/m-state">The recurrent state's sets follow the kind of source and differ from the untrained network's</a></li>
+</ol>
+<p class="toc-net">And</p>
+<ul>
+<li><a href="#findings/earlier">The two earlier whole-snippet studies</a></li>
+<li><a href="#findings/next-checks">Checks I'd like to run</a></li>
+</ul></nav>
+
+<!-- ============================================================ ViT 1 -->
+<h2 id="v-kinds">1. The last four blocks group images into kinds of thing</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>DINOv2 ViT-S/14: the coherent sets ($r = 8$) of the <b>layer block L9 to L12</b> (four snapshots), kNN graph, $k = 15$.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=vit-late"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_vit-late.png"><img style="width: 100%; height: auto" src="assets/fig/view_vit-late.png" alt="The ViT explorer at the block L9 to L12: the twelve panels with the block outlined, and the side panel with eight sets and their images."></picture></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). Outlined: the block the colours come from; side panel: its sets with their images and class make-up.</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(reading).</em> The block L9 to L12 splits the {{fact:v.n}} images into eight sets of {{fact:v.L9_L12.r8.sizes}} images ({{fact:v.L9_L12.r8.n_unassigned}} unassigned), and seven of the eight are each made mostly of one or two kinds of thing. I name them from their classes and the heatmap below: <b>dogs and other mammals</b>, <b>snakes, spiders, crabs and insects</b>, <b>road vehicles</b>, <b>birds</b>, <b>food</b>, <b>buildings and monuments</b> (with some clothing and devices), and <b>devices, containers and clothing</b>. The eighth mixes clothing, fungi and odd objects. The network was trained without labels and the sets were found without them.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-r="8" data-j="0" data-n="14"><figcaption><b>Plotted:</b> set 1 of the block L9 to L12 ($r = 8$, kNN $k = 15$): the 14 members with the largest SEBA value. <b>Values:</b> {{fact:v.L9_L12.r8.set1.size}} images; largest classes {{fact:v.L9_L12.r8.set1.top}}.</figcaption></figure>
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-r="8" data-j="1" data-n="14"><figcaption><b>Plotted:</b> set 2, same block. <b>Values:</b> {{fact:v.L9_L12.r8.set2.size}} images; {{fact:v.L9_L12.r8.set2.top}}.</figcaption></figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-r="8" data-j="2" data-n="14"><figcaption><b>Plotted:</b> set 3. <b>Values:</b> {{fact:v.L9_L12.r8.set3.size}} images; {{fact:v.L9_L12.r8.set3.top}}.</figcaption></figure>
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-r="8" data-j="3" data-n="14"><figcaption><b>Plotted:</b> set 4. <b>Values:</b> {{fact:v.L9_L12.r8.set4.size}} images; {{fact:v.L9_L12.r8.set4.top}}.</figcaption></figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-r="8" data-j="4" data-n="14"><figcaption><b>Plotted:</b> set 5. <b>Values:</b> {{fact:v.L9_L12.r8.set5.size}} images; {{fact:v.L9_L12.r8.set5.top}}.</figcaption></figure>
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-r="8" data-j="5" data-n="14"><figcaption><b>Plotted:</b> set 6. <b>Values:</b> {{fact:v.L9_L12.r8.set6.size}} images; {{fact:v.L9_L12.r8.set6.top}}.</figcaption></figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-r="8" data-j="6" data-n="14"><figcaption><b>Plotted:</b> set 7. <b>Values:</b> {{fact:v.L9_L12.r8.set7.size}} images; {{fact:v.L9_L12.r8.set7.top}}.</figcaption></figure>
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-r="8" data-j="7" data-n="14"><figcaption><b>Plotted:</b> set 8. <b>Values:</b> {{fact:v.L9_L12.r8.set8.size}} images; {{fact:v.L9_L12.r8.set8.top}}.</figcaption></figure>
+</div>
+
+<p><b>How whole the classes are</b> <em>(observed).</em> {{fact:v.L9_L12.r8.n_ge16}} of the {{fact:v.n_fine}} classes have at least 16 of their 20 images in one set, and {{fact:v.L9_L12.r8.n_whole}} have all 20. The heatmap gives the same picture by class group. Read down a column: {{fact:v.L9_L12.r8.mix.one_set_groups}} each have at least {{fact:v.L9_L12.r8.mix.one_set_min}} of their images in one set, while {{fact:v.L9_L12.r8.mix.spread_groups}} spread over several (at most {{fact:v.L9_L12.r8.mix.spread_max}} in any one).</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/ncs.json#v_mix_L9_L12_r8">
+  <figcaption><b>Plotted:</b> for each set of the block L9 to L12 ($r = 8$; rows, then unassigned) and each of the 10 class groups (columns), the share of the group's images that fall in the set. Each column sums to 100%. Groups are WordNet groupings of the 100 classes, used only here to describe the sets.</figcaption>
+</figure>
+
+<p><b>At two sets</b> <em>(observed).</em> Asked for $r = 2$, the same block splits mammals and birds from everything else: one set holds {{fact:v.L9_L12.r2.set2.dogs_share}} of the dog images and {{fact:v.L9_L12.r2.set2.birds_share}} of the birds, and {{fact:v.L9_L12.r2.set2.share_mammal_bird}} of its images are dogs, other mammals or birds. The other set holds the artefacts, the food and {{fact:v.L9_L12.r2.set1.invert_share}} of the invertebrates. {{fact:v.L9_L12.r2.reptiles_unassigned}} of the {{fact:v.L9_L12.r2.reptiles_n}} reptile images go to neither.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/ncs.json#v_mix_L9_L12_r2">
+  <figcaption><b>Plotted:</b> as above, for $r = 2$ of the same block (two sets, then unassigned).</figcaption>
+</figure>
+
+<details class="more"><summary>How I read it, and what else it could be</summary>
+<ul>
+<li><b>Why "kinds" and not "classes".</b> Most sets hold several classes, and the classes inside one set share what they are (several dog breeds; snakes with spiders and crabs; obelisks with boathouses), not one look. The images in each set vary a lot in colour, pose and background.</li>
+<li><b>Eight is my choice.</b> The construction gives sets at any stored $r$; at $r = 2$ the split is mammals and birds against everything else, at $r = 8$ the kinds above. No $r$ is certified by a spectral gap (see <a href="#method/certificate">Method</a>), and that is not the standard I use here.</li>
+<li><b>Where the probe could mislead.</b> The display groups mix levels (dogs are {{fact:v.dog_classes}} of the {{fact:v.n_fine}} classes), so a set that is "dogs and other mammals" is also partly a statement about which classes ImageNet-100 sampled. The fine-class counts in the captions are the stronger evidence.</li>
+</ul>
+</details>
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=vit-late">this block in the explorer</a>, hover a set's row to isolate it, then move the block's start back to L1.</p>
+
+<!-- ============================================================ ViT 2 -->
+<h2 id="v-psi">2. The leading eigenfunctions run between kinds</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>DINOv2 ViT-S/14: the first eigenfunction $\psi_1$ of the <b>layer block L9 to L12</b>, coloured on every panel; the side panel shows the images at its two ends.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=vit-psi1"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_vit-psi1.png"><img style="width: 100%; height: auto" src="assets/fig/view_vit-psi1.png" alt="The ViT explorer coloured by the first eigenfunction of the block L9 to L12, with the images at its two ends."></picture></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live).</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed, then reading).</em> The sets are a reading aid; the eigenfunctions are the object. In the block L9 to L12 the 12 images at each end of each leading eigenfunction are one or two kinds, a different kind at each end: <b>$\psi_1$ has food and devices at one end and primates at the other</b>, <b>$\psi_2$ ambulances and insects</b>, <b>$\psi_3$ pasta and ambulances</b>. {{fact:v.L9_L12.eta2_group.psi1_pc}} of the variance of $\psi_1$ lies between the ten class groups ($\eta^2$, the between-group share of variance).</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-k="1" data-end="neg" data-n="12"><figcaption><b>Plotted:</b> the 12 images with the most negative entries of $\psi_1$ of the block L9 to L12. <b>Values:</b> classes {{fact:v.L9_L12.psi1.neg.classes}}.</figcaption></figure>
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-k="1" data-end="pos" data-n="12"><figcaption><b>Plotted:</b> the 12 most positive entries of $\psi_1$. <b>Values:</b> {{fact:v.L9_L12.psi1.pos.classes}}.</figcaption></figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-k="2" data-end="neg" data-n="12"><figcaption><b>Plotted:</b> most negative entries of $\psi_2$, same block. <b>Values:</b> {{fact:v.L9_L12.psi2.neg.classes}}.</figcaption></figure>
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-k="2" data-end="pos" data-n="12"><figcaption><b>Plotted:</b> most positive entries of $\psi_2$. <b>Values:</b> {{fact:v.L9_L12.psi2.pos.classes}}.</figcaption></figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-k="3" data-end="neg" data-n="12"><figcaption><b>Plotted:</b> most negative entries of $\psi_3$. <b>Values:</b> {{fact:v.L9_L12.psi3.neg.classes}}.</figcaption></figure>
+<figure class="fig live" data-live="images" data-a="8" data-b="11" data-k="3" data-end="pos" data-n="12"><figcaption><b>Plotted:</b> most positive entries of $\psi_3$. <b>Values:</b> {{fact:v.L9_L12.psi3.pos.classes}}.</figcaption></figure>
+</div>
+
+<p><b>The same, layer by layer</b> <em>(observed).</em> Measured over the leading eight eigenfunctions of each single block, the share of variance between fine classes rises from {{fact:v.eta_fine.L1}} at L1 through {{fact:v.eta_fine.L6}} at L6 and {{fact:v.eta_fine.L9}} at L9 to {{fact:v.eta_fine.L12}} at L12 (chance {{fact:v.eta_fine.chance}}).</p>
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#v_eta" data-height="240">
+  <figcaption><b>Plotted:</b> for each single-snapshot block L1 to L12, $\eta^2$ of $\psi_1..\psi_8$ against the 100 fine classes and against the 10 class groups (the between-group share of each eigenfunction's variance), averaged with weights $\lambda_k$; dashed: chance $(G-1)/(N-1)$ for the fine classes.</figcaption>
+</figure>
+
+<details class="more"><summary>How I read it, and what else it could be</summary>
+<ul>
+<li>An eigenfunction's two ends are the images the block treats as most unlike along that direction. Each end here is one or two kinds, so at their ends the leading directions of the late block's geometry separate kinds rather than looks (colour, background). The middle of each eigenfunction is mixed; only the ends are this clean.</li>
+<li>The eigenvalues are close together ($\lambda_1, \lambda_2, \lambda_3$ = {{fact:v.L9_L12.lam1}}, {{fact:v.L9_L12.lam2}}, {{fact:v.L9_L12.lam3}}), so an individual $\psi_k$ could rotate into its neighbours under a small change; the span is the more stable object.</li>
+</ul>
+</details>
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=vit-psi1">$\psi_1$ of the block</a> and step through $\psi_2..\psi_8$; then do the same for L1 alone.</p>
+
+<!-- ============================================================ ViT 3 -->
+<h2 id="v-depth">3. With depth, classes stay together more and more</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 8$) of the single snapshots <b>L1, L6 and L9</b> (the first three columns of the <a href="#overview/hero-vit">Overview figure</a>), and the same count at every site.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=vit-l6"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_vit-l6.png"><img style="width: 100%; height: auto" src="assets/fig/view_vit-l6.png" alt="The ViT explorer at the single snapshot L6 with eight sets."></picture></a>
+  <figcaption>The explorer at L6 alone (screenshot; click to open it live). Tours for <a href="#explorer?tour=vit-l1">L1</a> and <a href="#explorer?tour=vit-l9">L9</a>.</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed).</em> The number of classes with at least 16 of their 20 images in one set ($r = 8$, one snapshot at a time) rises from {{fact:v.L1.r8.n_ge16}} at L1 to {{fact:v.L6.r8.n_ge16}} at L6, {{fact:v.L9.r8.n_ge16}} at L9 and {{fact:v.L12.r8.n_ge16}} at L12; when set labels are shuffled it is at most {{fact:v.ge16.null_max}}. This counts fine classes staying together, whatever else shares their set: the largest set holds {{fact:v.L9.r8.largest_share}} of the images at L9 and {{fact:v.L12.r8.largest_share}} at L12. That the sets are kinds rests on the image grids above, not on this count.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/ncs.json#v_ge16" data-height="240">
+  <figcaption><b>Plotted:</b> for each single-snapshot block ($r = 8$, kNN $k = 15$), the number of the 100 fine classes with at least 16 of their 20 images in one set (solid) and with all 20 (dashed). Band: up to the 97.5th percentile of the first count over 50 random relabellings of the images that keep the set sizes.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/ncs.json#v_bigset" data-height="240">
+  <figcaption><b>Plotted:</b> the largest of the 8 sets of each single-snapshot block, as a share of the 2,000 images.</figcaption>
+</figure>
+</div>
+
+<p><b>What changes</b> <em>(reading).</em> At L1 the sets follow the look of the picture: one set has {{fact:v.L1.r8.set1.top}}, mostly red things. At L6 they are coarse and part-semantic: one set holds {{fact:v.L6.r8.set1.top}} (natural textures in close-up), another the small dogs. At L9 they are close to the late-block kinds.</p>
+<p><b>Try it.</b> In the explorer, set the block to <a class="explore-link" href="#explorer?tour=vit-l1">L1 alone</a>, then L6, then L9, and watch the side panel's images.</p>
+
+<!-- ============================================================ ViT 4 -->
+<h2 id="v-l12">4. Block 12 alone splits off single classes</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 8$) of the <b>single snapshot L12</b>, the CLS token after the last block.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=vit-l12"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_vit-l12.png"><img style="width: 100%; height: auto" src="assets/fig/view_vit-l12.png" alt="The ViT explorer at L12 alone, with two sets of exactly one class each."></picture></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live).</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed, then reading).</em> At L12 alone the top eigenvalues are {{fact:v.L12.lam1}}, {{fact:v.L12.lam2}} and {{fact:v.L12.lam3}}, against {{fact:v.L9.lam1}}, {{fact:v.L9.lam2}} and {{fact:v.L9.lam3}} at L9, and {{fact:v.L12.r8.n_single_class_sets}} of its eight sets are exactly one class each ({{fact:v.L12.r8.single_class_sets}}: all 20 images, nothing else). The set sizes are {{fact:v.L12.r8.sizes}}. I read this as a resolution effect of the probe, not a finer ontology: with 20 images per class and 15 neighbours each, a class whose images are each other's nearest neighbours becomes a nearly separate piece of the graph, and an eigenvalue near 1 picks it out. The last block's geometry is sharp enough for that; the block L9 to L12 averages it away.</p>
+<details class="more"><summary>What else it could be</summary>
+<ul>
+<li>The two singled-out classes are both birds; a class whose images look alike is the easiest to isolate. With more images per class, or a larger $k$, I would expect fewer single-class sets at L12 and the kinds of the late block to come back; that is a check on the list below.</li>
+<li>The same snapshot keeps classes whole at every stored $r$ (classes with 16 or more of their images together: {{fact:v.L12.r2.n_ge16}} at $r = 2$, {{fact:v.L12.r4.n_ge16}} at $r = 4$, {{fact:v.L12.r8.n_ge16}} at $r = 8$), so the L12 geometry still keeps classes together; at $r = 8$ it picks out single classes where the block L9 to L12 shows kinds.</li>
+</ul>
+</details>
+<p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=vit-l12">L12 alone</a> and compare its spectrum in the side panel with the block L9 to L12.</p>
+
+<!-- ============================================================ Mamba 5 -->
+<h2 id="m-token">5. Early layers group contexts by the token just read</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>Mamba-130m: the coherent sets ($r = 8$) of the <b>residual stream after layer 4</b>, painted on the stored layouts of the residual blocks and the state.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=m-l4"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_m-l4.png"><img style="width: 100%; height: auto" src="assets/fig/view_m-l4.png" alt="The Mamba explorer coloured by the eight sets of residual layer 4, with the side panel listing each set's commonest tokens."></picture></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live). Each panel shows the same 8,000 contexts; the side panel lists each set's tokens at $t$ and $t+1$ and one member.</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed).</em> At layer 4 the walk links contexts that share the token at $t$. A step of the walk lands on a context with the same token far more often than chance: the excess share is {{fact:m.T_ex.L4}}, on a scale where 0 is chance and 1 is every step (the permutation band reaches {{fact:m.T_band_hi.max}} at most). The sets show the same thing, unevenly. {{fact:m.L4.r8.n_token_sets}} sets are one frequent token each ({{fact:m.L4.r8.token_sets_tokens}}; the commonest token covers {{fact:m.L4.r8.token_share_min}} to {{fact:m.L4.r8.token_share_max}} of each), but together they hold only {{fact:m.L4.r8.token_sets_size}} contexts ({{fact:m.L4.r8.token_sets_frac}}). Two broad sets of {{fact:m.L4.r8.broad_sizes}} contexts hold {{fact:m.L4.r8.broad_frac}}.</p>
+
+<figure class="fig wide live" data-live="msets" data-o="point_L4" data-r="8" data-sort="size">
+  <figcaption><b>Plotted:</b> the eight coherent sets of residual layer 4 ($r = 8$, kNN $k = 15$), largest first: number of contexts, the share of its commonest token at $t$, the three commonest tokens at $t$ and at $t+1$, and the member with the largest SEBA value (up to 12 tokens before $t$, the token at $t$ boxed, ▸ the next two). Hover a context to read more of it.</figcaption>
+</figure>
+
+<p><b>The extremes of its eigenfunctions isolate frequent tokens</b> <em>(observed).</em> Counting the token at $t$ among the 12 contexts at each end (the ends only; the bulk of each eigenfunction is not examined here): one end of $\psi_1$ is {{fact:m.L4.psi1.pos.tok}}, the other {{fact:m.L4.psi1.neg.tok}}; the ends of $\psi_2$ are {{fact:m.L4.psi2.pos.tok}} and {{fact:m.L4.psi2.neg.tok}}.</p>
+<figure class="fig wide live" data-live="contexts" data-o="point_L4" data-k="1" data-n="5">
+  <figcaption><b>Plotted:</b> five of the 12 contexts at each end of $\psi_1$ of residual layer 4 (the stored extremes); the token at $t$ boxed.</figcaption>
+</figure>
+<p><b>How I read it.</b> Early in the stack, linked contexts share the token just read, and even more its class (excess share {{fact:m.Cc_ex.L4}}), though they also share the kind of source ({{fact:m.W_ex.L4}}; the chart in finding 7). Only the most frequent tokens are common enough at this sample size to form a set of their own; everything else sits in the broad sets.</p>
+
+<!-- ============================================================ Mamba 6 -->
+<h2 id="m-all">6. Across all layers, the sets mix token families, punctuation and layout</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 16$) of the <b>residual stream averaged over all 24 layers</b> (the block operator averages the 24 layers' walks).</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=m-all"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_m-all.png"><img style="width: 100%; height: auto" src="assets/fig/view_m-all.png" alt="The Mamba explorer coloured by the sixteen sets of the all-layer residual block."></picture></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live).</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed, then reading).</em> With the walks of all 24 layers averaged, the sixteen sets are <b>mixtures of token families, punctuation and document layout</b>, not one kind of distinction. Read by their most prominent members (the commonest tokens at $t$, then at $t+1$): three sets are mostly function words, led by determiners in one ({{fact:m.Bpoint.r16.set12.tok_t}}), prepositions in another ({{fact:m.Bpoint.r16.set15.tok_t}}, followed by {{fact:m.Bpoint.r16.set15.tok_next}}) and pronouns and <i>to</i> in a third ({{fact:m.Bpoint.r16.set5.tok_t}}, followed by {{fact:m.Bpoint.r16.set5.tok_next}}); one holds digits; one subscripts and superscripts in formulas ({{fact:m.Bpoint.r16.set8.tok_t}}, followed by digits); one LaTeX; one the line ends of poems ({{fact:m.Bpoint.r16.set2.size}} contexts, {{fact:m.Bpoint.r16.set2.top_class_share}} of them newlines and {{fact:m.Bpoint.r16.set2.top_source_share}} from poetry, followed by {{fact:m.Bpoint.r16.set2.tok_next}}); others clause punctuation, sentence ends, code indentation and code symbols. Several are mixed: the commonest token of set 13 ({{fact:m.Bpoint.r16.set13.tok_t}}) covers only {{fact:m.Bpoint.r16.set13.share_pc}} of it. One large set holds word pieces.</p>
+
+<figure class="fig wide live" data-live="msets" data-o="Bpoint" data-r="16" data-sort="size">
+  <figcaption><b>Plotted:</b> the 16 coherent sets of the residual stream averaged over all 24 layers ($r = 16$, kNN $k = 15$), largest first, with the same columns as in finding 5. Hover a context to read more of it.</figcaption>
+</figure>
+
+<div class="fig-row">
+<figure class="fig live" data-live="contexts" data-o="Bpoint" data-r="16" data-j="11" data-n="5"><figcaption><b>Plotted:</b> the five members of set 12 with the largest SEBA value.</figcaption></figure>
+<figure class="fig live" data-live="contexts" data-o="Bpoint" data-r="16" data-j="4" data-n="5"><figcaption><b>Plotted:</b> the same for set 5.</figcaption></figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="contexts" data-o="Bpoint" data-r="16" data-j="7" data-n="5"><figcaption><b>Plotted:</b> the same for set 8.</figcaption></figure>
+<figure class="fig live" data-live="contexts" data-o="Bpoint" data-r="16" data-j="1" data-n="5"><figcaption><b>Plotted:</b> the same for set 2.</figcaption></figure>
+</div>
+
+<p><b>The eigenfunctions</b> <em>(observed).</em> Each end of the leading eigenfunctions is mostly one token in one kind of source (token at $t$ and source, counted over the 12 contexts at each end): $\psi_1$ runs from {{fact:m.Bpoint.psi1.neg.tok}} ({{fact:m.Bpoint.psi1.neg.source}}) to {{fact:m.Bpoint.psi1.pos.tok}} ({{fact:m.Bpoint.psi1.pos.source}}); $\psi_2$ from {{fact:m.Bpoint.psi2.neg.tok}} ({{fact:m.Bpoint.psi2.neg.source}}) to {{fact:m.Bpoint.psi2.pos.tok}} ({{fact:m.Bpoint.psi2.pos.source}}). <a class="explore-link" href="#explorer?tour=m-psi1">Step through them</a></p>
+
+<h3 id="m-catchall">The large set of word pieces</h3>
+<p><em>(observed).</em> Set {{fact:m.Bpoint.r16.catch.set}} holds {{fact:m.Bpoint.r16.catch.size}} of the {{fact:m.n}} contexts; {{fact:m.Bpoint.r16.catch.word_share}} of them end in a word start or a word continuation, and it takes {{fact:m.Bpoint.r16.catch.t90}} distinct tokens to cover 90% of it. Content words are rare at this sample size: of the {{fact:m.word.n}} contexts whose token at $t$ is a word start or continuation, {{fact:m.word.n_once}} carry a token that occurs only once among them. At finer $r$ the set does not break into smaller readable sets: its largest part under $r = 24$ of the same block still holds {{fact:m.Bpoint.catch.r24.largest}} of its members, and under $r = 32$ {{fact:m.Bpoint.catch.r32.largest}}.</p>
+<p><em>(speculation).</em> Whether more contexts would give these words readable structure, by giving each word several occurrences, is open; the rarity supports it but does not show it. <a class="explore-link" href="#explorer?tour=m-catchall">Look inside the set</a></p>
+
+<!-- ============================================================ Mamba 7 -->
+<h2 id="m-late">7. In late layers, linked contexts share the token less and have more similar next-token distributions</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 8$) of the <b>residual stream after layer 24</b>, and the walk's neighbour statistics at every layer.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=m-l24"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_m-l24.png"><img style="width: 100%; height: auto" src="assets/fig/view_m-l24.png" alt="The Mamba explorer coloured by the eight sets of residual layer 24."></picture></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live).</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed, then reading).</em> From layer 4 to layer 24 the walk's excess share of links between contexts with the same token at $t$ falls from {{fact:m.T_ex.L4}} to {{fact:m.T_ex.L24}}, and the excess share between contexts from the same kind of source rises from {{fact:m.W_ex.L4}} to {{fact:m.W_ex.L24}}. Linked contexts' next-token distributions become more similar beyond what sharing the token explains: $\tilde\kappa_{|T}$ goes from {{fact:m.kappaT.L4}} to {{fact:m.kappaT.L24}}. The late sets mix token families with the kind of source and with what follows: LaTeX commands followed by {{fact:m.L24.r8.set2.tok_next}}; function words in wiki and poetry; line breaks and symbols in code and forum posts.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#m_shares_point" data-height="300">
+  <figcaption><b>Plotted:</b> for the residual stream at each of the 24 layers, the excess share (as in finding 5; <a href="#method/glossary-excess-share">definition</a>) of the walk's mass between contexts that share the named property; bands: 50 permutations of the property. Dashed: predictive coherence $\tilde\kappa$ (excess Bhattacharyya similarity of the model's next-token distributions over linked contexts from different snippets) and $\tilde\kappa_{|T}$ (the same against a null that keeps the token at $t$).</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="msets" data-o="point_L24" data-r="8" data-sort="size">
+  <figcaption><b>Plotted:</b> the eight coherent sets of residual layer 24 ($r = 8$), largest first, as in finding 5.</figcaption>
+</figure>
+<details class="more"><summary>How I read it, and what else it could be</summary>
+<ul>
+<li>A language model's last layer feeds the next-token prediction, so it is natural for its geometry to link contexts with similar predictions, whatever token they end in. The rising $\tilde\kappa_{|T}$ measures that on the walk's links; it does not say the network computes anything in particular.</li>
+<li>The source share also rises, and next-token distributions differ by kind of source (LaTeX predicts LaTeX), so part of the predictive association could come through the kind of source. The whole-state finding below is the cleaner test of grouping by source.</li>
+</ul>
+</details>
+
+<!-- ============================================================ Mamba 8 -->
+<h2 id="m-reading">8. Along reading, the residual block's set vectors lose most of their smoothness within two tokens; the state's keep most of it for sixteen</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The coherent sets ($r = 8$) of the <b>whole recurrent state</b>, painted on the six main layouts and on the two along-reading blocks; and the retention of sets as the same contexts are read further.</p>
+<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
+  <a href="#explorer?tour=m-whole"><picture><source media="(max-width: 600px)" srcset="assets/fig/phone/view_m-whole.png"><img style="width: 100%; height: auto" src="assets/fig/view_m-whole.png" alt="The Mamba explorer coloured by the eight sets of the whole recurrent state, with the along-reading layouts."></picture></a>
+  <figcaption>The explorer at this view (screenshot; click to open it live).</figcaption>
+</figure></div>
+
+<p><b>Claim</b> <em>(observed).</em> Take the SEBA vectors ($r = 8$) of an object at the token $t$, and ask how smooth they still are on the walk of the same contexts after $\tau$ more tokens have been read. This measures particular vectors on later walks, not what information the network keeps. The all-layer residual block's vectors, on residual layer 16's walk, have mean retention {{fact:m.ret.Bpoint_on_L16.t0}} at $\tau = 0$ and {{fact:m.ret.Bpoint_on_L16.t2}} at $\tau = 2$ (chance {{fact:m.ret.chance}}): most of it is lost within two tokens, though not all, and {{fact:m.ret.Bpoint_on_L16.t16}} remains at $\tau = 16$. For the whole recurrent state's vectors on its own walk it is {{fact:m.lag.whole.t0}} at $\tau = 0$ and still {{fact:m.lag.whole.t16}} at $\tau = 16$, and the whole state's sets after 16 more tokens agree with its sets at $t$ at AMI {{fact:m.lagami8.whole.t16}}.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#m_lags" data-height="280">
+  <figcaption><b>Plotted:</b> retention $f^\top P f / f^\top f$ of the centred SEBA vectors $f$ ($r = 8$) of the residual all-layer block in the walk $P$ of residual layer 8, 16 or 24 after $\tau$ further tokens (solid), of the state all-layer block in the per-layer state's walk at those layers (dashed), and of the whole state in its own walk; mean over the 8 vectors. Chance is $-1/(N-1)$.</figcaption>
+</figure>
+<p><b>How I read it.</b> The residual block's sets are organised around the token at $t$ (finding 6), and the residual geometry after a few more tokens is organised around different tokens, so those sets are no longer smooth there. The whole state's sets follow the kind of source (finding 9), which does not change as reading continues.</p>
+
+<!-- ============================================================ Mamba 9 -->
+<h2 id="m-state">9. The recurrent state's sets follow the kind of source and differ from the untrained network's</h2>
+
+<p><b>Claim</b> <em>(observed).</em> The whole state's eight sets follow the kind of source (AMI with source {{fact:m.whole.ami_W.r8}}): maths, code, wiki, forum and poetry, with a few splits (maths formulas apart from maths prose, code comments apart from code, poem line ends apart from the rest of poetry). The <em>bag</em> reference, which averages the trained model's input embeddings of the prefix's tokens, ignoring order and bypassing the recurrent layers, links contexts from the same source as strongly. But the state's walk also links contexts with the same token class and with similar next-token distributions, which the bag barely does; and the untrained network's whole state links contexts from the same source much less.</p>
+<p>Two limits on this. The five kinds of source ({{fact:m.snippets_per_source}} snippets each) differ sharply in vocabulary and layout, so the result says the state separates these five, not how it would divide closer or more numerous kinds. And until the split-half check is run, I do not know which set boundaries would survive another sample of snippets; the coarse grouping by source, which the bag shows too, is the part I would expect to.</p>
+
+<figure class="fig"><div class="table-scroll"><table class="facts">
+<tr><th>excess share of walk mass between contexts with the same …</th><th>whole state</th><th>bag (whole prefix)</th><th>recent (last 16 tokens)</th><th>whole state, untrained</th></tr>
+<tr><td>source</td><td class="num">{{fact:m.ex.whole.W}}</td><td class="num">{{fact:m.ex.bag.W}}</td><td class="num">{{fact:m.ex.recent.W}}</td><td class="num">{{fact:m.init.ex.whole.W}}</td></tr>
+<tr><td>token class at $t$</td><td class="num">{{fact:m.ex.whole.Cc}}</td><td class="num">{{fact:m.ex.bag.Cc}}</td><td class="num">{{fact:m.ex.recent.Cc}}</td><td class="num">·</td></tr>
+<tr><td>next-token distribution ($\tilde\kappa$)</td><td class="num">{{fact:m.ex.whole.kappa}}</td><td class="num">{{fact:m.ex.bag.kappa}}</td><td class="num">{{fact:m.ex.recent.kappa}}</td><td class="num">·</td></tr>
+</table></div>
+<figcaption><b>Plotted:</b> normalised excess shares $(S - S_0)/(1 - S_0)$ of each object's walk, as in finding 7. <em>bag</em> and <em>recent</em> are the order-insensitive averages of the trained model's input embeddings of the tokens over the whole prefix and over its last 16 tokens, put through the same kernel and walk; a dot means not stored.</figcaption></figure>
+
+<figure class="fig wide live" data-live="msets" data-o="whole" data-r="8" data-sort="size">
+  <figcaption><b>Plotted:</b> the eight coherent sets of the whole recurrent state ($r = 8$), largest first, as in finding 5.</figcaption>
+</figure>
+<p>The whole state's leading subspace agrees with the untrained network's at {{fact:m.init.a8.whole}} and with the bag's at {{fact:m.cmp.whole.bag.a8}} ($a_8$, mean squared cosine of the principal angles between the spans of $\psi_1..\psi_8$).</p>
+
+<!-- ============================================================ earlier -->
+<h2 id="earlier">The two earlier whole-snippet studies</h2>
+<p>Before token contexts, Mamba-130m and Pythia-160m were probed with {{fact:o.n_snippets}} whole snippets ({{fact:o.snippet_len}} tokens, {{fact:o.per_source}} from each of {{fact:o.n_sources}} kinds of source) as the items. Two results carry over.</p>
+<p><b>Along reading, the sets follow the source; along depth, the class of the token</b> <em>(observed, Mamba).</em> Blocks that average one layer over positions in the snippet gave sets that follow the source (AMI {{fact:o.v1.reading.source.range}} over the {{fact:o.v1.n_reading}} such blocks and $r = 2$ to 8). Blocks that average layers at one position gave sets that follow the class of the token at that position (AMI {{fact:o.v1.depth.cur_class.range}} for $r = 2$ to 8, against {{fact:o.v1.depth.source.range}} for source). That contrast is what motivated the token-context study above.</p>
+<p><b>The sets come to follow the source early in training</b> <em>(observed, Pythia).</em> The reading-block sets ($r = 4$) match the five sources at matched Jaccard {{fact:o.py.step0.min}} to {{fact:o.py.step0.max}} at initialisation, {{fact:o.py.step512.min}} to {{fact:o.py.step512.max}} after 512 steps, and {{fact:o.py.final.min}} to {{fact:o.py.final.max}} at the end of training.</p>
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#o_pythia" data-height="260">
+  <figcaption><b>Plotted:</b> Pythia-160m, for the reading block at each of six layers (the walks of positions {{fact:o.py.positions}} averaged), the matched Jaccard between its $r = 4$ coherent sets and the five sources, at five training checkpoints (step on a categorical axis). Dashed: the size ceiling (best possible for sets of these sizes), mean over layers. Band: permutation null, 95%.</figcaption>
+</figure>
+<p>The two models' top-level two-way cuts of the snippets (the root of each study's first zoom tree, each on one layer's reading block) put {{fact:o.rootcut.agree}} of the {{fact:o.rootcut.n}} snippets on matching sides. At whole-snippet grain, both models' sets follow the kind of source.</p>
+
+<!-- ============================================================ checks -->
+<h2 id="next-checks">Checks I'd like to run</h2>
+<ul>
+<li><b>Split halves.</b> Rebuild each object on two disjoint halves of the items and compare the leading eigenfunctions where the halves meet a common set of anchors. This is the main missing check for both networks (the ViT activations and the Mamba Gram matrices are on Modal volumes).</li>
+<li><b>More token contexts.</b> Several occurrences of each content word, to see whether the large set of word pieces gets structure (finding 6).</li>
+<li><b>More images per class, or a larger $k$, at ViT L12.</b> To confirm that the single-class sets are a resolution effect (finding 4).</li>
+<li><b>A true zoom.</b> Rerun the construction on one set's members, rather than reading them under another $r$ of the same object.</li>
+<li><b>Token contexts through training.</b> The Pythia result suggests the token-context structure would also be worth watching over checkpoints.</li>
+</ul>

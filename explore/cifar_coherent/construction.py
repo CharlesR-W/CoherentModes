@@ -34,3 +34,12 @@ def cached_completion(path, required_outputs=(), require_fingerprint=True, expec
     return row
 PRODUCT_FINGERPRINT=hashlib.sha256((FINGERPRINT+'|product:v1:centred-chronological-C_b..C_a:float64-eigh-QtQ-and-QQt:'
     'same-SEBA-export-as-average:gains-norm-ratios-on-centred-functions').encode()).hexdigest()
+
+# Norm-keeping variant (SPEC_DOT.md): every rule's 1-cos is replaced by the half squared Euclidean
+# distance |x_i-x_j|^2/2 of the unnormalized activations, divided by the probe-centred mean squared norm.
+DOT_KERNEL='dot-halfsqeuclid-meanG-scale:c_eff=1-D'
+DOT_FINGERPRINT=hashlib.sha256((FINGERPRINT+'|kernel:'+DOT_KERNEL).encode()).hexdigest()
+DOT_PRODUCT_FINGERPRINT=hashlib.sha256((PRODUCT_FINGERPRINT+'|kernel:'+DOT_KERNEL).encode()).hexdigest()
+KERNEL_OF_TAG={'r20s0b':'cos','r20s0d':'dot'}
+FINGERPRINTS={'cos':FINGERPRINT,'dot':DOT_FINGERPRINT}
+PRODUCT_FINGERPRINTS={'cos':PRODUCT_FINGERPRINT,'dot':DOT_PRODUCT_FINGERPRINT}

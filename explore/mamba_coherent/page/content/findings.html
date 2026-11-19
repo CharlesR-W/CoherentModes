@@ -1,0 +1,88 @@
+<!-- mockup -->
+<aside class="callout caveat"><p class="callout-title">Mockup</p>
+<p>This page is built from a synthetic fixture: the numbers below come from planted structure, so none of them is a
+finding about mamba-130m or Pythia.</p></aside>
+<!-- /mockup -->
+
+<p class="lede" id="read-a-finding">Findings are readings of one model ({{fact:model}}), two checkpoints and one probe of
+{{fact:n_items}} snippets, made with the procedure in the <a href="#overview/procedure">Overview</a>. Each opens with
+a claim and a tag (<em>observed</em>, <em>reading</em>, <em>speculation</em>, <em>not determinable</em>), then the
+evidence and what else it could be.</p>
+
+
+<h2 id="f-whole-state">1. The whole state separates sources more than any residual layer, and earlier</h2>
+<p><b>Claim</b> <em>(observed).</em> At $t = 128$ the whole-state cell (stack, L24) has $\tilde W$ = 0.74; the best
+residual layer (L20) has 0.53. The gap is largest early: at $t = 4$ the whole state is at 0.49, residual layers at
+0.22 to 0.40, and the bag of tokens at 0.31. Stacks from L8 upwards are all within 0.02 of the whole state at
+$t = 128$ (0.73 to 0.75), so the layers above L8 add little source separation to what the lower layers' states already
+hold.</p>
+<p><b>How I read it</b> <em>(reading).</em> In early reading, the state carries more about which kind of text this is than
+the token counts or any one residual do. By $t = 128$ the bag reaches 0.68, and reordering tokens 1 to 127 leaves the
+whole state's sets nearly unchanged (matched Jaccard 0.84 between the original and reordered probes at L24, 0.87 to 0.91
+at L8 to L20). So at full length most of what the state separates on this probe is vocabulary, as in the Pythia study
+(its finding 2). The probe has no grouping that token counts fail to reveal, so it cannot show more than that.</p>
+
+<h2 id="f-proxy">2. The residual stream is a poor stand-in for the state</h2>
+<p><b>Claim</b> <em>(observed).</em> Span agreement $a_3$ between the residual at layer $l$ and the stack of states up to $l$
+is 0.06 to 0.44 over all layers and positions (null 0.003). Against the layer's own state, $a_3$ is 0.04 to 0.49,
+except at L24, where it reaches 0.86 at $t = 4$. The layer state and the stack mostly agree (0.4 to 0.96), least at L16
+(0.37 to 0.43) and L24 (0.26 to 0.7).</p>
+<p><b>How I read it</b> <em>(reading).</em> Coherent sets read off the residual stream, the usual object of
+interpretability, describe a different partition from the sets of what the model actually carries forward. That echoes
+Pythia's finding 7, that the position-$t$ view and the prefix slab are not interchangeable. Here the comparison is with the
+exact carried state rather than a proxy for it.</p>
+
+<h2 id="f-uneven">3. The layer states are uneven: L16's state separates sources much less</h2>
+<p><b>Claim</b> <em>(observed).</em> Layer-state $\tilde W$ at $t = 128$ is 0.77 to 0.78 at L4, L12 and L20, but 0.40 at
+L16 (and 0.60 at L8 and 0.59 at L24). The same layers have the lowest state-vs-stack agreement.</p>
+<p><b>What else it could be</b> <em>(speculation).</em> Some layers' states may be organised around something other
+than source, such as position or formatting. The view's equal weighting of conv buffer and SSM state (decision
+D-M1) may also matter. The <code>state_parts</code> diagnostic (Method) separates the two parts; I have not read it
+further.</p>
+
+<h2 id="f-tokens">4. Early residuals follow the token just read; source separation is mostly in place by $t = 16$</h2>
+<p><b>Claim</b> <em>(observed).</em> $\tilde T$ falls with depth at every position, from 0.16 to 0.18 at L4 to 0.04 to 0.06 at
+L24 (H1 met). Between $t = 4$ and 128, $\tilde W$ grows by only 0.00 to 0.17 at L12 to L24, so H2 (at least 0.2) is
+<b>not met</b>. Most of the growth happens by $t = 16$, after which the residual's source separation is flat or
+falls slightly. $X(\text{maths}, \text{poetry})$ at (L16, 16) is 0.29 (H3 met). At initialisation, $\tilde W$ at
+(L16, 128) is 0.0001, against 0.44 trained (H5 met).</p>
+
+<h2 id="f-pythia">5. Mamba and Pythia find largely the same structure in the same snippets</h2>
+<p><b>Claim</b> <em>(observed).</em> The two studies' headline zoom cuts (the root of T1: L8 in Pythia, L16 in Mamba)
+put 927 of 1,000 snippets on the same side (matched Jaccard 0.86; null about 0.35). At $t = 128$, point-vs-point
+$a_3$ between matched depths is 0.70 to 0.75 in the lower third and 0.33 to 0.55 above (H7 met). Pythia's prefix slab
+against Mamba's stacked state reaches 0.86 to 0.89 from Pythia L4 / Mamba L8 to Pythia L10 / Mamba L20, and drops
+at the top layers (0.33).</p>
+<p><b>How I read it</b> <em>(reading).</em> At this scale and on this probe, the coherent-set picture mostly reflects
+the snippets and the shared training data (the Pile, the same tokenizer), not the architecture. The views that
+summarise the whole prefix (Pythia's slab, Mamba's state) agree more than the single-position residuals do.</p>
+
+<h2 id="f-zoom">6. The zoom on the whole state splits code, maths and forum from wiki and poetry</h2>
+<p><b>Claim</b> <em>(observed).</em> The root cut of T4, the reading block of the whole state, puts 594 of the 600
+maths, code and forum snippets on one side and 393 of the 400 wiki and poetry snippets on the other. Its clustering
+ratio is 1.99, below the threshold of 3, so it is drawn as a weak split. T1's root cut is the same partition, less
+cleanly (code 1 / 199, poetry 200 / 0: H6 met). No root split in the four trees reaches the threshold.</p>
+
+<h2 id="f-readouts-head">Readouts behind the findings</h2>
+
+
+<p>Computed by the build, by question:</p>
+
+<div class="table-scroll"><table class="data">
+<thead><tr><th>question</th><th>readout</th><th>value</th><th>where</th></tr></thead>
+<tbody>
+<tr><td>which blocks reproduce the sources?</td><td>reading blocks, share of the size ceiling: point / state / stack</td><td>{{fact:rd.ratio.point.range}} / {{fact:rd.ratio.state.range}} / {{fact:rd.ratio.stack.range}}</td><td><a href="#measurements/q-sources">sources</a></td></tr>
+<tr><td></td><td>point single cells, share of the size ceiling</td><td>{{fact:cell.ratio.point.range}}</td><td><a href="#measurements/q-sources">sources</a></td></tr>
+<tr><td>token or source?</td><td>$\tilde T$ at L4 / L24 (trained)</td><td>{{fact:Tex.L4.range}} / {{fact:Tex.L24.range}}</td><td><a href="#measurements/q1">Q1</a></td></tr>
+<tr><td></td><td>$\tilde W(128) - \tilde W(4)$ at L12..L24</td><td>{{fact:H2.diffs}}</td><td><a href="#measurements/q1">Q1</a></td></tr>
+<tr><td>maths against poetry</td><td>$X$ at (L16, 16); first $t$ below 0.5 at L12..L24</td><td>{{fact:X.mp.L16.t16}}; {{fact:X.mp.first_t_below_half.L12_24}}</td><td><a href="#measurements/q2">Q2</a></td></tr>
+<tr><td>residual, layer state or whole state?</td><td>$a_3$ point vs state / point vs stack / state vs stack</td><td>{{fact:ps.a3.range}} / {{fact:pk.a3.range}} / {{fact:sk.a3.range}}</td><td><a href="#measurements/q3">Q3</a></td></tr>
+<tr><td></td><td>residual vs whole state at (L24, 128): $a_3$, matched Jaccard</td><td>{{fact:pk.a3.L24.t128}}, {{fact:pk.jacc.L24.t128}}</td><td><a href="#measurements/q3">Q3</a></td></tr>
+<tr><td></td><td>$\tilde W$ at $t = 128$: point / state / stack, over layers</td><td>{{fact:Wex.point.t128.range}} / {{fact:Wex.state.t128.range}} / {{fact:Wex.stack.t128.range}}</td><td><a href="#measurements/q3">Q3</a></td></tr>
+<tr><td>what training adds</td><td>$\tilde W$ at (L16, 128): init, trained</td><td>{{fact:Wex.L16.t128.init}}, {{fact:Wex.L16.t128.trained}}</td><td><a href="#measurements/q4">Q4</a></td></tr>
+<tr><td>token order</td><td>sets, original vs reordered (point, by layer)</td><td>{{fact:S.jacc.point.by_layer}}</td><td><a href="#measurements/q5">Q5</a></td></tr>
+<tr><td>zoom</td><td>clustering ratios of all splits; at or above the threshold</td><td>{{fact:ups.real.range}}; {{fact:ups.real.n_clear}} of {{fact:ups.real.n}}</td><td><a href="#zoom">Zoom</a></td></tr>
+<tr><td>Mamba against Pythia</td><td>$a_3$ point vs point; slab vs state; slab vs stack</td><td>{{fact:ca.pp.a3.range}}; {{fact:ca.pss.a3.range}}; {{fact:ca.psk.a3.range}}</td><td><a href="#measurements/q6">Q6</a></td></tr>
+<tr><td></td><td>T1 root cuts cross-tabulated; matched Jaccard</td><td>{{fact:ca.ct.counts}}; {{fact:ca.ct.jacc}}</td><td><a href="#measurements/q6">Q6</a></td></tr>
+<tr><td>hazards</td><td>largest top-1 coordinate share (point, trained); C1a float32 error</td><td>{{fact:rogue1.point.max}}; {{fact:c1a.f32.by_layer}}</td><td><a href="#method/hazards">Method</a></td></tr>
+</tbody></table></div>

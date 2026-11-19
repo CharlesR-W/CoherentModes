@@ -1,0 +1,226 @@
+<p class="lede">I gave a small language model, {{fact:model}}, the same {{fact:n_items}} text snippets ({{fact:n_per_source}}
+each of maths, code, Wikipedia, forum posts and poetry), recorded its residual stream at six layers, after six numbers
+of tokens read, at {{fact:n_steps}} checkpoints of its training, and asked <b>which snippets it treats alike</b>, with
+the label-free construction I used on a ResNet-20. This is a toy (one model, one run, one probe) meant to show <b>how
+far that construction works on a language model without changes</b>.</p>
+
+<div class="boxed mini" id="miniature"><p><b>The idea in one example.</b> Fix layer 8 and the final checkpoint. After
+<b>16 tokens</b>, centre the residual vectors over the snippets and compare every pair by cosine, link each snippet to its
+15 nearest, and turn the links into a <b>random walk</b> between snippets. Do the same after 4, 8, 32, 64 and 128
+tokens: six walks over the same snippets, in six different geometries. Their <b>average</b> is the walk of a
+<b>reading block</b> (a run of cells along the reading axis; not a transformer block). Links that persist from one
+position to the next dominate it; links that come and go are diluted. The averaged walk's slowest-changing functions,
+made sparse, give a few <b>coherent sets</b>. What stays fixed: the snippets and the layer. What changes: the
+position, and with it the geometry. Sources are never used, only checked afterwards.</p></div>
+
+<aside class="callout key" id="answer"><p class="callout-title">The answer, in short</p>
+<p><b>Out of the box, it partly works.</b> It runs on this model unchanged, and every control passes (position $t$
+means $t$ tokens read; the bag reference depends only on token counts; the zoom recovers a planted hierarchy).
+<b>Averaging along reading reproduces the sources; single cells only lean towards them.</b> At the final step, a reading block's four
+sets match maths, code, Wikipedia and poetry (forum posts are split between two sets and the unassigned): at L4 to
+L12 the overlap between each set and its best-matching source (matched Jaccard {{fact:rd.sj.L4_12}}; chance gives
+{{fact:rd.null}}) is {{fact:rd.ratio.L4_12}} of the best their sizes allow. Single cells keep an above-chance
+association with source, but reach only {{fact:cell.ratio.point.range}} of theirs. The reading
+blocks' advantage is already present at training step 512; the ranges here are for the final step.</p>
+<p><b>The zoom finds no clearly separated split</b> in the four trees I ran: every cut follows sources, but its
+clustering ratio, {{fact:ups.real.range}}, is near what structureless synthetic noise gives
+({{fact:ups.structureless.range}}) and far below planted groups (at least {{fact:ups.planted.min}}). That is a
+comparison with synthetic reference points, not a proof that the model has no clusters.
+<b>The sources are an easy target:</b> the mean of the token embeddings keeps more of its walk within sources than
+any layer, and the L8 reading block's sets match its sets at {{fact:t1_vs_bag.t128}}, so finding sources shows
+nothing beyond token statistics. <b>One coordinate carries {{fact:rogue1.final.L4_10.t4_32}} of the centred
+variance</b> at L4 to L10 for the first 32 tokens; how much that bends the cosine geometry was not measured
+(<a href="#findings/f-hazards">finding 9</a>).</p>
+<p>Five of the six result targets are met; H1 (source separation grows by 0.2 or more from $t = 4$ to 128) is not.
+<a href="#findings">Findings</a> separates what is observed from how I read it.</p></aside>
+
+<nav class="callout" id="where-to-look"><p class="callout-title">Where to look</p><ul>
+<li><b>Reading (the position axis):</b> <a href="#explorer?sel=reading:8&c=sets4">the L8 reading block in the explorer</a>; walk shares along $t$ in <a href="#measurements/q1">Q1</a>.</li>
+<li><b>Maths against poetry:</b> <a href="#measurements/q2">Q2</a>, with two snippets followed through positions and layers.</li>
+<li><b>Training:</b> <a href="#measurements/q4">Q4</a> and the strip under the explorer grid. <b>The zoom:</b> <a href="#zoom">its tab</a>.</li>
+<li><b>Position $t$ against the whole prefix</b> (the cheap measurement against the layer state the KV cache is computed from): <a href="#measurements/q3">Q3</a>.</li>
+</ul></nav>
+
+<!-- mockup -->
+<aside class="callout caveat"><p class="callout-title">How to read this mockup</p>
+<p>Everything on this page is drawn from a <b>synthetic fixture</b> pushed through the real pipeline. Its items carry a
+planted three-level hierarchy (eight groups of 125) whose strength grows along layers and training; one layer (L4)
+carries a different, planted split instead. Tokens and text are fake syllables, and the five "sources" are assigned in
+runs that follow the planted groups, so they line up with the structure only partly. If the page works, the explorer
+shows four tight groups at L6 to L12 and weaker ones at L2, the zoom recovers the eight planted groups for T1, and
+step 0 looks structureless. Wording in <span class="tbd">[striped brackets]</span> will be written from the real data.</p>
+</aside>
+<!-- /mockup -->
+
+<figure class="fig wide">
+  <a href="#explorer?sel=reading:8&c=sets4"><img src="{{img:hero}}" loading="eager" alt="Six layers and a bag-of-tokens row at six positions, each panel a 2-d layout of the same snippets, coloured by the four coherent sets of the L8 reading block."></a>
+  <figcaption><b>Colours come from one place, the outlined L8 row, and are painted on every panel</b>, so the same snippet
+  has the same colour everywhere; <b>dot positions are for display only</b> (an AlignedUMAP layout per row).
+  <b>Plotted:</b> the explorer's grid at step {{fact:final_step}}: rows, the bag-of-tokens reference and layers L2 to
+  L12; columns, positions $t$ = 4 to 128 (tokens read); one dot per snippet. Colour: the snippet's coherent set,
+  $r = 4$, from the reading block of L8; grey: unassigned. Set make-up (validation only): {{fact:t1.set1.makeup}};
+  {{fact:t1.set2.makeup}}; {{fact:t1.set3.makeup}}; {{fact:t1.set4.makeup}}; unassigned mainly forum
+  ({{fact:t1.unassigned.makeup}}).
+  <details class="more"><summary>Values</summary> $\lambda_1, \lambda_2, \lambda_3$ = {{fact:t1.lambda1}},
+  {{fact:t1.lambda2}}, {{fact:t1.lambda3}}; gap $\lambda_3 - \lambda_4$ = {{fact:t1.gap}}; set sizes
+  {{fact:t1.set_sizes}}, {{fact:t1.n_unassigned}} unassigned. Matched Jaccard against sources {{fact:t1.jacc_r4}}
+  (null 97.5th percentile {{fact:t1.jacc_r4_null}}; the best possible for these set sizes, {{fact:t1.jacc_r4_ceiling}}).</details>
+  </figcaption>
+</figure>
+
+<p class="cta"><a class="explore-link big" href="#explorer?sel=reading:8&c=sets4">Open the explorer at this view</a></p>
+
+<h2 id="question">The question</h2>
+
+<p>On the ResNet, the construction found groups of images that the network keeps together across a run of layers or
+of training. A language model adds a third axis: <b>position</b>, the number of tokens it has read. A snippet's
+residual stream at position $t$ depends on tokens 1 to $t$ only, so reading is a time axis inside one forward pass,
+next to depth and training. I wanted to know four things.</p>
+<ol>
+<li><b>Where does the walk separate kinds of text?</b> Along reading, depth and training: does maths part from
+poetry, and from how many tokens on?</li>
+<li><b>Token or source?</b> How strongly is the walk tied to the token just read, and how strongly to where the
+snippet came from?</li>
+<li><b>Is position $t$ enough?</b> Do the sets from the residual at $t$ agree with those from a view of the layer's
+states at all positions up to $t$ (the slab)? The raw states at positions 1 to $t$ determine every later layer there,
+including its KV-cache entries; the slab view is a normalised geometry of them.</li>
+<li><b>What does zooming show?</b> Cut a block's items in two with the block's own walk, redo the analysis on each
+half, and repeat.</li>
+</ol>
+
+<h2 id="quantity">What is measured</h2>
+
+<p>For each <b>cell</b> $c$ (a checkpoint, a layer and a position) the construction builds a random walk $P_c$ between
+the snippets, from their cosine similarities (the procedure is below). A <b>block</b> $B$ is a run of cells along one
+axis, and everything on the page comes from the block's average walk.</p>
+
+<div class="boxed">
+<div class="eq" id="eq-penalty" data-num="1">$$ f^\top (I - \bar P_B)\, f \;=\; \frac{1}{|B|}\sum_{c \in B} f^\top (I - P_c)\, f
+\;=\; \frac{1}{|B|}\sum_{c \in B} \tfrac12 \sum_{i,j} (P_c)_{ij}\,(f_i - f_j)^2 $$</div>
+<div class="eq" id="eq-shares" data-num="2">$$ S_c(\mathcal G) = \frac1N \sum_{g \in \mathcal G}\ \sum_{i \ne j \in g} (P_c)_{ij},
+\qquad \tilde S = \frac{S - S^0}{1 - S^0} $$</div>
+<p class="where"><b>where</b> $f$ is any function on the $N$ snippets and $\bar P_B$ the mean of the cells' walks; a
+function that changes little across every walk step in every cell of the block has a small penalty (1), and the
+block's eigenfunctions $\psi_k$ are the functions with the smallest. $S_c(\mathcal G)$ is the share of the walk that
+stays inside the groups of a grouping $\mathcal G$, $S^0$ its chance level, and $\tilde S$ the excess over chance
+(0 for a walk that ignores the grouping, 1 for one that never leaves it). $\boldsymbol{T}$ groups snippets by the
+token at position $t$ (label-free: tokens are inputs); $\boldsymbol{W}$ groups them by source (validation).</p>
+</div>
+
+<p>$T$ and $W$ are associations between the walk and a grouping. They do not split the walk into a "token part" and a
+"context part", and nothing on this page reads them that way.</p>
+
+<aside class="callout key"><p class="callout-title">Labels</p>
+<p>The method uses no labels. A snippet's source is used only to assemble a balanced probe, to colour plots, for the
+validation statistics ($W$, the pair mixing ratio $X$, matched Jaccard against sources), and to choose which
+snippets the "follow" figure shows. Source never enters a kernel, an operator, a basis, a cut or the choice of a
+block.</p></aside>
+
+<h2 id="cells-blocks">Cells and blocks</h2>
+
+<p>There are {{fact:n_cells}} cells: {{fact:n_steps}} checkpoints (steps {{fact:steps}}) by six layers
+({{fact:layers}}) by six positions (t = {{fact:positions}}). A block runs along exactly one axis: a <b>reading
+block</b> is one layer at positions 4 to 128, a <b>depth block</b> is one position at layers L2 to L12, and a
+<b>training block</b> is one layer at t = 128 across checkpoints. A single cell is also a block. Positions and
+checkpoints are roughly log-spaced, so with equal weights per cell, early reading and early training count for more
+per token or step than late ones.</p>
+
+<figure class="fig">
+  <img src="{{img:cube}}" alt="A lattice of checkpoints by layers by positions, with one reading block, one depth block and one training block marked.">
+  <figcaption><b>Plotted:</b> the {{fact:n_cells}} cells as a lattice: position t across, layer up, training step into the
+  page (front: step {{fact:final_step}}). Marked: one reading block, one depth block and one training block. A block's
+  operator is the average of its cells' lazy walks.</figcaption>
+</figure>
+
+<h2 id="procedure">The procedure in five steps</h2>
+
+<p><b>Five fixed computations, from activations to sets</b>, unchanged from the ResNet study. The pictures use the
+cell (L8, t = 128) and the reading block of L8 at step {{fact:final_step}}; in every matrix the snippets are in the
+order of that block's first zoom cut. Exact statements are in <a href="#method">Method</a>.</p>
+
+<div class="step">
+<h3 id="step-1">1. Compare snippets within one cell</h3>
+<a class="step-fig" style="--w: 38%" href="{{img:step1}}" target="_blank" rel="noopener"><img src="{{img:step1}}" alt="Cosine Gram of one cell"></a>
+<p>Take every snippet's residual stream at one layer and position, centre it over the {{fact:n_items}} snippets,
+scale each vector to unit length, and take the cosine between every pair. That cosine is the only geometry the
+construction assumes.</p>
+</div>
+
+<div class="step">
+<h3 id="step-2">2. Turn similarity into a walk</h3>
+<a class="step-fig" style="--w: 52%" href="{{img:step2}}" target="_blank" rel="noopener"><img src="{{img:step2}}" alt="Kernel and walk of one cell"></a>
+<p>Link two snippets if either is among the other's {{fact:k}} nearest neighbours (weight 1, a floor of $10^{-6}$
+elsewhere). Symmetric Sinkhorn scaling turns these links into a walk $P_c$ whose rows and columns sum to 1, so every
+snippet carries the same weight. The lazy walk $M_c = \tfrac12(I + P_c)$ stays put half the time.</p>
+</div>
+
+<div class="step">
+<h3 id="step-3">3. Average over a block</h3>
+<a class="step-fig" style="--w: 38%" href="{{img:step3}}" target="_blank" rel="noopener"><img src="{{img:step3}}" alt="Average lazy walk of the L8 reading block"></a>
+<p>A block's operator $\bar M$ is the plain average of its cells' lazy walks. No map between cells is fitted: each
+cell keeps its own geometry, and the cells meet only through the snippets they share.</p>
+</div>
+
+<div class="step">
+<h3 id="step-4">4. Take its eigenfunctions, with their retention in every cell</h3>
+<a class="step-fig" style="--w: 45%" href="{{img:step4}}" target="_blank" rel="noopener"><img src="{{img:step4}}" alt="Leading eigenfunctions of the block and their retention per cell"></a>
+<p>The leading eigenvectors $\psi_1, \psi_2, \ldots$ of $\bar M$ are the functions on the snippets with the smallest
+<em>average</em> penalty (1). An average can hide a cell where the function varies a lot, so next to each eigenfunction
+I show its <em>retention</em> $\rho_c(\psi_k) = \psi_k^\top M_c \psi_k$ in each cell: 1 means the function is constant on
+every walk neighbourhood of that cell, and a random function with mean zero gets about 0.5.</p>
+</div>
+
+<div class="step">
+<h3 id="step-5">5. Sparse vectors, coherent sets</h3>
+<a class="step-fig" style="--w: 52%" href="{{img:step5}}" target="_blank" rel="noopener"><img src="{{img:step5}}" alt="SEBA vectors and the resulting sets"></a>
+<p>SEBA rotates the first $r$ eigenvectors (with the constant $\psi_0$) into $r$ sparse, non-negative vectors. Each
+snippet goes to the vector on which it is largest, or is <em>unassigned</em> if all are zero. The page shows
+$r = 2$ and $r = 4$. These <b>coherent sets</b> are the groups on which the averaged walk's slowest functions
+concentrate.</p>
+</div>
+
+<h2 id="map">Experiment map</h2>
+
+<div class="table-scroll"><table class="data map">
+<thead><tr><th>where</th><th>question</th><th>readout</th><th>targets</th></tr></thead>
+<tbody>
+<tr><td><a href="#explorer">Explorer</a></td><td>where do sets appear along reading, depth and training?</td><td>sets, eigenfunctions and retention of any block</td><td>none (exploration)</td></tr>
+<tr><td><a href="#zoom">Zoom</a></td><td>what does recursively cutting a block show?</td><td>trees T1 to T4 (F9)</td><td>H5</td></tr>
+<tr><td><a href="#measurements/q0">Q0</a></td><td>do the identities and planted checks hold?</td><td>controls table, fixture tree (F2)</td><td>C1, C2, P1 to P3</td></tr>
+<tr><td><a href="#measurements/q1">Q1</a></td><td>is the walk tied to the token just read, or to the source?</td><td>$\tilde T$ and $\tilde W$ per cell (F3)</td><td>E1, H1</td></tr>
+<tr><td><a href="#measurements/q2">Q2</a></td><td>when does the walk stop linking maths and poetry?</td><td>pair mixing $X$ (F4); two snippets followed (F5)</td><td>H2</td></tr>
+<tr><td><a href="#measurements/q3">Q3</a></td><td>does position $t$ tell the same story as the prefix slab?</td><td>span agreement $a_3$ (F6)</td><td>H3</td></tr>
+<tr><td><a href="#measurements/q4">Q4</a></td><td>when in training does source separation appear?</td><td>$\tilde W$ and set agreement against step (F7)</td><td>H4</td></tr>
+<tr><td><a href="#measurements/q5">Q5</a></td><td>does reordering the earlier tokens change the sets?</td><td>original vs reordered probe (F8)</td><td>comparison only</td></tr>
+</tbody></table></div>
+
+<h2 id="verdict">Verdict against the targets</h2>
+
+<p>The targets were written before the run (SPEC section 8). Hypotheses are numerical predictions without a claimed
+mechanism; each is met, not met, or not determinable. The statuses below are computed by the build from the data.</p>
+
+<!-- mockup -->
+<aside class="callout caveat"><p>On this mockup the statuses test the plumbing only: the fixture has no language model in
+it, so "met" or "not met" here says nothing about pythia-160m.</p></aside>
+<!-- /mockup -->
+
+<div class="table-scroll"><table class="data verdict">
+<thead><tr><th>id</th><th>target</th><th>label</th><th>measured</th><th>status</th></tr></thead>
+<tbody>
+<tr><td><b>C1</b></td><td>a pass on tokens 1..64 gives the same residuals at t ≤ 64 as the full pass</td><td>identity</td><td>{{fact:c1.status}} (<a href="#measurements/q0">F2</a>)</td><td>{{fact:v.C1.status}}</td></tr>
+<tr><td><b>C2</b></td><td>the bag view at t = 128 is identical for the original and reordered probes</td><td>identity</td><td>{{fact:c2.status}} (<a href="#measurements/q0">F2</a>)</td><td>{{fact:v.C2.status}}</td></tr>
+<tr><td><b>P1</b></td><td>the zoom recovers the planted fixture tree; structureless splits read as weak</td><td>planted</td><td>{{fact:p1.exact}}; planted Υ ≥ {{fact:p1.min_planted_upsilon}}, structureless ≤ {{fact:p1.max_structureless_upsilon}} (<a href="#measurements/q0">F2</a>)</td><td>{{fact:v.P1.status}}</td></tr>
+<tr><td><b>E1</b></td><td>$\tilde T$ higher at L2 than at L12 at every $t$ (step {{fact:final_step}})</td><td>established</td><td>{{fact:v.E1.value}}</td><td>{{fact:v.E1.status}}</td></tr>
+<tr><td><b>H1</b></td><td>$\tilde W(128) - \tilde W(4) \ge 0.2$ at L6 to L12</td><td>hypothesis</td><td>{{fact:v.H1.value}}</td><td>{{fact:v.H1.status}}</td></tr>
+<tr><td><b>H2</b></td><td>$X(\text{maths}, \text{poetry}) < 0.5$ at (L8, t = 16)</td><td>hypothesis</td><td>{{fact:v.H2.value}}</td><td>{{fact:v.H2.status}}</td></tr>
+<tr><td><b>H3</b></td><td>point-vs-slab $a_3$ at t = 128 higher at L12 than at L2</td><td>hypothesis</td><td>{{fact:v.H3.value}}</td><td>{{fact:v.H3.status}}</td></tr>
+<tr><td><b>H4</b></td><td>$\tilde W$ at (L8, 128) at step 0 below half its final value</td><td>hypothesis</td><td>{{fact:v.H4.value}}</td><td>{{fact:v.H4.status}}</td></tr>
+<tr><td><b>H5</b></td><td>T1's first cut puts ≥ 80 % of code and ≥ 80 % of poetry on opposite sides</td><td>hypothesis</td><td>{{fact:v.H5.value}}</td><td>{{fact:v.H5.status}}</td></tr>
+</tbody></table></div>
+
+<p>The controls say the machinery does what it should: position $t$ means tokens 1 to $t$, the bag view depends on
+token counts only, and the zoom recovers a planted hierarchy. Of the result targets, the token just read is most
+tied to the walk early (E1), maths and poetry are kept apart from the middle of the snippet on (H2), training creates
+the source association (H4), and the first zoom cut separates code from poetry (H5). H3 is met, but every value is
+low: position $t$ and the whole prefix agree little anywhere. H1 is not met: source separation rises by at most
+{{fact:H1.max}} between $t = 4$ and $t = 128$ in L6 to L12, short of the 0.2 I predicted.</p>

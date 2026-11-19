@@ -1,0 +1,797 @@
+{
+ "rule": "Rule (fixed before looking at any model output): every class follows its first WordNet hypernym path (nltk `hypernym_paths()[0]`). Start with one group at the root; repeatedly split the largest group into the next node along its members' paths, until no group has more than 15 classes. Groups with fewer than 3 classes are pooled into \"other <node they were split from>\".",
+ "superclasses": [
+  {
+   "id": 0,
+   "name": "bird.n.01",
+   "n_classes": 5
+  },
+  {
+   "id": 1,
+   "name": "commodity.n.01",
+   "n_classes": 4
+  },
+  {
+   "id": 2,
+   "name": "container.n.01",
+   "n_classes": 7
+  },
+  {
+   "id": 3,
+   "name": "covering.n.02",
+   "n_classes": 12
+  },
+  {
+   "id": 4,
+   "name": "device.n.01",
+   "n_classes": 11
+  },
+  {
+   "id": 5,
+   "name": "furnishing.n.02",
+   "n_classes": 4
+  },
+  {
+   "id": 6,
+   "name": "hunting_dog.n.01",
+   "n_classes": 7
+  },
+  {
+   "id": 7,
+   "name": "invertebrate.n.01",
+   "n_classes": 7
+  },
+  {
+   "id": 8,
+   "name": "mammal.n.01",
+   "n_classes": 9
+  },
+  {
+   "id": 9,
+   "name": "matter.n.03",
+   "n_classes": 5
+  },
+  {
+   "id": 10,
+   "name": "other artifact.n.01",
+   "n_classes": 1
+  },
+  {
+   "id": 11,
+   "name": "other dog.n.01",
+   "n_classes": 2
+  },
+  {
+   "id": 12,
+   "name": "other instrumentality.n.03",
+   "n_classes": 4
+  },
+  {
+   "id": 13,
+   "name": "other organism.n.01",
+   "n_classes": 2
+  },
+  {
+   "id": 14,
+   "name": "reptile.n.01",
+   "n_classes": 4
+  },
+  {
+   "id": 15,
+   "name": "structure.n.01",
+   "n_classes": 6
+  },
+  {
+   "id": 16,
+   "name": "toy_dog.n.01",
+   "n_classes": 4
+  },
+  {
+   "id": 17,
+   "name": "working_dog.n.01",
+   "n_classes": 6
+  }
+ ],
+ "classes": [
+  {
+   "id": 0,
+   "wnid": "n01558993",
+   "name": "robin, American robin, Turdus migratorius",
+   "superclass": 0,
+   "dataset_label": 26
+  },
+  {
+   "id": 1,
+   "wnid": "n01692333",
+   "name": "Gila monster, Heloderma suspectum",
+   "superclass": 14,
+   "dataset_label": 36
+  },
+  {
+   "id": 2,
+   "wnid": "n01729322",
+   "name": "hognose snake, puff adder, sand viper",
+   "superclass": 14,
+   "dataset_label": 69
+  },
+  {
+   "id": 3,
+   "wnid": "n01735189",
+   "name": "garter snake, grass snake",
+   "superclass": 14,
+   "dataset_label": 10
+  },
+  {
+   "id": 4,
+   "wnid": "n01749939",
+   "name": "green mamba",
+   "superclass": 14,
+   "dataset_label": 1
+  },
+  {
+   "id": 5,
+   "wnid": "n01773797",
+   "name": "garden spider, Aranea diademata",
+   "superclass": 7,
+   "dataset_label": 9
+  },
+  {
+   "id": 6,
+   "wnid": "n01820546",
+   "name": "lorikeet",
+   "superclass": 0,
+   "dataset_label": 35
+  },
+  {
+   "id": 7,
+   "wnid": "n01855672",
+   "name": "goose",
+   "superclass": 0,
+   "dataset_label": 98
+  },
+  {
+   "id": 8,
+   "wnid": "n01978455",
+   "name": "rock crab, Cancer irroratus",
+   "superclass": 7,
+   "dataset_label": 33
+  },
+  {
+   "id": 9,
+   "wnid": "n01980166",
+   "name": "fiddler crab",
+   "superclass": 7,
+   "dataset_label": 56
+  },
+  {
+   "id": 10,
+   "wnid": "n01983481",
+   "name": "American lobster, Northern lobster, Maine lobster, Homarus americanus",
+   "superclass": 7,
+   "dataset_label": 16
+  },
+  {
+   "id": 11,
+   "wnid": "n02009229",
+   "name": "little blue heron, Egretta caerulea",
+   "superclass": 0,
+   "dataset_label": 32
+  },
+  {
+   "id": 12,
+   "wnid": "n02018207",
+   "name": "American coot, marsh hen, mud hen, water hen, Fulica americana",
+   "superclass": 0,
+   "dataset_label": 85
+  },
+  {
+   "id": 13,
+   "wnid": "n02085620",
+   "name": "Chihuahua",
+   "superclass": 16,
+   "dataset_label": 24
+  },
+  {
+   "id": 14,
+   "wnid": "n02086240",
+   "name": "Shih-Tzu",
+   "superclass": 16,
+   "dataset_label": 58
+  },
+  {
+   "id": 15,
+   "wnid": "n02086910",
+   "name": "papillon",
+   "superclass": 16,
+   "dataset_label": 20
+  },
+  {
+   "id": 16,
+   "wnid": "n02087046",
+   "name": "toy terrier",
+   "superclass": 16,
+   "dataset_label": 43
+  },
+  {
+   "id": 17,
+   "wnid": "n02089867",
+   "name": "Walker hound, Walker foxhound",
+   "superclass": 6,
+   "dataset_label": 72
+  },
+  {
+   "id": 18,
+   "wnid": "n02089973",
+   "name": "English foxhound",
+   "superclass": 6,
+   "dataset_label": 62
+  },
+  {
+   "id": 19,
+   "wnid": "n02090622",
+   "name": "borzoi, Russian wolfhound",
+   "superclass": 6,
+   "dataset_label": 99
+  },
+  {
+   "id": 20,
+   "wnid": "n02091831",
+   "name": "Saluki, gazelle hound",
+   "superclass": 6,
+   "dataset_label": 5
+  },
+  {
+   "id": 21,
+   "wnid": "n02093428",
+   "name": "American Staffordshire terrier, Staffordshire terrier, American pit bull terrier, pit bull terrier",
+   "superclass": 6,
+   "dataset_label": 64
+  },
+  {
+   "id": 22,
+   "wnid": "n02099849",
+   "name": "Chesapeake Bay retriever",
+   "superclass": 6,
+   "dataset_label": 25
+  },
+  {
+   "id": 23,
+   "wnid": "n02100583",
+   "name": "vizsla, Hungarian pointer",
+   "superclass": 6,
+   "dataset_label": 91
+  },
+  {
+   "id": 24,
+   "wnid": "n02104029",
+   "name": "kuvasz",
+   "superclass": 17,
+   "dataset_label": 79
+  },
+  {
+   "id": 25,
+   "wnid": "n02105505",
+   "name": "komondor",
+   "superclass": 17,
+   "dataset_label": 15
+  },
+  {
+   "id": 26,
+   "wnid": "n02106550",
+   "name": "Rottweiler",
+   "superclass": 17,
+   "dataset_label": 34
+  },
+  {
+   "id": 27,
+   "wnid": "n02107142",
+   "name": "Doberman, Doberman pinscher",
+   "superclass": 17,
+   "dataset_label": 3
+  },
+  {
+   "id": 28,
+   "wnid": "n02108089",
+   "name": "boxer",
+   "superclass": 17,
+   "dataset_label": 96
+  },
+  {
+   "id": 29,
+   "wnid": "n02109047",
+   "name": "Great Dane",
+   "superclass": 17,
+   "dataset_label": 28
+  },
+  {
+   "id": 30,
+   "wnid": "n02113799",
+   "name": "standard poodle",
+   "superclass": 11,
+   "dataset_label": 57
+  },
+  {
+   "id": 31,
+   "wnid": "n02113978",
+   "name": "Mexican hairless",
+   "superclass": 11,
+   "dataset_label": 70
+  },
+  {
+   "id": 32,
+   "wnid": "n02114855",
+   "name": "coyote, prairie wolf, brush wolf, Canis latrans",
+   "superclass": 8,
+   "dataset_label": 39
+  },
+  {
+   "id": 33,
+   "wnid": "n02116738",
+   "name": "African hunting dog, hyena dog, Cape hunting dog, Lycaon pictus",
+   "superclass": 8,
+   "dataset_label": 95
+  },
+  {
+   "id": 34,
+   "wnid": "n02119022",
+   "name": "red fox, Vulpes vulpes",
+   "superclass": 8,
+   "dataset_label": 73
+  },
+  {
+   "id": 35,
+   "wnid": "n02123045",
+   "name": "tabby, tabby cat",
+   "superclass": 8,
+   "dataset_label": 89
+  },
+  {
+   "id": 36,
+   "wnid": "n02138441",
+   "name": "meerkat, mierkat",
+   "superclass": 8,
+   "dataset_label": 78
+  },
+  {
+   "id": 37,
+   "wnid": "n02172182",
+   "name": "dung beetle",
+   "superclass": 7,
+   "dataset_label": 68
+  },
+  {
+   "id": 38,
+   "wnid": "n02231487",
+   "name": "walking stick, walkingstick, stick insect",
+   "superclass": 7,
+   "dataset_label": 76
+  },
+  {
+   "id": 39,
+   "wnid": "n02259212",
+   "name": "leafhopper",
+   "superclass": 7,
+   "dataset_label": 50
+  },
+  {
+   "id": 40,
+   "wnid": "n02326432",
+   "name": "hare",
+   "superclass": 8,
+   "dataset_label": 54
+  },
+  {
+   "id": 41,
+   "wnid": "n02396427",
+   "name": "wild boar, boar, Sus scrofa",
+   "superclass": 8,
+   "dataset_label": 66
+  },
+  {
+   "id": 42,
+   "wnid": "n02483362",
+   "name": "gibbon, Hylobates lar",
+   "superclass": 8,
+   "dataset_label": 60
+  },
+  {
+   "id": 43,
+   "wnid": "n02488291",
+   "name": "langur",
+   "superclass": 8,
+   "dataset_label": 2
+  },
+  {
+   "id": 44,
+   "wnid": "n02701002",
+   "name": "ambulance",
+   "superclass": 2,
+   "dataset_label": 48
+  },
+  {
+   "id": 45,
+   "wnid": "n02788148",
+   "name": "bannister, banister, balustrade, balusters, handrail",
+   "superclass": 15,
+   "dataset_label": 17
+  },
+  {
+   "id": 46,
+   "wnid": "n02804414",
+   "name": "bassinet",
+   "superclass": 5,
+   "dataset_label": 65
+  },
+  {
+   "id": 47,
+   "wnid": "n02859443",
+   "name": "boathouse",
+   "superclass": 15,
+   "dataset_label": 21
+  },
+  {
+   "id": 48,
+   "wnid": "n02869837",
+   "name": "bonnet, poke bonnet",
+   "superclass": 3,
+   "dataset_label": 0
+  },
+  {
+   "id": 49,
+   "wnid": "n02877765",
+   "name": "bottlecap",
+   "superclass": 3,
+   "dataset_label": 30
+  },
+  {
+   "id": 50,
+   "wnid": "n02974003",
+   "name": "car wheel",
+   "superclass": 4,
+   "dataset_label": 38
+  },
+  {
+   "id": 51,
+   "wnid": "n03017168",
+   "name": "chime, bell, gong",
+   "superclass": 4,
+   "dataset_label": 63
+  },
+  {
+   "id": 52,
+   "wnid": "n03032252",
+   "name": "cinema, movie theater, movie theatre, movie house, picture palace",
+   "superclass": 15,
+   "dataset_label": 77
+  },
+  {
+   "id": 53,
+   "wnid": "n03062245",
+   "name": "cocktail shaker",
+   "superclass": 2,
+   "dataset_label": 8
+  },
+  {
+   "id": 54,
+   "wnid": "n03085013",
+   "name": "computer keyboard, keypad",
+   "superclass": 12,
+   "dataset_label": 13
+  },
+  {
+   "id": 55,
+   "wnid": "n03259280",
+   "name": "Dutch oven",
+   "superclass": 1,
+   "dataset_label": 94
+  },
+  {
+   "id": 56,
+   "wnid": "n03379051",
+   "name": "football helmet",
+   "superclass": 3,
+   "dataset_label": 49
+  },
+  {
+   "id": 57,
+   "wnid": "n03424325",
+   "name": "gasmask, respirator, gas helmet",
+   "superclass": 3,
+   "dataset_label": 97
+  },
+  {
+   "id": 58,
+   "wnid": "n03492542",
+   "name": "hard disc, hard disk, fixed disk",
+   "superclass": 4,
+   "dataset_label": 84
+  },
+  {
+   "id": 59,
+   "wnid": "n03494278",
+   "name": "harmonica, mouth organ, harp, mouth harp",
+   "superclass": 4,
+   "dataset_label": 81
+  },
+  {
+   "id": 60,
+   "wnid": "n03530642",
+   "name": "honeycomb",
+   "superclass": 15,
+   "dataset_label": 18
+  },
+  {
+   "id": 61,
+   "wnid": "n03584829",
+   "name": "iron, smoothing iron",
+   "superclass": 1,
+   "dataset_label": 88
+  },
+  {
+   "id": 62,
+   "wnid": "n03594734",
+   "name": "jean, blue jean, denim",
+   "superclass": 3,
+   "dataset_label": 23
+  },
+  {
+   "id": 63,
+   "wnid": "n03637318",
+   "name": "lampshade, lamp shade",
+   "superclass": 3,
+   "dataset_label": 55
+  },
+  {
+   "id": 64,
+   "wnid": "n03642806",
+   "name": "laptop, laptop computer",
+   "superclass": 4,
+   "dataset_label": 92
+  },
+  {
+   "id": 65,
+   "wnid": "n03764736",
+   "name": "milk can",
+   "superclass": 2,
+   "dataset_label": 41
+  },
+  {
+   "id": 66,
+   "wnid": "n03775546",
+   "name": "mixing bowl",
+   "superclass": 10,
+   "dataset_label": 42
+  },
+  {
+   "id": 67,
+   "wnid": "n03777754",
+   "name": "modem",
+   "superclass": 12,
+   "dataset_label": 74
+  },
+  {
+   "id": 68,
+   "wnid": "n03785016",
+   "name": "moped",
+   "superclass": 2,
+   "dataset_label": 40
+  },
+  {
+   "id": 69,
+   "wnid": "n03787032",
+   "name": "mortarboard",
+   "superclass": 3,
+   "dataset_label": 71
+  },
+  {
+   "id": 70,
+   "wnid": "n03794056",
+   "name": "mousetrap",
+   "superclass": 4,
+   "dataset_label": 83
+  },
+  {
+   "id": 71,
+   "wnid": "n03837869",
+   "name": "obelisk",
+   "superclass": 15,
+   "dataset_label": 80
+  },
+  {
+   "id": 72,
+   "wnid": "n03891251",
+   "name": "park bench",
+   "superclass": 5,
+   "dataset_label": 47
+  },
+  {
+   "id": 73,
+   "wnid": "n03903868",
+   "name": "pedestal, plinth, footstall",
+   "superclass": 15,
+   "dataset_label": 59
+  },
+  {
+   "id": 74,
+   "wnid": "n03930630",
+   "name": "pickup, pickup truck",
+   "superclass": 2,
+   "dataset_label": 87
+  },
+  {
+   "id": 75,
+   "wnid": "n03947888",
+   "name": "pirate, pirate ship",
+   "superclass": 12,
+   "dataset_label": 52
+  },
+  {
+   "id": 76,
+   "wnid": "n04026417",
+   "name": "purse",
+   "superclass": 2,
+   "dataset_label": 53
+  },
+  {
+   "id": 77,
+   "wnid": "n04067472",
+   "name": "reel",
+   "superclass": 4,
+   "dataset_label": 86
+  },
+  {
+   "id": 78,
+   "wnid": "n04099969",
+   "name": "rocking chair, rocker",
+   "superclass": 5,
+   "dataset_label": 45
+  },
+  {
+   "id": 79,
+   "wnid": "n04111531",
+   "name": "rotisserie",
+   "superclass": 1,
+   "dataset_label": 29
+  },
+  {
+   "id": 80,
+   "wnid": "n04127249",
+   "name": "safety pin",
+   "superclass": 4,
+   "dataset_label": 61
+  },
+  {
+   "id": 81,
+   "wnid": "n04136333",
+   "name": "sarong",
+   "superclass": 3,
+   "dataset_label": 82
+  },
+  {
+   "id": 82,
+   "wnid": "n04229816",
+   "name": "ski mask",
+   "superclass": 3,
+   "dataset_label": 90
+  },
+  {
+   "id": 83,
+   "wnid": "n04238763",
+   "name": "slide rule, slipstick",
+   "superclass": 4,
+   "dataset_label": 75
+  },
+  {
+   "id": 84,
+   "wnid": "n04336792",
+   "name": "stretcher",
+   "superclass": 12,
+   "dataset_label": 93
+  },
+  {
+   "id": 85,
+   "wnid": "n04418357",
+   "name": "theater curtain, theatre curtain",
+   "superclass": 3,
+   "dataset_label": 67
+  },
+  {
+   "id": 86,
+   "wnid": "n04429376",
+   "name": "throne",
+   "superclass": 5,
+   "dataset_label": 31
+  },
+  {
+   "id": 87,
+   "wnid": "n04435653",
+   "name": "tile roof",
+   "superclass": 3,
+   "dataset_label": 19
+  },
+  {
+   "id": 88,
+   "wnid": "n04485082",
+   "name": "tripod",
+   "superclass": 4,
+   "dataset_label": 14
+  },
+  {
+   "id": 89,
+   "wnid": "n04493381",
+   "name": "tub, vat",
+   "superclass": 2,
+   "dataset_label": 27
+  },
+  {
+   "id": 90,
+   "wnid": "n04517823",
+   "name": "vacuum, vacuum cleaner",
+   "superclass": 1,
+   "dataset_label": 6
+  },
+  {
+   "id": 91,
+   "wnid": "n04589890",
+   "name": "window screen",
+   "superclass": 3,
+   "dataset_label": 7
+  },
+  {
+   "id": 92,
+   "wnid": "n04592741",
+   "name": "wing",
+   "superclass": 4,
+   "dataset_label": 46
+  },
+  {
+   "id": 93,
+   "wnid": "n07714571",
+   "name": "head cabbage",
+   "superclass": 9,
+   "dataset_label": 37
+  },
+  {
+   "id": 94,
+   "wnid": "n07715103",
+   "name": "cauliflower",
+   "superclass": 9,
+   "dataset_label": 51
+  },
+  {
+   "id": 95,
+   "wnid": "n07753275",
+   "name": "pineapple, ananas",
+   "superclass": 9,
+   "dataset_label": 12
+  },
+  {
+   "id": 96,
+   "wnid": "n07831146",
+   "name": "carbonara",
+   "superclass": 9,
+   "dataset_label": 11
+  },
+  {
+   "id": 97,
+   "wnid": "n07836838",
+   "name": "chocolate sauce, chocolate syrup",
+   "superclass": 9,
+   "dataset_label": 44
+  },
+  {
+   "id": 98,
+   "wnid": "n13037406",
+   "name": "gyromitra",
+   "superclass": 13,
+   "dataset_label": 4
+  },
+  {
+   "id": 99,
+   "wnid": "n13040303",
+   "name": "stinkhorn, carrion fungus",
+   "superclass": 13,
+   "dataset_label": 22
+  }
+ ]
+}

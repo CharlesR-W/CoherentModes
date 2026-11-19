@@ -1,0 +1,199 @@
+<p class="lede">The measurements behind the verdict, one question at a time. Captions say what is plotted; the paragraph
+after each figure gives the numbers it rests on, all computed from the data. Every figure draws from the embedded
+data: hover for values.</p>
+
+<h2 id="q0">Q0. Do the controls hold?</h2>
+
+<p>Three identities and three planted checks come first. C1a checks that recurrent decoding, which is how the state is
+read, gives the same residuals as the model's parallel forward pass. C1b checks that the measured state is the state:
+a fresh decode started at $t = 64$ from nothing but the stored conv buffers and SSM states continues exactly as the
+original. C2 checks that the bag view depends only on token counts. P1 runs the zoom on a synthetic hierarchy with a
+known answer and fixes the reading threshold for $\Upsilon$ before any real tree is looked at.</p>
+
+<figure class="fig wide live" data-live="f2">
+<figcaption><i>Do the checks with known answers come out right?</i> <b>Plotted (F2):</b> top, each control with what
+was measured and whether it passed. Bottom, the zoom tree of the planted fixture P1 (eight planted groups of 125
+nested three deep): width is node size, the bar in each node the share of each planted group in it, "J" the Jaccard
+index between the node and its planted counterpart. <b>Values:</b> threshold {{fact:threshold}}
+({{fact:threshold_rule}}); planted $\Upsilon$ ≥ {{fact:p1.min_planted_upsilon}}, structureless $\Upsilon$ ≤
+{{fact:p1.max_structureless_upsilon}}; Sinkhorn failures {{fact:sinkhorn_failures}}.</figcaption>
+</figure>
+
+<p><b>Observed.</b> C1a: {{fact:v.C1a.value}} ({{fact:v.C1a.status}}). C1b: {{fact:v.C1b.value}}
+({{fact:v.C1b.status}}). C2: {{fact:v.C2.value}} ({{fact:v.C2.status}}). P1: {{fact:v.P1.value}}
+({{fact:v.P1.status}}). P2: {{fact:v.P2.value}} ({{fact:v.P2.status}}). P3: {{fact:v.P3.value}}
+({{fact:v.P3.status}}). The T4 raw-Gram route matches the stored whole-state Grams to {{fact:t4.root_gram_dev}}.
+C1a's float32 discrepancy, a reported hazard rather than a gate, is {{fact:c1a.f32.by_layer}}.</p>
+
+<h2 id="q-sources">Which blocks find sets that line up with sources?</h2>
+
+<p>The questions below are about walk shares and agreement. This one is about the coherent sets themselves: compare
+each block's $r = 4$ sets with the five sources (validation only).</p>
+
+<figure class="fig wide live" data-live="fsrc">
+<figcaption><i>How closely each block's sets reproduce the five sources (matched Jaccard: the mean overlap of each set
+with its best-matching source; 1 = identical).</i> <b>Plotted:</b> matched Jaccard between $r = 4$ coherent sets and the
+five sources, x: layer. Left, trained: thick lines, the reading blocks ($t$ = 4 to 128) of the point, state and stack
+views; thin lines, light to dark, the point single cells at $t$ = 4 to 128; dashed grey, the largest null (97.5th
+percentile of {{fact:n_perm}} permutations) of the reading blocks; grey line, the bag cell at $t = 128$. Right: single
+cells at $t = 128$ in each view, trained (solid) and at the HF initialisation (dashed). <b>Values:</b> reading blocks:
+point {{fact:rd.sj.point.range}}, state {{fact:rd.sj.state.range}}, stack {{fact:rd.sj.stack.range}} (size ceilings
+{{fact:rd.ceiling}}); point single cells {{fact:cell.sj.point.range}}; depth blocks {{fact:depth.sj.range}}.</figcaption>
+</figure>
+
+<p><b>Observed.</b> As a share of the best score their set sizes allow, the reading blocks reach
+{{fact:rd.ratio.point.range}} (point), {{fact:rd.ratio.state.range}} (state) and {{fact:rd.ratio.stack.range}} (stack),
+against a null of at most {{fact:rd.null}}; point single cells reach {{fact:cell.ratio.point.range}} of theirs, and
+{{fact:cell.above_null.point}} of them beat their own null. At $t = 128$ the state cells give
+{{fact:cell.sj.state.t128.range}} and the stack cells {{fact:cell.sj.stack.t128.range}} (whole state:
+{{fact:cell.sj.stack.L24.t128}}); the bag cell gives {{fact:cell.sj.bag.t128}}.</p>
+
+<h2 id="q1">Q1. Is the walk tied to the token just read, or to the source?</h2>
+
+<p>In plain words: $\tilde T$ is how much more often than chance a walk step joins two snippets that read <em>the same
+token</em> at position $t$; $\tilde W$ is the same for two snippets from <em>the same source</em>. Both are 0 for a walk
+that ignores the grouping and 1 for one that never leaves it. The two checkpoints sit side by side on one colour
+scale.</p>
+
+<figure class="fig full live" data-live="f3">
+<figcaption><i>How tied the walk is to the token just read (top) and to the source (bottom), per cell.</i>
+<b>Plotted (F3):</b> rows of each panel: the bag reference and layers L4 to L24; columns: position $t$; one panel per
+checkpoint (HF initialisation, trained). Colour: top, $\tilde T$; bottom, $\tilde W$, both on $[0, 1]$ with a
+square-root colour scale (point view). Hover: the raw share, its chance level $S^0$ and the 2.5 to 97.5 % band of
+{{fact:n_perm}} permutations of group membership.</figcaption>
+</figure>
+
+<p><b>Observed.</b> Trained: $\tilde T$ is {{fact:Tex.L4.range}} at L4 across positions and {{fact:Tex.L24.range}} at
+L24 (H1: {{fact:v.H1.status}}; {{fact:v.H1.value}}). At initialisation $\tilde T$ at L4 is {{fact:Tex.L4.init.range}},
+and $\tilde W$ is {{fact:Wex.init.range}} across the point cells. Trained, at L16, $\tilde W$ is {{fact:Wex.L16.t4}} at
+$t = 4$, {{fact:Wex.L16.t32}} at 32 and {{fact:Wex.L16.t128}} at 128; from $t = 4$ to 128 it changes by
+{{fact:H2.diffs}} at L12 to L24 (H2: {{fact:v.H2.status}}); it peaks at $t$ = {{fact:Wex.peak_t.L12_24}} in those layers.
+The largest point value anywhere is {{fact:Wex.max.point}}; the bag row goes from {{fact:Wex.bag.t4}} at $t = 4$ to
+{{fact:Wex.bag.t128}} at 128.</p>
+
+<h2 id="q2">Q2. When does the walk stop linking maths and poetry?</h2>
+
+<p>The pair mixing ratio $X(A, B)$ is the walk mass between sources $A$ and $B$, scaled so that a walk ignoring sources
+gives 1. Below 1, the walk avoids crossing between them. Wikipedia against forum posts is the prose-to-prose
+contrast.</p>
+
+<figure class="fig full live" data-live="f4">
+<figcaption><i>How rarely the walk steps between the two chosen sources, compared with chance (blue: rarely).</i>
+<b>Plotted (F4):</b> $\log_2 X(A, B)$ per cell, diverging at 0 (blue: fewer crossings than chance), one panel per
+checkpoint, rows bag and L4 to L24, columns $t$, point view; colour range ±4, values beyond it drawn at the end colour.
+Choose the pair above; click a cell for the full $5 \times 5$ matrix of $X$ there. Hover: the permutation band.
+<b>Values:</b> {{fact:v.H3.value}}.</figcaption>
+</figure>
+
+<p>To see what this means for single snippets, follow two of them. The ten follow items are the first two of each
+source in probe order, which is random, so the choice does not depend on any result.</p>
+
+<figure class="fig full live" data-live="f5">
+<figcaption><i>Where two individual snippets' walks go, cell by cell, and whether they end up in the same set.</i>
+<b>Plotted (F5):</b> top, the two snippets' 128 tokens, sampled positions underlined. Below, at the chosen checkpoint,
+rows L4 to L24 and columns $t$, point view: for each snippet, a stacked bar of where its walk goes (its row of $P_c$,
+summed by source); right, whether the two share a coherent set of that cell ($r = 4$; filled: same set; open:
+different sets; grey: either unassigned).</figcaption>
+</figure>
+
+<p><b>Observed.</b> Trained, point view: $X(\text{maths}, \text{poetry})$ at (L16, 16) is {{fact:X.mp.L16.t16}}
+against a permutation band of {{fact:X.mp.L16.t16.band}} (H3: {{fact:v.H3.status}}); at initialisation the same cell
+gives {{fact:X.mp.L16.init}}. Ranked from most to least separated among the pairs at (L16, 16), maths and poetry are
+number {{fact:X.mp.L16.t16.rank}}; code against poetry is {{fact:X.cp.L16.t16}}, wiki against forum
+{{fact:X.wf.L16.t16}}. The first $t$ at which it falls below 0.5 is {{fact:X.mp.first_t_below_half.L12_24}} at L12,
+L16, L20 and L24; it is {{fact:X.mp.L12_24.t32_128}} for $t \ge 32$ there, {{fact:X.mp.L4.range}} at L4, and
+{{fact:X.mp.bag.t128}} for the bag at $t = 128$. The default follow snippets (items {{fact:follow.maths.item}} and
+{{fact:follow.poetry.item}}) send {{fact:follow.maths.own.L16}} and {{fact:follow.poetry.own.L16}} of their L16 walk to
+their own source across positions, and share a single-cell $r = 4$ set in {{fact:follow.same_cells}} trained cells.</p>
+
+<h2 id="q3">Q3. Residual, layer state or whole state?</h2>
+
+<p>Three views of the same (layer, position) are compared. The <b>point</b> view is the residual after block $l$ at
+$t$. The <b>state</b> view is layer $l$'s own recurrent state after $t$ tokens. The <b>stack</b> view is the states of
+layers 1 to $l$; at L24 it is the whole state, everything the model carries forward. Agreement between the views'
+eigenfunctions asks whether they organise the snippets the same way; it is not a measure of information. The state and
+stack views weight each constituent equally after its own normalisation (decision D-M1).</p>
+
+<figure class="fig full live" data-live="f6">
+<figcaption><i>How similar each pair of views' three slowest functions are (1: the same; about 0: unrelated), and how
+much each view separates sources along reading.</i> <b>Plotted (F6'):</b> top, $a_3$, the mean squared cosine of the
+principal angles between the spans of $\psi_1..\psi_3$ of two single cells (constant removed), trained, rows layers,
+columns $t$, on $[0, 1]$: point vs layer state, point vs stack (the L24 row is the residual against the whole state),
+and layer state vs stack; the null for unrelated spans is $3/(N-1)$ = {{fact:a3.null}}. Hover: $a_6$, and the $r = 4$
+matched Jaccard between the two views' sets with its permutation null. Bottom, $\tilde W$ along $t$ at the chosen
+layer, one line per view, the bag dashed.</figcaption>
+</figure>
+
+<p><b>Observed.</b> Across layers and positions, $a_3$ is {{fact:ps.a3.range}} for point vs layer state,
+{{fact:pk.a3.range}} for point vs stack and {{fact:sk.a3.range}} for layer state vs stack ({{fact:ps.a3.t128.range}},
+{{fact:pk.a3.t128.range}} and {{fact:sk.a3.t128.range}} at $t = 128$). The residual against the whole state at L24
+gives {{fact:pk.a3.L24.range}} over positions. The sets' matched Jaccard is {{fact:ps.jacc.range}},
+{{fact:pk.jacc.range}} and {{fact:sk.jacc.range}} (nulls at most {{fact:ps.null_hi.max}}, {{fact:pk.null_hi.max}},
+{{fact:sk.null_hi.max}}). At $t = 128$, $\tilde W$ is {{fact:Wex.point.t128.range}} for the point view across layers,
+{{fact:Wex.state.t128.range}} for the layer state and {{fact:Wex.stack.t128.range}} for the stack; the whole state gives
+{{fact:Wex.stack.L24.t128}} against {{fact:Wex.point.L24.t128}} for the L24 residual (H4: {{fact:v.H4.status}}).
+Diagnostic for D-M1: each constituent alone against the state view gives $a_3$ {{fact:parts.c.a3.range}} (conv buffer)
+and {{fact:parts.z.a3.range}} (SSM state).</p>
+
+<h2 id="q4">Q4. What does training add to the initialisation?</h2>
+
+<p>The initialisation is <code>MambaForCausalLM(config)</code> after <code>torch.manual_seed({{fact:init_seed}})</code>, i.e.
+Hugging Face's re-implementation of the Mamba reference init, not the authors' saved initial state. It plays the role
+of Pythia's step 0.</p>
+
+<figure class="fig full live" data-live="f7">
+<figcaption><i>How much of the source separation is there before training, in each view, and how much the initial
+sets resemble the trained ones.</i> <b>Plotted (F7'):</b> top, $\tilde W$ per cell, rows bag and L4 to L24, columns
+$t$, one pair of panels per view (HF initialisation, trained), one colour range for all six; the bag row appears in the
+point panels. Bottom, at (L16, 16) and (L16, 128) in each view: span agreement and matched Jaccard between the
+initialisation's $r = 4$ sets and the trained ones, with the permutation null.</figcaption>
+</figure>
+
+<p><b>Observed.</b> $\tilde W$ at (L16, 128), point view, is {{fact:Wex.L16.t128.init}} at initialisation and
+{{fact:Wex.L16.t128.trained}} trained (H5: {{fact:v.H5.status}}). Over all cells at initialisation, $\tilde W$ is
+{{fact:Wex.point.init.range}} (point), {{fact:Wex.state.init.range}} (state) and {{fact:Wex.stack.init.range}} (stack).
+The initialisation's sets against the trained sets, matched Jaccard at (L16, 16) and (L16, 128): point
+{{fact:tf.point.t16}} and {{fact:tf.point.t128}}; state {{fact:tf.state.t16}} and {{fact:tf.state.t128}}; stack
+{{fact:tf.stack.t16}} and {{fact:tf.stack.t128}}.</p>
+
+<h2 id="q5">Q5. Does the order of the earlier tokens matter?</h2>
+
+<p>For each snippet, the reordered probe S shuffles tokens 1 to 127 and keeps token 128, and is read at $t = 128$ only.
+The two probes then have the same snippets, the same token counts and the same last token, so comparing them changes
+only the order of the earlier tokens. The bag view cannot tell them apart (C2). This is an association, not a causal
+claim about what the model uses.</p>
+
+<figure class="fig wide live" data-live="f8">
+<figcaption><i>What shuffling the earlier tokens does to the source share and to the sets, in each view.</i>
+<b>Plotted (F8):</b> at $t = 128$, trained, x: layer. Left: $\tilde W$ for the original (solid) and reordered (dashed)
+probes, one colour per view; grey line, the bag value, identical for both. Right: matched Jaccard between the two
+probes' $r = 4$ sets, per view, with the permutation null shaded.</figcaption>
+</figure>
+
+<p><b>Observed.</b> Matched Jaccard between the original and reordered probes' sets: point {{fact:S.jacc.point.by_layer}};
+state {{fact:S.jacc.state.by_layer}}; stack {{fact:S.jacc.stack.by_layer}} (null means {{fact:S.null.range}}).</p>
+
+<h2 id="q6">Q6. Mamba against Pythia on the same snippets</h2>
+
+<p>Both models were trained on the Pile with the same tokenizer, and the Pythia probe is reused verbatim, so item $i$
+is the same snippet in both studies and their cells can be compared directly: span agreement between the two models'
+eigenfunctions, and matched Jaccard between their sets. Layers are matched by relative depth (Pythia L2k against Mamba
+L4k), Pythia at step 143,000 against trained Mamba. The Pythia slab, its stand-in for what is carried forward, is
+compared with Mamba's layer state and stack. The comparison is computed after the run, locally, by
+<code>cross_arch.py</code> from both studies' public files (here: {{fact:ca.status}}).</p>
+
+<figure class="fig full live" data-live="f12">
+<figcaption><i>Do the two models organise the same snippets the same way, layer for layer?</i> <b>Plotted (F12):</b>
+top, per matched layer pair (rows, Pythia layer · Mamba layer) and position (columns): $a_3$ between the two models'
+single cells (null {{fact:a3.null}}), or the $r = 4$ matched Jaccard minus its permutation null's 97.5th percentile;
+panels: Pythia point vs Mamba point, Pythia slab vs Mamba layer state, Pythia slab vs Mamba stack. Bottom: the two
+studies' T1 root cuts cross-tabulated over the {{fact:n_items}} snippets.</figcaption>
+</figure>
+
+<p><b>Observed.</b> Point against point, $a_3$ is {{fact:ca.pp.a3.range}} across matched layers and positions
+({{fact:ca.pp.a3.t128.range}} at $t = 128$; H7: {{fact:v.H7.status}}, {{fact:v.H7.value}}). Pythia slab against Mamba
+layer state: {{fact:ca.pss.a3.range}}; against the stack: {{fact:ca.psk.a3.range}}. Matched Jaccard of the sets:
+point–point {{fact:ca.pp.jacc.range}}, slab–state {{fact:ca.pss.jacc.range}}, slab–stack {{fact:ca.psk.jacc.range}}
+(nulls at most {{fact:ca.pp.null_hi.max}}, {{fact:ca.pss.null_hi.max}}, {{fact:ca.psk.null_hi.max}}). The two T1 root
+cuts cross-tabulate as {{fact:ca.ct.counts}} (rows Pythia child 0 / child 1), matched Jaccard {{fact:ca.ct.jacc}}
+(null 97.5 % {{fact:ca.ct.null_hi}}).</p>

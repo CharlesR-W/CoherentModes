@@ -1,0 +1,270 @@
+<!-- mockup -->
+<aside class="callout caveat"><p class="callout-title">Mockup</p>
+<p>This page is built from a synthetic fixture: the sentences below were written for the real run and the numbers in
+them come from the fixture, so none of it is a finding about a language model.</p></aside>
+<!-- /mockup -->
+
+<p class="lede" id="read-a-finding">These are readings of one model ({{fact:model}}), one training run and one probe of
+{{fact:n_items}} snippets, made with the procedure in the <a href="#overview/procedure">Overview</a>. Each finding
+opens with a claim and a tag: <em>observed</em> is a direct reading of a measured quantity, <em>reading</em> is an
+interpretation I would defend, <em>speculation</em> is a guess worth checking, and <em>not determinable</em> marks what
+this run cannot decide. Then come the evidence and what else it could be. Source names appear in the prose to
+describe sets that the method found without them.</p>
+
+<nav class="callout" id="findings-toc"><p class="callout-title">Contents</p><ol>
+<li><a href="#findings/f-reading">Averaging along reading reproduces the sources; other blocks only lean towards them</a></li>
+<li><a href="#findings/f-tokens">The sources are close to what token counts give</a></li>
+<li><a href="#findings/f-position">Early layers follow the token just read; source builds up over about 32 tokens</a></li>
+<li><a href="#findings/f-maths-poetry">Maths and poetry part from about the eighth token, but so do other pairs</a></li>
+<li><a href="#findings/f-zoom">The zoom cuts follow sources, and none is a clear split</a></li>
+<li><a href="#findings/f-training">The source association appears in the first 512 steps</a></li>
+<li><a href="#findings/f-slab">The position-$t$ view and the prefix view are not interchangeable</a></li>
+<li><a href="#findings/f-order">Deeper sets depend on token order; the source association survives a shuffle</a></li>
+<li><a href="#findings/f-hazards">One coordinate holds a large share of the variance in the first 32 tokens of the middle layers</a></li>
+<li><a href="#findings/next-checks">Checks I'd like to run</a></li>
+</ol></nav>
+
+<!-- ============================================================ 1 -->
+<h2 id="f-reading">1. Averaging along reading reproduces the sources; other blocks only lean towards them</h2>
+
+<p><b>Claim</b> <em>(observed).</em> At step {{fact:final_step}}, the reading block of each layer from L4 to L12
+(positions 4 to 128) gives four coherent sets that match four of the five sources at {{fact:rd.sj.L4_12}} (matched
+Jaccard: the mean overlap of each set with its best-matching source; null at most {{fact:rd.null}}). Set sizes cap
+that score (at {{fact:rd.ceiling}} here), and the reading blocks reach {{fact:rd.ratio.L4_12}} of their cap. For L8
+the sets are mainly code, poetry, Wikipedia and maths; forum posts are spread over the code set, the maths set and the
+unassigned snippets. The other blocks are associated with source above chance but do not reproduce the partition:
+every point cell ({{fact:cell.above_null.point}}), depth block ({{fact:depth.above_null}}) and training block
+({{fact:train.above_null}}) beats its own permutation null (each tested separately, not as a family), but single
+cells reach {{fact:cell.sj.point.range}} (best {{fact:cell.best.point}}), only {{fact:cell.ratio.point.range}} of
+their caps ({{fact:cell.ceiling.point.range}}), depth blocks {{fact:depth.sj.range}} and training blocks at most
+{{fact:train.sj.max}}.</p>
+<p>The four sets' SEBA vectors (soft, non-negative versions of the sets) have a retention of {{fact:t1.ret_min}} to
+{{fact:t1.ret_max}} in each of the six cells. That is a smoothness measure under the lazy walk, not the chance of
+staying in a set: 0.5 of it is added automatically by the walk's laziness (without it, {{fact:t1.ret_nonlazy}}), and the same vectors
+shuffled over the snippets would score {{fact:t1.ret_base}} on average. So in every cell the vectors are smoother than chance,
+by a moderate margin.</p>
+
+<figure class="fig wide live" data-live="fsrc">
+<figcaption><b>Plotted:</b> matched Jaccard between $r = 4$ sets and sources; left by layer at step
+{{fact:final_step}} (thick: reading blocks; thin, light to dark: single cells at $t$ = 4 to 128; dashed: slab cells at
+$t = 128$; grey lines: the reading blocks' largest null and the bag cell at $t = 128$); right, at L8 through training.
+Same figure as in <a href="#measurements/q-sources">Measurements</a>.</figcaption>
+</figure>
+
+<figure class="fig">
+  <img src="{{img:step3}}" alt="Four of the L8 reading block's cell walks and their average">
+  <figcaption><b>Plotted:</b> the lazy walks $M_c$ of four cells of the L8 reading block and their average $\bar M$
+  over all six, step {{fact:final_step}}, off-diagonal, log colour; snippets ordered by the block's first zoom
+  cut.</figcaption>
+</figure>
+
+<p><b>How I read it</b> <em>(reading).</em> In one cell, a snippet's nearest neighbours are partly the snippets that
+read the same or a similar token at that position, and those change from one position to the next. Neighbours that
+persist across positions are snippets of similar text, which in this probe largely means the same source. Averaging
+the walks keeps the persistent links and dilutes the rest; the averaged walk above is visibly more blocked than any of
+its cells. Two things make me prefer this reading to "any average of six cells helps": depth blocks also average six
+cells and reproduce the sources far less, and at one position the token just read stays the same across layers, so the links it
+makes persist along depth but not along reading. The slab at $t \ge 64$, whose geometry is itself an average over
+positions, finds the sources about as well ({{fact:cell.sj.slab.t64_128.L2_10}} at L2 to L10).</p>
+
+<p><b>What else it could be.</b> The four sets need not be the only structure the reading block carries; they are
+what SEBA reads off its first three eigenfunctions, and the block's spectrum has no clear gap ($\lambda_1 \ldots
+\lambda_4$ = {{fact:t1.lambda1}}, {{fact:t1.lambda2}}, {{fact:t1.lambda3}}, {{fact:t1.lambda4}}).</p>
+
+<p><a class="explore-link" href="#explorer?sel=reading:8&c=sets4">the L8 reading block, coloured by its sets</a>
+<a class="explore-link" href="#explorer?sel=cell:143000:8:128&c=sets4">one of its cells (L8, t = 128) on its own</a></p>
+
+<!-- ============================================================ 2 -->
+<h2 id="f-tokens">2. The sources are close to what token counts give</h2>
+
+<p><b>Claim</b> <em>(observed).</em> The bag reference, the mean input embedding of tokens 1 to $t$, keeps more of
+its walk within sources than any layer's residual stream at every position ($\tilde W$ {{fact:Wex.bag.t4}} at
+$t = 4$ and {{fact:Wex.bag.t128}} at $t = 128$, against at most {{fact:Wex.max.point}} for any layer). The L8 reading
+block's four sets match the bag cell's four sets at $t = 128$ at {{fact:t1_vs_bag.t128}} and the L8 slab cell's at
+{{fact:t1_vs_slab.L8.t128}} (both label-free comparisons; their own L8 cell at $t = 128$ gives
+{{fact:t1_vs_point.L8.t128}}).</p>
+
+<p><b>How I read it</b> <em>(reading).</em> In this probe, a source is mostly a vocabulary: code, maths, poetry and
+encyclopaedic prose use different tokens. Recovering the sources therefore shows that the construction finds the
+probe's main grouping, but not that the model adds anything to it; the reading block arrives at nearly the partition
+that counting tokens gives. A test of structure beyond token statistics needs a grouping that token counts do not
+reveal, which this probe does not have (<a href="#findings/next-checks">checks</a>).</p>
+
+<p><a class="explore-link" href="#explorer?sel=cell:143000:bag:128&c=sets4">the bag cell at t = 128, with its sets</a></p>
+
+<!-- ============================================================ 3 -->
+<h2 id="f-position">3. Early layers follow the token just read; source builds up over about 32 tokens</h2>
+
+<p><b>Claim</b> <em>(observed; E1 {{fact:v.E1.status}}, H1 {{fact:v.H1.status}}).</em> At step
+{{fact:final_step}}, the walk's excess share among snippets reading the same token, $\tilde T$, is
+{{fact:Tex.L2.range}} at L2 at every position and {{fact:Tex.L12.range}} at L12 (E1, an established result about
+contextual representations, holds). At L2 it is already {{fact:Tex.L2.step0.range}} at step 0. The source share
+$\tilde W$ is {{fact:Wex.step0.range}} in every cell at step 0. At the final step, in L6 to L12, it rises with
+position up to $t$ = 32 or 64 and then flattens or falls back (L8: {{fact:Wex.L8.t4}},
+{{fact:Wex.L8.t32}}, {{fact:Wex.L8.t128}} at $t$ = 4, 32, 128); at L2 and L4 it creeps up to $t = 128$. Its total gain from $t = 4$ to 128 at L6 to L12 is
+{{fact:H1.diffs}}, below the 0.2 I predicted, so H1 is not met.</p>
+
+<p><b>How I read it</b> <em>(reading).</em> The residual at one position carries the current token strongly in early
+layers, even before training, which is what a residual stream that starts from the token embedding should do. The
+source signal it adds saturates early: after a few dozen tokens, one more position does not make the snippet's
+neighbours more source-like. Finding 7 shows that the whole prefix does keep gaining.</p>
+
+<p><a class="explore-link" href="#measurements/q1">F3 in Measurements</a>
+<a class="explore-link" href="#explorer?sel=depth:4&c=tok">the depth block at t = 4, coloured by token</a></p>
+
+<!-- ============================================================ 4 -->
+<h2 id="f-maths-poetry">4. Maths and poetry part from about the eighth token, but so do other pairs</h2>
+
+<p><b>Claim</b> <em>(observed; H2 {{fact:v.H2.status}}).</em> The pair mixing ratio $X(\text{maths}, \text{poetry})$
+first falls below 0.5 at $t = 8$ in L6 to L12 and is {{fact:X.mp.L6_12.t32_128}} for $t \ge 32$. At (L8, 16) it is
+{{fact:X.mp.L8.t16}} against a permutation band of {{fact:X.mp.L8.t16.band}}: the walk crosses between them about a
+third as often as chance. At that cell it is the {{fact:X.mp.L8.t16.rank}} separated of the
+{{fact:X.pairs.n}} source pairs; code and poetry are at {{fact:X.cp.L8.t16}}, wiki and forum at {{fact:X.wf.L8.t16}},
+and code and forum are not separated at all ({{fact:X.cf.L8.t16}}). L2 keeps mixing maths and poetry
+({{fact:X.mp.L2.range}}). Followed one at a time, the default maths and poetry snippets send most of their walk
+to their own source in the late layers ({{fact:follow.maths.own.L12.t128}} and
+{{fact:follow.poetry.own.L12.t128}} at (L12, 128)), yet they share a single-cell $r = 4$ set in
+{{fact:follow.same_cells}} cells.</p>
+
+<p><b>How I read it</b> <em>(reading).</em> Maths and poetry are a clear contrast for the walk, but a matter of
+degree: once a handful of tokens have been read, the walk keeps most pairs of sources apart to some extent, and the
+pairs differ in how much (code and forum posts, which share programming text, not at all). A single cell's own sets are not organised by source (finding 1), which is why two snippets whose walks go
+mostly to different sources can still land in the same cell-level set.</p>
+
+<p><a class="explore-link" href="#measurements/q2">F4 and F5 in Measurements</a></p>
+
+<!-- ============================================================ 5 -->
+<h2 id="f-zoom">5. The zoom cuts follow sources, and none is a clear split</h2>
+
+<p><b>Claim</b> <em>(observed; H5 {{fact:v.H5.status}}).</em> T1's first cut puts {{fact:T1.root.child0}} on the same
+side, so code and poetry are on opposite sides (H5). Every one of the {{fact:ups.real.n}} splits in T1 to T4 has a
+clustering ratio between {{fact:ups.real.range}}. On the fixtures, planted splits gave at least
+{{fact:ups.planted.min}} and structureless splits {{fact:ups.structureless.range}}. No node's kNN graph falls apart.
+The cut is far from a random split of the walk: its retention in T1's cells is {{fact:T1.root.ret}}, against about
+0.5 for a random split. These trees are not the whole picture: single cells at early positions do contain small,
+nearly isolated groups (finding 9; at $t = 4$ the smallest set has {{fact:loc.minset.t4}} snippets and the walk almost
+never leaves it), but the zoom's root cannot cut off fewer than {{fact:T1.root.m_min}} snippets, and the trees are
+built on blocks and on the cell at $t = 128$.</p>
+
+<figure class="fig wide live" data-live="fups">
+<figcaption><b>Plotted:</b> $\Upsilon$ of every split on a log scale: planted and structureless splits of the
+fixtures, and every split node of T1 to T4; dashed: the reading threshold {{fact:threshold}}.</figcaption>
+</figure>
+
+<p><b>What the comparison licenses, and what it does not.</b> The threshold of {{fact:threshold}} was fixed on
+synthetic fixtures: isotropic Gaussian noise in 32 dimensions, with or without a planted hierarchy, {{fact:n_items}}
+items, the same kernel. On those, planted and structureless splits are separated by a factor of four. That licenses
+one statement: <b>no split here is separated from the rest of the walk by anything like the margin of a planted
+split</b>. It does not license "the walk is as structureless as noise". The value of $\Upsilon$ for structureless data
+depends on the dimension, the shape of the covariance and the kernel. A residual stream is 768-dimensional and far
+from isotropic (finding 9), and no null with that geometry was run.</p>
+
+<p><b>How I read it</b> <em>(reading).</em> The source structure in the averaged walk looks graded rather than clustered:
+sources occupy different regions, with wide borders, rather than separate islands with few links between them. The
+first eigenfunction of T1's block falls smoothly across the snippets rather than in steps (step 4 of the
+<a href="#overview/step-4">procedure</a>). <b>The check that would test this reading:</b> run the same zoom on
+surrogate cells with each real cell's covariance and no groups (Gaussian draws matched to the centred covariance),
+and compare their $\Upsilon$ with the real ones. If the real values sit inside the surrogate range, the walk has no
+more cluster structure than its covariance implies.</p>
+
+<p><a class="explore-link" href="#zoom?tree=T1&node=0">T1's first cut in the Zoom tab</a></p>
+
+<!-- ============================================================ 6 -->
+<h2 id="f-training">6. The source association appears in the first 512 steps</h2>
+
+<p><b>Claim</b> <em>(observed; H4 {{fact:v.H4.status}}).</em> At (L8, 128), $\tilde W$ is
+{{fact:Wex.L8.t128.step0}} at step 0, {{fact:Wex.L8.t128.step512}} at step 512, and {{fact:Wex.L8.t128.step2000}},
+{{fact:Wex.L8.t128.step16000}} and {{fact:Wex.L8.t128.step143000}} after that. The L8 reading block's match to
+sources goes {{fact:rd.sj.L8.by_step}} over the same five checkpoints. Single-cell sets keep moving: against the final
+checkpoint's sets they score {{fact:tf.t16}} at (L8, 16) for steps 0 to 16,000, and {{fact:tf.t128.range}} at
+(L8, 128), close to the null's upper end ({{fact:tf.t128.null_hi.range}}).</p>
+
+<p><b>How I read it</b> <em>(reading).</em> The coarse grouping by kind of text is learned early, before step 512, and
+does not sharpen later; later training reorganises the finer structure of single cells. Five checkpoints cannot place
+the change more precisely than "between step 0 and step 512" (<em>not determinable</em> here).</p>
+
+<p><a class="explore-link" href="#measurements/q4">F7 in Measurements</a>
+<a class="explore-link" href="#explorer?sel=train:8:0&c=sets4">the L8 training block, with the strip</a></p>
+
+<!-- ============================================================ 7 -->
+<h2 id="f-slab">7. The position-$t$ view and the prefix view are not interchangeable</h2>
+
+<p><b>Claim</b> <em>(observed; H3 {{fact:v.H3.status}}).</em> The point view (the 768 numbers of the residual at
+position $t$, the cheap measurement) and the slab view (the residuals at positions 1 to $t$, each centred over the
+snippets and scaled to unit length, then joined) have different leading spectral structure:
+$a_3$ is at most {{fact:a3.final.max}} at the final step and at most {{fact:a3.all.max}} anywhere, against a null of
+0.003. H3 holds (L12 above L2 at $t = 128$), but both values are low. The slab is the more source-separated view
+($\tilde W$ {{fact:Wex.slab.t128.L2_10}} at $t = 128$ in L2 to L10, against {{fact:Wex.point.t128.L2_10}}).</p>
+
+<p><b>How I read it</b> <em>(reading).</em> The raw states of layer $l$ at positions 1 to $t$ determine everything later
+layers compute at those positions, including their KV-cache entries. The slab view is one normalised geometry of those
+states (it discards each position's norm), and the point view is another. They are not interchangeable: a grouping read
+from single-position residuals will differ from one read from the whole prefix, and the prefix view is the more
+source-associated. This does not show how much information the point residual retains, only that its cosine geometry
+organises the snippets differently.</p>
+
+<p><a class="explore-link" href="#measurements/q3">F6 in Measurements</a>
+<a class="explore-link" href="#explorer?sel=cell:143000:8:128&c=sets4&v=s">the slab cell (L8, 128) in the explorer</a></p>
+
+<!-- ============================================================ 8 -->
+<h2 id="f-order">8. Deeper sets depend on token order; the source association survives a shuffle</h2>
+
+<p><b>Claim</b> <em>(observed).</em> Shuffling tokens 1 to 127 of every snippet (keeping token 128) leaves the
+single-cell sets at L2 nearly unchanged (matched Jaccard {{fact:S.jacc.L2}}) and changes them a great deal at L6 to
+L12 ({{fact:S.jacc.L6_12}}; nulls {{fact:S.null.range}}). The raw source share $W$ stays well above chance after
+shuffling (at least {{fact:S.W.min_b}}): it falls at {{fact:S.W.lower_layers}} and rises at
+{{fact:S.W.higher_layers}} (original to shuffled: {{fact:S.W.all}}).</p>
+
+<p><b>How I read it</b> <em>(reading; an association only).</em> Deeper layers' fine structure at the last position
+depends on word order, as it should for a language model. The coarse association with source survives one shuffle of
+every snippet, consistent with finding 2: much of it is available from which tokens occur. One shuffle does not show
+that order plays no part, and the change in either direction by layer is not explained here.</p>
+
+<p><a class="explore-link" href="#measurements/q5">F8 in Measurements</a></p>
+
+<!-- ============================================================ 9 -->
+<h2 id="f-hazards">9. One coordinate holds a large share of the variance in the first 32 tokens of the middle layers</h2>
+
+<p><b>Claim</b> <em>(observed).</em> At step {{fact:final_step}}, a single coordinate carries {{fact:rogue1.final.L4_10.t4_32}}
+of the centred variance in L4 to L10 at positions 4 to 32, and at most {{fact:rogue1.final.t64_128.max}} at
+$t \ge 64$ (L2 at most {{fact:rogue1.final.L2.max}}, L12 at most {{fact:rogue1.final.L12.max}}). The share is at most
+{{fact:rogue1.early.max}} up to step 2,000 and {{fact:rogue1.step16000.max}} at step 16,000; the top five coordinates
+reach {{fact:rogue5.max}}. In L2 to L10 at $t \le 16$, each cell's first eigenfunction sits on a small group of
+snippets (participation number {{fact:loc.pn1.range}}, $\lambda_1$ from {{fact:loc.lam1.min}} to 1.000), apparently
+the same group at each of these layers (the set sizes coincide): the smallest $r = 4$ set has {{fact:loc.minset}}
+snippets at $t$ = 4, 8, 16. At L8, {{fact:loc.newline_frac}} of that set read a newline at $t$ = 4, 8 and 16
+respectively.</p>
+
+<figure class="fig wide live" data-live="frogue">
+<figcaption><b>Plotted:</b> the share of centred variance in the largest single coordinate, per cell (rows bag and L2
+to L12, columns $t$), one panel per checkpoint, one colour range; grey: not defined for the bag. All diagnostics are
+in <a href="#method/hazards">Method</a>.</figcaption>
+</figure>
+
+<p><b>Why it matters, and what is not known.</b> The construction assumes nothing but the cosine of centred residuals. The
+share above is measured before each residual is scaled to unit length, so it can come from a few snippets with very
+large values in that coordinate; whether it also governs most snippets' directions, and so the kNN graph, was not
+measured. It is a potential geometry hazard, present in four of the six cells of T1's block. Whether the results
+survive a geometry without it is <em>not determinable</em> from this run: the z-scored variant (decision D6) was cut
+from the toy, and it is the first of the checks below.</p>
+
+<p><b>Speculation.</b> This looks like the "massive activations" reported in other language models, which concentrate
+on a few coordinates at delimiter tokens; the newline share of the localised groups points the same way. Checking it
+means identifying the coordinate and the snippets that carry it in each cell.</p>
+
+<!-- ============================================================ checks -->
+<h2 id="next-checks">Checks I'd like to run</h2>
+<ol>
+<li><b>z-scored coordinates</b> (D6): rerun the cells with each coordinate scaled to unit variance, to see which results
+survive without the dominant coordinate (finding 9).</li>
+<li><b>A null for the clustering ratio</b> with the real geometry: Gaussian surrogates matched to each cell's covariance
+through the same zoom (finding 5).</li>
+<li><b>A grouping that token counts cannot reveal</b>, for example snippets of one source split by topic, or the same
+documents read from two different starting points, to test structure beyond token statistics (finding 2).</li>
+<li><b>A replicate probe</b>: a second draw of {{fact:n_items}} snippets with the same rules. This run has one probe,
+so no number here has a sampling error.</li>
+<li><b>Held-out poetry</b>: a corpus not in the Pile, since Gutenberg poetry may be in the training data.</li>
+<li><b>Denser checkpoints</b> between 0 and 512 steps, to place the onset of the source association (finding 6).</li>
+<li><b>Other kernels</b> (k = 8 or 30), since everything here uses one rule.</li>
+<li><b>The float32 error of C1</b> carried through to the sets: compare a float64 run of one checkpoint.</li>
+</ol>

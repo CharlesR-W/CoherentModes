@@ -1,0 +1,22 @@
+<p class="lede">First observations from the explorer, written after looking at it on 13 November 2026. One network, one seed; these are things to look at, not tested claims. Each links to the view it describes.</p>
+
+<h2 id="horizon">Few reproducible modes, despite 100 classes</h2>
+<p>Sixty-four eigenfunctions are stored per block, but the horizons are short. At the final checkpoint the single-snapshot horizons are {{fact:hz.rule0.final_single}} under the kNN-graph rule; the whole stem → logits block has $h$ = {{fact:hz.rule0.final_full}}. Across all blocks the median is {{fact:hz.rule0.layer.median}} for layer blocks and {{fact:hz.rule0.time.median}} for time blocks. So for this network and probe the answer to "can we go for more?" is: the extra modes are stored and can be looked at, but past roughly the first ten a second sample of images does not reproduce them as a fixed span.
+<a class="explore-link" href="#measurements/horizons">horizon charts</a></p>
+
+<h2 id="late">Late layers: a continuum, not a gap</h2>
+<p>Unlike VGG on CIFAR-10, the late layers have no spectral gap: for the block b8 → logits the first 25 eigenvalues fall smoothly from 0.983 to 0.947. With 100 classes and 50 probe images per class (about 33 per class in each stability subset), the class-contrast directions are many, nearly equal, and not separated from within-class variation, so cuts through the continuum fail and the horizons there are 4 to 6 (kNN graph). Under perplexity 100 the late horizons are longer (pool → logits: every cut up to $k$ = 12 reproduces). That block also has one isolated reproducible cut at $k$ = 80, the last guard mode, after about 65 failed cuts, which sets its formal horizon to 80: read it as a large near-degenerate group whose whole span reproduces, not as 80 individually meaningful modes.
+<a class="explore-link" href="#explorer?fam=layer&t=4&a=8&b=10&m=0&c=eig&k=2">b8 → logits, ψ2</a></p>
+
+<h2 id="sets">Coherent sets follow fine classes more than superclasses</h2>
+<p>For b8 → logits at the end of training, the r = 20 SEBA sets include a set of 53 images of which 47 are sunflowers, a set of oak, maple and willow trees (241 images), one of streetcars, pickup trucks and trains, one of oranges, one of castles, one of chairs, and one large set of 1,056 images (lions, chimpanzees, hamsters and more) that collects what the others leave. With r = 40 the sets match the 100 fine classes with mean matched Jaccard 0.52 and the 20 superclasses with 0.35 (0.30 and 0.26 at step 2,340; 0.40 and 0.31 at step 9,360). The superclass colouring is a convenient display grouping, not what the network's late geometry is organised by. Colour by fine class to compare.
+<a class="explore-link" href="#explorer?fam=layer&t=4&a=8&b=10&m=0&c=seba&r=20">the r = 20 sets</a>
+<a class="explore-link" href="#explorer?fam=layer&t=4&a=8&b=10&m=0&c=fine&r=40">fine-class colouring</a></p>
+
+<h2 id="early">Early layers</h2>
+<p>Early snapshots have horizons similar to or longer than the late ones (at the final checkpoint: stem 10, b3 to b5 11 to 12) but no class structure: at the stem the r = 20 sets match superclasses with matched Jaccard 0.09. Their leading modes look like image statistics: the stem's $\psi_1$ puts objects on plain light backgrounds (chairs, bicycles, lawn mowers) at one end and dark, cluttered scenes at the other, and the same split is still visible across all sites at steps 0 to 2,340. The stem's spectrum also has a run of localised modes (orange stems, participation below 50 images) around $k$ = 20 to 35, past its horizon.
+<a class="explore-link" href="#explorer?fam=layer&t=4&a=0&b=0&m=0&c=eig&k=1">stem, ψ1</a></p>
+
+<h2 id="time">Through training</h2>
+<p>Time blocks over all five checkpoints have horizons 7 to 21 by site (kNN graph), longest at b4 and b6 (21) and b3 (18). At step 256 (test accuracy 11.5%) several late blocks have horizons of 30 or more, mostly under perplexity 100; unlike VGG's step 256, no images coincide here, but these early high horizons should still be read with the spectra and images, not as a richer representation than the final one.
+<a class="explore-link" href="#explorer?fam=time&t=10&a=0&b=4&m=0&c=seba&r=20">time block at the logits</a></p>

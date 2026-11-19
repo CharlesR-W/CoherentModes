@@ -1,0 +1,33 @@
+{
+ "timeouts": {
+  "bench": 2400,
+  "calib": 2400,
+  "diag": 900,
+  "U1_trained": 3356,
+  "U2_trained": 3072,
+  "U1_init": 900,
+  "U2_init": 900,
+  "U3": 1656
+ },
+ "rule": "after the pilot: U1_init = 2 x (pass_0 + grams_0 + 60 s load), U2_init = 2 x U2_trained x 63/204 (cells + objects), at least 900 s; U3 from the bench projection",
+ "pilot": {
+  "u1_timings": {
+   "pass_0": 8.812586307525635,
+   "raw_vectors": 36.20296335220337,
+   "grams_0": 92.38473558425903,
+   "predictions": 11.914844512939453,
+   "pass_1": 9.127215385437012,
+   "grams_1": 75.98772859573364,
+   "pass_2": 8.984333038330078,
+   "grams_2": 75.9701738357544,
+   "pass_4": 9.140512704849243,
+   "grams_4": 76.01467895507812,
+   "pass_8": 9.438185691833496,
+   "grams_8": 75.93377494812012,
+   "pass_16": 10.00495719909668,
+   "grams_16": 75.91272449493408,
+   "c1": 103.39965581893921
+  },
+  "u2_seconds": 684.0447931289673
+ }
+}

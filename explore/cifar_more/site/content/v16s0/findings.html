@@ -1,0 +1,25 @@
+<p class="lede">First observations from the explorer, written after looking at it on 13 November 2026. One network, one seed; these are things to look at, not tested claims. Each links to the view it describes.</p>
+
+<h2 id="full-block">The whole network at the end of training: ten reproducible modes, then a continuum</h2>
+<p>For the layer block c1 → logits at step 64,000 (kNN-graph rule) the spectrum has nine eigenvalues between 0.82 and 0.94, a drop to $\lambda_{10}$ = 0.748, and then a slowly decaying continuum (0.745, 0.742, 0.736, …). The stability strip follows it: every leading span up to $k$ = 10 is reproduced (span$_k$ between 0.86 and 0.98), and nothing after (0.39 at $k$ = 11, about 0 from $k$ = 13). The horizon is $h$ = 10 under both kernel rules. With r = 10 the SEBA sets match the ten CIFAR-10 classes with mean matched Jaccard 0.87 (labels used only for this check).
+<a class="explore-link" href="#explorer?fam=layer&t=4&a=0&b=10&m=0&c=seba&r=10">see this block</a></p>
+
+<h2 id="past-horizon">Past the horizon: structure inside a class, not reproduced as a fixed set of modes</h2>
+<p>Modes past $h$ are not noise in the sense of looking random. $\psi_{14}$ of the same block, for example, is concentrated inside the horse cluster of the late layers, with dark horse heads at its positive end. But its eigenvalue sits in the continuum, where many such within-class directions have nearly equal eigenvalues, and a second sample of images does not reproduce any leading span that cuts through it. Read modes past the horizon as examples of within-class variation, not as individually meaningful directions.
+<a class="explore-link" href="#explorer?fam=layer&t=4&a=0&b=10&m=0&c=eig&k=14">ψ14 of the whole network</a></p>
+
+<h2 id="groups">Late layers: a group of nine, reproducible only as a group</h2>
+<p>In single late snapshots (e.g. the logits at step 64,000) the first nine eigenvalues are all above 0.989 and nearly equal; the strip is near 0 for the cuts at $k$ = 2 and 3, between 0.55 and 0.87 for the other cuts inside that group, and 0.99 at $k$ = 9, where the group ends. This is the case the span measure was designed for: the individual $\psi_1..\psi_9$ are an arbitrary basis of a reproducible nine-dimensional span (the class-contrast space), so colour by coherent sets (r = 10) rather than by single eigenfunctions there.
+<a class="explore-link" href="#explorer?fam=layer&t=4&a=10&b=10&m=0&c=eig&k=3">logits at the end of training</a></p>
+
+<h2 id="depth">Horizons by site</h2>
+<p>At the final checkpoint the single-snapshot horizons are {{fact:hz.rule0.final_single}} (kNN graph). Early convolutions (c1, c2) have smooth spectra without gaps and $h$ = 8, with no class structure in their sets (matched Jaccard 0.12 at c1). The kNN-graph horizons rise to about 20 in c12 to pool, but under perplexity 100 they stay at 10 to 11 ({{fact:hz.rule1.final_single}}), so the extra reproducible modes there depend on the kernel rule.
+<a class="explore-link" href="#measurements/horizons">horizon charts</a></p>
+
+<h2 id="collapse">Step 256: a collapsed network</h2>
+<p>At step 256 (test accuracy 10%) the deep sites c13, pool and logits map most probe images to identical activations: 1,513, 1,644 and 1,882 of the 2,000 images, respectively, coincide with 100 or more others, so perplexity 100 is unattainable for them (see <a href="#method/differences">Method</a>). The UMAP panels there are thin curves, and the horizons are high (25 to 34). Those modes describe a handful of tied groups of images, not a rich representation; the high horizon here is a warning, not a finding.
+<a class="explore-link" href="#explorer?fam=layer&t=1&a=8&b=10&m=0&c=seba&r=10">step 256, late sites</a></p>
+
+<h2 id="time">Through training</h2>
+<p>Time blocks spanning all five checkpoints have horizons 9 to 15 by site; the last three checkpoints (2,560 to 64,000) give 8 to 10 in the early convolutions and 13 to 19 from c9 on. At c13 the r = 10 sets of the time block over steps 2,560 → 64,000 still match the classes (matched Jaccard 0.85, against 0.88 for the final snapshot alone), and even the block over all five checkpoints gives 0.83: the untrained and collapsed snapshots add little structure of their own, so the average is dominated by the trained ones. Its eigenvalues are lower (0.98 down to 0.82 for $\lambda_1..\lambda_9$ over 2,560 → 64,000, against 0.999 to 0.989 at the final snapshot), which is what the class split costing more at step 2,560 looks like in the average.
+<a class="explore-link" href="#explorer?fam=time&t=8&a=2&b=4&m=0&c=seba&r=10">time block at c13</a></p>

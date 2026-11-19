@@ -1,0 +1,9 @@
+data/
+__pycache__/
+runs/*.json
+!runs/calibration.json
+!runs/bench.json
+!runs/projection.json
+!runs/timeouts.json
+!runs/diag.json
+published/

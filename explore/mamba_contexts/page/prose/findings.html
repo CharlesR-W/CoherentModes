@@ -1,0 +1,364 @@
+<!-- Findings prose. The verdict box is generated (build_page.verdict_html) and sits between _head and the
+     `findings` section. After the real run, write the real Findings in the "real" block below, one h2 per
+     question, each opening with a claim and a tag (observed / reading / speculation / not determinable), then the
+     evidence with fact-slot numbers and a link to the figure, then what else it could be. The "mockup" block keeps
+     the slot wiring visible on fixture builds. -->
+<!-- mockup -->
+<div class="mockup-note"><b>MOCKUP.</b> The Findings below are placeholders. Each lists the fact slots the real text
+will use, filled from the fixture, to show the wiring. The fixture plants k = 8 token classes that every snapshot
+shares, predictions that depend on the token only, snippets of five sources, and lag retention that decays; read the
+numbers as a check that the page reads what was planted.</div>
+<!-- /mockup -->
+
+<!-- section: findings -->
+<!-- mockup -->
+<h2 id="f-a">(a) What the residual's depth sets group</h2>
+<div class="placeholder">
+<p>Slots (F2, F4, Explorer): B-point r = 8 sets, AMI with class at t {{fact:ami8.trained.Bpoint.Cc}}, with token at t
+{{fact:ami8.trained.Bpoint.T}}, with source {{fact:ami8.trained.Bpoint.W}}, with the model's prediction
+{{fact:ami8.trained.Bpoint.A}}, with the next token {{fact:ami8.trained.Bpoint.Nx}}. η² (λ-weighted) with class at t
+{{fact:eta.trained.Bpoint.Cc}} (chance {{fact:eta.trained.Bpoint.Cc.chance}}). Shares: T̃ at L4
+{{fact:share.trained.point_L4.T}}, at L24 {{fact:share.trained.point_L24.T}}; κ̃ at L4
+{{fact:share.trained.point_L4.kappa}}, at L24 {{fact:share.trained.point_L24.kappa}}. Beyond the token: B-point
+κ = {{fact:kappa.trained.Bpoint}} against the within-token mean {{fact:kappa.trained.Bpoint.kappaT}} (band
+{{fact:kappa.trained.Bpoint.band}}), κ̃<sub>|T</sub> = {{fact:share.trained.Bpoint.kappaT}}. Sets: median majority-class
+share {{fact:sets8.trained.Bpoint.median_class_share}}, {{fact:sets8.trained.Bpoint.n_class70}} sets at least 70% one
+class; median commonest-token share {{fact:sets8.trained.Bpoint.median_top_token_share}}, median
+{{fact:sets8.trained.Bpoint.median_tokens_for_90}} tokens cover 90% of a set.</p>
+</div>
+
+<h2 id="f-b">(b) What the state's sets group</h2>
+<div class="placeholder">
+<p>Slots (F2, F4): B-state r = 8 sets, AMI with class at t {{fact:ami8.trained.Bstate.Cc}}, with source
+{{fact:ami8.trained.Bstate.W}}, with snippet {{fact:ami8.trained.Bstate.U}}. Whole cell: AMI with source
+{{fact:ami8.trained.whole.W}}, with class at t {{fact:ami8.trained.whole.Cc}}; Ũ(whole) {{fact:share.trained.whole.U}}
+against Ũ(B-point) {{fact:share.trained.Bpoint.U}}; W̃(whole) {{fact:share.trained.whole.W}}. Residual against state:
+span agreement a₈(B-point, B-state) {{fact:cmp.Bpoint.Bstate.a8}}, AMI {{fact:cmp.Bpoint.Bstate.ami8}}.</p>
+</div>
+
+<h2 id="f-c">(c) How long the sets last along reading</h2>
+<div class="placeholder">
+<p>Slots (F5): mean retention of B-point's r = 8 set vectors in point L16: {{fact:ret.point_L16.tau0}} at τ = 0,
+{{fact:ret.point_L16.tau1}} at 1, {{fact:ret.point_L16.tau2}} at 2, {{fact:ret.point_L16.tau16}} at 16 (half lost at
+{{fact:ret.point_L16.half_tau}}). B-state in state L16: half lost at {{fact:ret.state_L16.half_tau}}. Whole cell:
+{{fact:ret.whole.tau0}} at 0, {{fact:ret.whole.tau16}} at 16 (half lost at {{fact:ret.whole.half_tau}}). Chance
+{{fact:ret.chance}}.</p>
+</div>
+
+<h2 id="f-d">(d) Clear multi-way structure?</h2>
+<div class="placeholder">
+<p>Slots (F3): B-point certified at {{fact:certified.trained.Bpoint}}, excluded at {{fact:excluded.trained.Bpoint}},
+undetermined at {{fact:undetermined.trained.Bpoint}}; largest Υ̂ {{fact:ups.trained.Bpoint.max}}, caps
+{{fact:cap.trained.Bpoint.range}}. B-state: certified at {{fact:certified.trained.Bstate}}; whole: certified at
+{{fact:certified.trained.whole}}; pred reference: certified at {{fact:certified.trained.pred}}. θ = {{fact:theta}}
+({{fact:theta_rule}}); full-size calibration: {{fact:calib.full.status}}.</p>
+</div>
+
+<h2 id="f-trees">Zoom trees</h2>
+<div class="placeholder">
+<p>Slots (F6): T1 root Υ = {{fact:tree.T1.root.ups}}; first cut into {{fact:tree.T1.child0.n}} items (majority class
+{{fact:tree.T1.child0.class}}; tokens {{fact:tree.T1.child0.tokens}}) and {{fact:tree.T1.child1.n}} items
+({{fact:tree.T1.child1.class}}); {{fact:tree.T1.n_clear}} cuts at or above the threshold. T2 root Υ =
+{{fact:tree.T2.root.ups}}; children by source: {{fact:tree.T2.child0.source}} and {{fact:tree.T2.child1.source}}.</p>
+</div>
+
+<h2 id="f-training">What training adds</h2>
+<div class="placeholder">
+<p>Slots (F8): κ̃ at point L24, init {{fact:share.init.point_L24.kappa}} against trained
+{{fact:share.trained.point_L24.kappa}}; W̃ of the whole cell, init {{fact:share.init.whole.W}} against trained
+{{fact:share.trained.whole.W}}; B-point's r = 8 sets at init, AMI with class at t {{fact:ami8.init.Bpoint.Cc}}; init
+against trained B-point sets, AMI {{fact:cmp.Bpoint@init.Bpoint.ami8}}.</p>
+</div>
+<!-- /mockup -->
+<!-- real -->
+<p class="hint">These are readings of one model ({{fact:model}}), two checkpoints and one probe of {{fact:n_items}} token
+contexts from {{fact:n_snippets}} snippets. Each finding opens with a claim and a tag: <em>observed</em> (read directly
+off a figure), <em>reading</em> (an interpretation of observations), <em>speculation</em>, or <em>not determinable</em>.
+Then come the evidence and what else it could be. Set numbers refer to the r = 8 set cards in the
+<a href="#tab=explorer">Explorer</a>. Source and token class are validation labels; nothing here enters
+<code>THEORY.md</code>.</p>
+<p class="hint">Scales used below: AMI is the agreement between hard sets and a labelling (0 = chance, 1 =
+identical). A share with a tilde (T̃, C̃<sub>c</sub>, W̃, Ũ) is how much more often than chance the walk stays within
+the same token, token class, source or snippet (0 = chance, 1 = always). Span agreement a₈ is the overlap of two
+objects' leading eight eigenfunctions (chance about {{fact:a_null}}, 1 = the same span). Retention is how much of a set
+vector the walk keeps (about 0 = chance, 1 = all).</p>
+
+<h2 id="f-residual">1. The residual's depth sets group contexts by the class of the token just read, with a small predictive part beyond the token</h2>
+<p><b>Claim</b> <em>(observed).</em> At r = 8, B-point (the residual across L1..L24) has eight hard sets.
+{{fact:unassigned8.trained.Bpoint}} of the {{fact:n_items}} items are left unassigned and are excluded from the set
+descriptions and AMIs below. Of the groupings scored, the sets agree most with the class of the token at t:</p>
+<ul>
+<li>AMI {{fact:ami8.trained.Bpoint.Cc}} with the class at t;</li>
+<li>{{fact:ami8.trained.Bpoint.Cn}} with the class at t+1, {{fact:ami8.trained.Bpoint.T}} with the token id at t,
+{{fact:ami8.trained.Bpoint.A}} with the model's top-1 prediction, {{fact:ami8.trained.Bpoint.W}} with source and
+{{fact:ami8.trained.Bpoint.Nx}} with the next token. K1 is met.</li>
+</ul>
+<p>{{fact:sets8.trained.Bpoint.n_class70}} sets are at least 70% one class. Several sets span many token identities
+(in the median set the commonest token is {{fact:sets8.trained.Bpoint.median_top_token_share}} of the set's items, and
+{{fact:sets8.trained.Bpoint.median_tokens_for_90}} distinct tokens make up 90% of them). Others are dominated by one
+newline or punctuation token. The strongest measured association is with the chosen token-class taxonomy. Since a
+class is a coarsening of the token id, that ordering alone does not show organisation beyond token identity. The
+ordering is unchanged with 8 or 30 graph neighbours instead of 15 (AMI with the class {{fact:ami8.trained.Bk8.Cc}} and
+{{fact:ami8.trained.Bk30.Cc}}).</p>
+<p><b>The sets, read from the cards</b> <em>(observed; "class" and "source" give each set's make-up).</em></p>
+<ul>
+<li><b>Set 1</b> ({{fact:set8.Bpoint.s1.size}} items): line ends in verse. The token at t is {{fact:set8.Bpoint.s1.tokens}}
+(class make-up {{fact:set8.Bpoint.s1.class}}; source make-up {{fact:set8.Bpoint.s1.source}}), followed by
+{{fact:set8.Bpoint.s1.next}}.</li>
+<li><b>Set 2</b> ({{fact:set8.Bpoint.s2.size}}): LaTeX inside maths text, such as the subscript in <code>$H_x$</code>
+(class {{fact:set8.Bpoint.s2.class}}; source {{fact:set8.Bpoint.s2.source}}).</li>
+<li><b>Set 5</b> ({{fact:set8.Bpoint.s5.size}}): sentence-final {{fact:set8.Bpoint.s5.tokens}} across sources (class
+{{fact:set8.Bpoint.s5.class}}; source {{fact:set8.Bpoint.s5.source}}).</li>
+<li><b>Set 7</b> ({{fact:set8.Bpoint.s7.size}}): commas at the end of a verse line (class {{fact:set8.Bpoint.s7.class}};
+source {{fact:set8.Bpoint.s7.source}}).</li>
+<li><b>Set 4</b> ({{fact:set8.Bpoint.s4.size}}): pronouns and auxiliaries ({{fact:set8.Bpoint.s4.tokens}}; source
+{{fact:set8.Bpoint.s4.source}}).</li>
+<li><b>Set 8</b> ({{fact:set8.Bpoint.s8.size}}): articles and prepositions ({{fact:set8.Bpoint.s8.tokens}}), followed by
+{{fact:set8.Bpoint.s8.next}}.</li>
+<li><b>Set 6</b> ({{fact:set8.Bpoint.s6.size}}): code layout, with newlines and indents (source
+{{fact:set8.Bpoint.s6.source}}).</li>
+<li><b>Set 3</b> ({{fact:set8.Bpoint.s3.size}} items; {{fact:set8.Bpoint.s3.n90}} distinct tokens make up 90% of it):
+everything else, mostly word pieces and numbers.</li>
+</ul>
+<p>This is v1's depth-set picture again (Overview, diagnosis point 2), now on token contexts. Two of the sets (1 and 7)
+are a class within one source.</p>
+<p><b>Beyond the token</b> <em>(observed).</em></p>
+<ul>
+<li>The walk's predictive coherence κ is the walk-weighted similarity of the model's next-token distributions across
+the pairs of items it links, here {{fact:kappa.trained.Bpoint}}.</li>
+<li>When the predictions are shuffled among items that share the token at t, κ falls to
+{{fact:kappa.trained.Bpoint.kappaT}} (band {{fact:kappa.trained.Bpoint.band}}).</li>
+<li>The remaining association beyond the token, κ̃<sub>|T</sub> = {{fact:share.trained.Bpoint.kappaT}} (on the excess
+scale, 0 = what the token alone gives), is well above its null ({{fact:share.trained.Bpoint.kappaT.band}}). K1b is
+met.</li>
+</ul>
+<p>η² of the modes (the share of an eigenfunction's variance between groups, λ-weighted over ψ₁..ψ₁₆) is
+{{fact:eta.trained.Bpoint.Cc}} for the class at t (chance {{fact:eta.trained.Bpoint.Cc.chance}}) and
+{{fact:eta.trained.Bpoint.W}} for source. The token-level η² values look larger ({{fact:eta.trained.Bpoint.T}} for the
+token, {{fact:eta.trained.Bpoint.Nx}} for the next token), but with thousands of groups their chance levels are high
+({{fact:eta.trained.Bpoint.T.chance}} and {{fact:eta.trained.Bpoint.Nx.chance}}), and the bag of tokens reaches
+{{fact:eta.trained.bag.T}} for the token. Read those against their chance, not against η² for class.</p>
+<p><b>How I read it</b> <em>(reading).</em> The residual's coherent sets say what kind of token was just read. There is
+a real but small component of contexts that predict alike beyond their token. The evidence does not support calling
+them prediction classes: the sets agree with the model's prediction (AMI {{fact:ami8.trained.Bpoint.A}}) far less than
+with the current class, and the <code>pred</code> reference's own sets agree with B-point's only at AMI
+{{fact:cmp.Bpoint.pred.ami8}}.</p>
+<p><b>What else it could be.</b></p>
+<ul>
+<li>The classes are a function of the token, so a high class score partly restates token identity at a coarser grain.</li>
+<li>The regular-expression taxonomy is one choice; the set cards show the tokens themselves.</li>
+<li>The cause of κ̃<sub>|T</sub> is open. Context features that vary with the token's surroundings (the same token in
+verse or in code) can both bring items together in the walk and change their predictions. The walk need not be
+grouping contexts because they predict alike.</li>
+<li>{{fact:kappa.trained.Bpoint.unique_share}} of items have a token unique in the probe and keep their own prediction
+under the null, which makes the null conservative.</li>
+</ul>
+
+<h2 id="f-depth">2. Up the residual stack, token identity fades and source grouping rises; predictive coherence peaks before L24</h2>
+<p><b>Claim</b> <em>(observed).</em> Shares in the point snapshots (F2), trained:</p>
+<ul>
+<li>the token at t falls from {{fact:share.trained.point_L4.T}} at L4 to {{fact:share.trained.point_L24.T}} at L24;</li>
+<li>the class at t falls from {{fact:share.trained.point_L4.Cc}} to {{fact:share.trained.point_L24.Cc}};</li>
+<li>source rises from {{fact:share.trained.point_L4.W}} to {{fact:share.trained.point_L24.W}} (largest
+{{fact:byl.trained.point.W.max}});</li>
+<li>κ̃ goes from {{fact:share.trained.point_L4.kappa}} to {{fact:share.trained.point_L24.kappa}}, with its largest value
+{{fact:byl.trained.point.kappa.max}};</li>
+<li>κ̃<sub>|T</sub> goes from {{fact:share.trained.point_L4.kappaT}} to {{fact:share.trained.point_L24.kappaT}} (largest
+{{fact:byl.trained.point.kappaT.max}}).</li>
+</ul>
+<p><b>K3 is not met.</b> T̃ is higher at L4 than at L24, as predicted, but κ̃ rises by less than the 0.1 the target
+asks for ({{fact:tgt.K3.kappa_L4}} to {{fact:tgt.K3.kappa_L24}}). The depth thirds' sets shift accordingly:</p>
+<ul>
+<li>the late third's (L17–24) agree with source (AMI {{fact:ami8.trained.Blate.W}}) more than with the class
+({{fact:ami8.trained.Blate.Cc}});</li>
+<li>the early third's follow the class ({{fact:ami8.trained.Bearly.Cc}});</li>
+<li>the early and late thirds agree with each other only at AMI {{fact:cmp.Bearly.Blate.ami8}}.</li>
+</ul>
+<p><b>How I read it</b> <em>(reading).</em> Along depth, the residual's grouping moves away from the current token and
+towards the two proxies measured here, source and predictive coherence. The target was written for L24; on these data
+predictive coherence peaks a few layers earlier and falls back at the last layer. That is an observation about where
+the peak sits, and it does not turn K3 into a pass.</p>
+<p><b>What else it could be.</b> Rising W̃ need not mean the residual represents the document, because local
+vocabulary already separates sources. The <code>recent</code> reference (mean embedding of the last 16 tokens) has W̃
+{{fact:share.trained.recent.W}}, and the <code>bag</code> reference {{fact:share.trained.bag.W}}. A residual that mixes
+in recent context would show the same rise.</p>
+
+<h2 id="f-state">3. The recurrent state's sets are source sets; a bag of tokens matches that source grouping but not the state's class and predictive associations; K2 is not met</h2>
+<p><b>Claim</b> <em>(observed).</em> On the hard sets (AMI):</p>
+<ul>
+<li>The whole state's r = 8 sets agree with source at AMI {{fact:ami8.trained.whole.W}}, and with the class at t only
+at {{fact:ami8.trained.whole.Cc}}.</li>
+<li>B-state's (the per-layer states across depth) agree with source at {{fact:ami8.trained.Bstate.W}}.</li>
+<li>B-state and the whole state agree with each other (AMI {{fact:cmp.Bstate.whole.ami8}}; span agreement a₈
+{{fact:cmp.Bstate.whole.a8}}).</li>
+<li>Both barely agree with the residual (B-point against the whole state: AMI {{fact:cmp.Bpoint.whole.ami8}}, a₈
+{{fact:cmp.Bpoint.whole.a8}}).</li>
+</ul>
+<p>On the walk shares:</p>
+<ul>
+<li>the whole state's snippet share is Ũ = {{fact:tgt.K2.U_whole}}, against {{fact:tgt.K2.U_Bpoint}} for B-point. The
+target asked for at least 0.2 more, so <b>K2 is not met</b>, although its first half (AMI with source above AMI with
+class) holds;</li>
+<li>the per-layer states are not monotone in depth: W̃ ranges over {{fact:byl.trained.state.W.range}} and Ũ over
+{{fact:byl.trained.state.U.range}}, with L16 lower in source share ({{fact:share.trained.state_L16.W}}) and L24 low in
+snippet share ({{fact:share.trained.state_L24.U}}). v1 also saw L16's state separate sources less.</li>
+</ul>
+<p><b>Against the references</b> <em>(observed; walk shares).</em> The references contain no model state, so they show
+what plain token statistics give:</p>
+<ul>
+<li><b>Source:</b> the bag of the prefix's tokens reproduces the state's source grouping (W̃ {{fact:share.trained.bag.W}}
+against {{fact:share.trained.whole.W}} for the whole state), and its sets agree with the whole state's at AMI
+{{fact:cmp.whole.bag.ami8}}.</li>
+<li><b>Snippet:</b> the bag groups by snippet more strongly than the state (Ũ {{fact:share.trained.bag.U}} against
+{{fact:share.trained.whole.U}}); the last-16-tokens reference matches the state ({{fact:share.trained.recent.U}}).</li>
+<li><b>Class at t:</b> neither reference reproduces the state's grouping (C̃<sub>c</sub> {{fact:share.trained.whole.Cc}} for
+the whole state, against {{fact:share.trained.bag.Cc}} for the bag and {{fact:share.trained.recent.Cc}} for the recent
+reference).</li>
+<li><b>Predictive coherence:</b> neither reproduces it either (κ̃ {{fact:share.trained.whole.kappa}} against
+{{fact:share.trained.bag.kappa}} and {{fact:share.trained.recent.kappa}}; κ̃<sub>|T</sub> {{fact:share.trained.whole.kappaT}},
+about B-point's {{fact:share.trained.Bpoint.kappaT}}, against {{fact:share.trained.bag.kappaT}} and
+{{fact:share.trained.recent.kappaT}}).</li>
+</ul>
+<p><b>The sets, read from the cards</b> <em>(observed; source make-up in brackets).</em></p>
+<ul>
+<li><b>Set 1</b> ({{fact:set8.whole.s1.size}} items): code and forum together ({{fact:set8.whole.s1.source}}), the
+merged pair of the Overview's diagnosis point 4.</li>
+<li><b>Set 2</b> ({{fact:set8.whole.s2.size}}): LaTeX-heavy maths ({{fact:set8.whole.s2.source}}).</li>
+<li><b>Set 3</b> ({{fact:set8.whole.s3.size}}): wiki ({{fact:set8.whole.s3.source}}), including runs of
+<code>Category:</code> lines.</li>
+<li><b>Set 4</b> ({{fact:set8.whole.s4.size}}): forum questions ({{fact:set8.whole.s4.source}}).</li>
+<li><b>Set 5</b> ({{fact:set8.whole.s5.size}} items from only {{fact:set8.whole.s5.snippets}} snippets): licence headers
+in code ("This program is free software ...").</li>
+<li><b>Set 6</b> ({{fact:set8.whole.s6.size}}): line ends in verse (class make-up {{fact:set8.whole.s6.class}}; source
+{{fact:set8.whole.s6.source}}), the same kind of context as B-point's set 1.</li>
+<li><b>Set 7</b> ({{fact:set8.whole.s7.size}}): maths prose ({{fact:set8.whole.s7.source}}).</li>
+<li><b>Set 8</b> ({{fact:set8.whole.s8.size}}): verse ({{fact:set8.whole.s8.source}}).</li>
+</ul>
+<p>The whole state's ψ₁ runs from <code>import</code> lines in code to line ends in verse.</p>
+<p><b>How I read it</b> <em>(reading).</em> The state's leading groupings are mostly by kind of document, and for
+source a bag of tokens does as well. So on this probe the state's document grouping is not shown to exceed token
+statistics. The state does carry a token-class and predictive association that the bag and recent references lack,
+about as large beyond the token as the residual's.</p>
+<p><b>What else it could be.</b></p>
+<ul>
+<li>The class association is partly trivial. Each layer's conv buffer holds its last few inputs, so the current
+token, and with it its class, is in the state by construction.</li>
+<li>The predictive association does not establish prediction-specific representations, and does not rule out every
+token-statistics explanation: richer statistics than a bag (order, recency weighting) are not tested.</li>
+<li>Boilerplate repeated across snippets (licence headers, category lines) makes near-identical prefixes; some sets
+may partly be that.</li>
+</ul>
+
+<h2 id="f-reading">4. Along reading, residual sets fade within one or two tokens; the state's sets keep most of their retention past sixteen, except its verse line-end set</h2>
+<p><b>Claim</b> <em>(observed; K4 met).</em> The residual's sets: B-point's eight set vectors, followed in the point L16
+lag snapshots, have mean retention {{fact:ret.point_L16.tau0}} at τ = 0, {{fact:ret.point_L16.tau1}} one token later,
+{{fact:ret.point_L16.tau2}} two tokens later and {{fact:ret.point_L16.tau16}} after sixteen. At L8 and L24 the mean
+halves by {{fact:ret.point_L8.half_tau}} and {{fact:ret.point_L24.half_tau}}.</p>
+<p>The state's sets: the whole state's eight vectors, in the whole lag snapshots, have mean retention
+{{fact:ret.whole.tau0}} at τ = 0 and {{fact:ret.whole.tau16}} after sixteen tokens.</p>
+<ul>
+<li>Seven of the eight keep {{fact:retv.whole.keep16.range_others}} of their lag-0 value.</li>
+<li>The exception is the verse line-end set (set 6): {{fact:retv.whole.min_keep16}}.</li>
+<li>B-state's vectors in the state L16 lag snapshots behave the same way: {{fact:retv.state_L16.min_keep16}}, and the
+others {{fact:retv.state_L16.keep16.range_others}}. B-state's set 5 is again verse line ends
+({{fact:set8.Bstate.s5.class}}; {{fact:set8.Bstate.s5.source}}).</li>
+</ul>
+<p>Span agreement says the same: point L16 against itself one token later has a₈ =
+{{fact:cmp.point_L16.point_L16_lag1.a8}}, and the whole state against itself sixteen tokens later
+{{fact:cmp.whole.whole_lag16.a8}}. In the residual, what survives the lag is source: in point L16, W̃ is
+{{fact:share.trained.point_L16_lag16.W}} at τ = 16, while the lag-0 class share falls from
+{{fact:share.trained.point_L16.Cc}} to {{fact:share.trained.point_L16_lag16.Cc}}.</p>
+<p><b>How I read it</b> <em>(reading).</em> This fits findings 1 and 3. Groupings by the token just read, in the
+residual or in the state's one token-class set, are re-formed with each new token. Groupings by kind of document
+change slowly.</p>
+<p><b>What else it could be.</b> Anything that integrates the prefix would persist this way: a bag of 16 to 112 tokens
+changes little when 16 more are added. The run has no lag snapshots of the references, so this does not separate the
+state's memory from prefix statistics (see the checks below).</p>
+
+<h2 id="f-clusters">5. No object is certified as clustered at the tested numbers of parts: B-point is excluded under the θ rule, the state blocks keep undetermined cases; K5 is not met</h2>
+<p><b>Claim</b> <em>(observed).</em> No object, references included, is certified at any number of parts k ∈ R
+(2 to 32).</p>
+<ul>
+<li><b>B-point.</b> The multi-way ratio Υ̂(k) is at most {{fact:ups.trained.Bpoint.max}}. The cap
+2μ<sub>k</sub>/μ<sub>k−1</sub>, which bounds every partition, is {{fact:cap.trained.Bpoint.range}}, below θ =
+{{fact:theta}} at every k. So under the θ rule certification is <em>excluded</em> at every tested k. That is a statement
+about reaching a ratio of 3 with k parts, not about the absence of every kind of grouping.</li>
+<li><b>B-state</b> is undetermined at {{fact:undetermined.trained.Bstate}}, and the whole state at
+{{fact:undetermined.trained.whole}} (caps {{fact:cap.trained.whole.range}}); undetermined is not evidence of absence.
+Both are excluded at the other k.</li>
+<li><b>B-point with 8 graph neighbours</b> instead of 15 changes one outcome: at k = 2 its cap is
+{{fact:cap.trained.Bk8.k2}}, so that case becomes {{fact:outcome.trained.Bk8.k2}} (best ratio
+{{fact:ups.trained.Bk8.max}}). Nothing is certified there, or with 30 neighbours. With either, the sets barely change
+(AMI with the k = 15 sets {{fact:cmp.Bpoint.Bk8.ami8}} and {{fact:cmp.Bpoint.Bk30.ami8}}).</li>
+<li><b>Zoom trees.</b>
+<ul>
+<li>T1 (B-point): root Υ = {{fact:tree.T1.root.ups}}, and {{fact:tree.T1.n_clear}} cuts at or above 3.</li>
+<li>T2 (whole): root Υ = {{fact:tree.T2.root.ups}}; its one clear cut is {{fact:tree.T2.clear}}, the wiki/verse split v1
+also found.</li>
+<li>T1's first cut separates layout and punctuation contexts ({{fact:tree.T1.child0.classes3}};
+{{fact:tree.T1.child0.n}} items) from words ({{fact:tree.T1.child1.classes3}}; {{fact:tree.T1.child1.n}}).</li>
+<li>T2's first cut separates {{fact:tree.T2.child0.sources}} from {{fact:tree.T2.child1.sources}}.</li>
+</ul></li>
+</ul>
+<p>The fixture shows that the same pipeline certifies planted clusters at this N (full-size check: planted
+{{fact:calib.full.planted}}, structureless {{fact:calib.full.structureless}}).</p>
+<p><b>How I read it</b> <em>(reading).</em> These walks do not have gap-separated k-way partitions of the strength θ
+asks for. For B-point the spectrum rules them out at every tested k, and for the state blocks the question is open at
+two or three parts. The sets are therefore best read as summaries of leading modes (a rounding of ψ₁..ψ₇), and their
+boundaries need not be natural cuts.</p>
+<ul>
+<li><b>Readouts that carry the result:</b> walk shares, κ̃ and κ̃<sub>|T</sub>, η² of the modes, retention, span
+agreement, and AMI read as "what the leading modes separate".</li>
+<li><b>Readouts that do not:</b> certification, the number of sets, where set boundaries fall, and the quality of
+tree splits.</li>
+</ul>
+<p><b>What else it could be.</b> θ is a convention, and only "excluded" is a theorem about the operator. The sample
+size relative to the graph's degree may matter (see the checks).</p>
+
+<h2 id="f-training">6. Compared with the HF random initialisation, training creates the residual's groupings and multiplies the state's source grouping (K6 met)</h2>
+<p><b>Claim</b> <em>(observed).</em> Same items, same groupings, init against trained:</p>
+<ul>
+<li>predictive coherence κ̃ at point L24 is {{fact:tgt.K6.kappa_L24_init}} at init and {{fact:tgt.K6.kappa_L24_trained}}
+trained;</li>
+<li>B-point's shares at init are near zero (class at t {{fact:share.init.Bpoint.Cc}}, token
+{{fact:share.init.Bpoint.T}}), and its r = 8 sets agree with the class only at AMI {{fact:ami8.init.Bpoint.Cc}};</li>
+<li>init and trained B-point sets agree at AMI {{fact:cmp.Bpoint@init.Bpoint.ami8}};</li>
+<li>the untrained whole state already has W̃ {{fact:share.init.whole.W}} and Ũ {{fact:share.init.whole.U}} (trained
+{{fact:share.trained.whole.W}} and {{fact:share.trained.whole.U}}).</li>
+</ul>
+<p><b>How I read it</b> <em>(speculation).</em> A randomly initialised recurrence still accumulates token statistics
+over the prefix, which a bag shows is enough for some document grouping. Training strengthens that grouping several-fold
+and creates the residual's token-class organisation from almost nothing.</p>
+
+<h2 id="f-limits">What one run can and cannot support</h2>
+<ul>
+<li><b>Scope.</b> The findings describe this construction on this probe; none is a claim about Mamba in general, and
+none enters <code>THEORY.md</code>. The run covers one model and one probe (five sources, two of which the walk
+merges), one draw of item positions, and one graph degree with two sensitivity values. Token classes come from a
+regular-expression taxonomy.</li>
+<li><b>Targets.</b> Three targets failed (K2, K3, K5) and stay failed. K1 has no null and is read with K1b.</li>
+<li><b>Thin margins.</b> The largest Sinkhorn row error is {{fact:val.row_err.max}}, against the gate's 2e-12: it passes,
+narrowly. The <code>pred</code> reference has {{fact:ref.pred.n_dup}} duplicate pair (distance {{fact:ref.pred.min_dist}};
+exempt under the SPEC 11 amendment, made after pilot 1 and before any measurement was read) and is
+{{fact:ref.pred.tie_sensitive}}.</li>
+<li><b>Labels.</b> Source and class only validate; model outputs (A, κ, <code>pred</code>) are used for scoring and as a
+reference, never in a block.</li>
+</ul>
+
+<h2 id="f-checks">Checks I'd like to run</h2>
+<ol>
+<li><b>Lag snapshots of <code>bag</code> and <code>recent</code></b>, to see whether the state's retention exceeds a
+prefix statistic's (finding 4).</li>
+<li><b>A vocabulary-matched null for the state</b>: permute source within groups of items with similar bags, as
+κ̃<sub>|T</sub> does for tokens. This asks whether the state groups by document beyond vocabulary (finding 3).</li>
+<li><b>An order-aware reference</b>, such as a recency-weighted bag or a small n-gram model's state, to test the state's
+class and predictive associations against richer token statistics (finding 3).</li>
+<li><b>Remove repeated boilerplate</b> (licence headers, category lines) and rebuild the whole state's sets.</li>
+<li><b>Split the state view into the conv buffer and the SSM state</b> at L16 and L24, to explain the non-monotone
+layers and the conv buffer's share of the class association.</li>
+<li><b>Report κ̃ and κ̃<sub>|T</sub> at their peak layer next to L24</b>, and AMI with the next token's class, which tests
+"predicts alike" more directly than A.</li>
+<li><b>Certification on subsamples of N = 2,000</b> at the same graph degree, to see whether "excluded" depends on the
+sample size relative to the degree. The graph-degree sensitivity is already in the data (finding 5).</li>
+</ol>
+<!-- /real -->

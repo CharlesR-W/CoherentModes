@@ -1,0 +1,3 @@
+viewer/
+__pycache__/
+.playwright-cli/

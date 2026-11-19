@@ -1,0 +1,5 @@
+data/
+viewer/
+__pycache__/
+.ruff_cache/
+.playwright-cli/

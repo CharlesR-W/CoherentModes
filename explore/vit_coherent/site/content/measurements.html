@@ -1,0 +1,169 @@
+<p class="lede">The comparison charts of the ResNet-20 study, on DINOv2 ViT-S/14: {{fact:n_images}} probe images (20 per
+ImageNet-100 class, 10 class groups) at {{fact:n_sites}} sites, $L1..L12$ = the CLS token after block $l$, read out
+through the model's final LayerNorm. One checkpoint (the released weights), so there are no training-time charts.
+Captions state what is plotted. Class groups, fine classes and probe pixels enter only as comparisons; none of them
+enters a walk, a block operator or a SEBA rotation.</p>
+
+<p>Defaults unless a caption says otherwise: kernel rule {{fact:default_mode}}; single-cell blocks; $r = 4$ SEBA sets,
+i.e. SEBA applied to $\psi_0..\psi_3$ of the block operator $\bar M$; hard sets by largest SEBA value, with unassigned
+images in no set. Class-group sizes (images): {{fact:q.group_sizes}}.</p>
+
+<aside class="callout">
+<p class="callout-title">Matched Jaccard</p>
+<p>For two hard labelings $A$ ($r_A$ sets) and $B$ ($r_B$ sets), with unassigned images in no set: $J_{ij} = |A_i \cap
+B_j| / |A_i \cup B_j|$; a Hungarian matching of $\min(r_A, r_B)$ pairs maximises the total $J$; the score is the mean
+matched $J$, in $[0, 1]$. <b>Null:</b> the label vector of $A$, unassigned entries included, is permuted uniformly (set
+sizes and unassigned count kept); {{fact:q.n_perm}} permutations from one seeded bank; bands are the 2.5 to 97.5
+percentiles, $\mu_0$ is the null mean. <b>Size ceiling</b> (against a fixed reference labeling): the largest score any
+sets of $A$'s sizes could reach. <b>Normalised excess</b> $= (\text{score} - \mu_0) / (\text{ceiling} - \mu_0)$.</p>
+</aside>
+
+<h2 id="carry">Agreement between sites</h2>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_carry.0.matrix">
+  <figcaption><b>Plotted:</b> rows and columns: sites; slider: $r$ (default 4). Colour: matched Jaccard between the
+  SEBA sets of the single-cell blocks of the two sites; symmetric; diagonal = 1. Default kernel rule.
+  <b>Values</b> ($r = 4$): off-diagonal {{fact:q.carry.r4.offdiag_min}} to {{fact:q.carry.r4.offdiag_max}};
+  L1 vs L12 {{fact:q.carry.r4.L1_L12}}; null 97.5th percentile at most {{fact:q.carry.r4.null_hi_max}} over all pairs
+  (stored as <code>q_carry.0.null_hi</code>).</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_carry.0.adjacent">
+  <figcaption><b>Plotted:</b> x: adjacent site pair ($l \to l{+}1$); y: matched Jaccard between the two sites'
+  single-cell SEBA sets; one line per $r$ (ordinal colour, $r = 2$ light to $r = 8$ dark); shading: the envelope of the
+  five permutation-null intervals (null of the first site's labels, 2.5 to 97.5 percentiles; hover a key for one
+  $r$'s interval). Default kernel rule. <b>Values</b> ($r = 4$): {{fact:q.carry.r4.adjacent_min}}
+  ({{fact:q.carry.r4.adjacent_min_pair}}) to {{fact:q.carry.r4.adjacent_max}} ({{fact:q.carry.r4.adjacent_max_pair}}),
+  null 97.5th percentile at most {{fact:q.carry.r4.adjacent_null_hi_max}}; mean over pairs $r = 2$:
+  {{fact:q.carry.r2.adjacent_mean}}, 3: {{fact:q.carry.r3.adjacent_mean}}, 4: {{fact:q.carry.r4.adjacent_mean}},
+  6: {{fact:q.carry.r6.adjacent_mean}}, 8: {{fact:q.carry.r8.adjacent_mean}}. The other kernel rules are under
+  <code>q_carry.&lt;rule&gt;</code>.</figcaption>
+</figure>
+
+<h2 id="classmix">Class make-up of coherent sets</h2>
+
+<p>Each table gives $n_{jc} / n_c$: the share of class group $c$'s $n_c$ images that lie in SEBA set $j$ (rows in the
+explorer's set order), with a last row for the unassigned images; each column sums to 100%. Groups differ in size, so
+shares rather than counts are coloured (counts: <code>q_classmix.counts</code> and the tooltips of the explorer's
+legend).</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.4">
+  <figcaption><b>Plotted:</b> $n_{jc} / n_c$ for the single-cell block at one site; slider: site (default L12).
+  Default kernel rule, $r = 4$.</figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.8">
+  <figcaption><b>Plotted:</b> as left, $r = 8$. Tables for $r = 2, 3, 6$ are in
+  <code>q_classmix.cells.&lt;r&gt;</code>.</figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.L1-L12_r4">
+  <figcaption><b>Plotted:</b> $n_{jc} / n_c$ for the layer block L1..L12 (all twelve sites); default kernel rule,
+  $r = 4$. <b>Values:</b> $\lambda_3$ = {{fact:q.cm.L1_L12.r4.lambda_r_minus_1}}, gap $\lambda_3 - \lambda_4$ =
+  {{fact:q.cm.L1_L12.r4.gap}}; set sizes {{fact:q.cm.L1_L12.r4.sizes}}; {{fact:q.cm.L1_L12.r4.n_unassigned}}
+  unassigned. <a class="explore-link" href="#explorer?fam=layer&t=0&a=0&b=11&m=0&c=seba&r=4">explorer</a></figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.L7-L12_r4">
+  <figcaption><b>Plotted:</b> as left, layer block L7..L12. <b>Values:</b> $\lambda_3$ =
+  {{fact:q.cm.L7_L12.r4.lambda_r_minus_1}}, gap {{fact:q.cm.L7_L12.r4.gap}}; set sizes {{fact:q.cm.L7_L12.r4.sizes}};
+  {{fact:q.cm.L7_L12.r4.n_unassigned}} unassigned.
+  <a class="explore-link" href="#explorer?fam=layer&t=0&a=6&b=11&m=0&c=seba&r=4">explorer</a></figcaption>
+</figure>
+</div>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.L7-L12_r8">
+  <figcaption><b>Plotted:</b> as above, layer block L7..L12, $r = 8$. <b>Values:</b> $\lambda_7$ =
+  {{fact:q.cm.L7_L12.r8.lambda_r_minus_1}}, gap $\lambda_7 - \lambda_8$ = {{fact:q.cm.L7_L12.r8.gap}}; set sizes
+  {{fact:q.cm.L7_L12.r8.sizes}}; {{fact:q.cm.L7_L12.r8.n_unassigned}} unassigned. L1..L6 and L1..L12 at $r = 4, 8$:
+  <code>q_classmix.named</code>. <a class="explore-link" href="#explorer?fam=layer&t=0&a=6&b=11&m=0&c=seba&r=8">explorer</a></figcaption>
+</figure>
+
+<h2 id="va">The $r = 2$ sets against the animal / non-animal partition</h2>
+
+<p>Animal = the class groups dogs, other mammals, birds, reptiles and invertebrates ({{fact:q.va.n_animal}} images);
+non-animal = the other five groups ({{fact:q.va.n_other}} images). This fixed 2-set reference labeling is scored
+against each single-cell block's two $r = 2$ SEBA sets by matched Jaccard (for $2 \times 2$, the better of the two
+pairings), with null, size ceiling and normalised excess as in the callout.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.lines">
+  <figcaption><b>Plotted:</b> x: site; solid: matched Jaccard of the single-cell block's $r = 2$ sets against
+  animal / non-animal; band: permutation null, 2.5 to 97.5 percentiles; dashed grey: size ceiling. Default kernel
+  rule. <b>Values:</b> L1 {{fact:q.va.r2.L1_score}}, L12 {{fact:q.va.r2.L12_score}}; highest
+  {{fact:q.va.r2.max_score}} at {{fact:q.va.r2.max_score_site}}; ceilings {{fact:q.va.r2.ceiling_min}} to
+  {{fact:q.va.r2.ceiling_max}}; null 97.5th percentile at most {{fact:q.va.r2.null_hi_max}}.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.lines_norm_excess">
+  <figcaption><b>Plotted:</b> x: site; y: normalised excess $(\text{score} - \mu_0) / (\text{ceiling} - \mu_0)$ of the
+  chart above; one line per kernel rule. <b>Values</b> (default rule): highest {{fact:q.va.r2.max_norm_excess}} at
+  {{fact:q.va.r2.max_norm_excess_site}}. Per-site scores, nulls, ceilings and the animal share of each set are in
+  <code>q_va.by_mode</code>.</figcaption>
+</figure>
+
+<h2 id="imgstats">Image statistics against eigenfunctions and SEBA vectors</h2>
+
+<p>Twelve statistics of each probe image's 64 × 64 thumbnail (the centre crop of the model input), with pixel values
+in $[0, 1]$ and $Y = 0.299R + 0.587G + 0.114B$: mean R, G, B and Y; RMS contrast (standard deviation of $Y$); mean HSV
+saturation; border minus centre means of R, G, B and Y (border = the 1,792 pixels within 8 px of the edge, centre =
+the central 32 × 32); the norm of the three colour differences; and the share of the DFT energy of $Y - \bar Y$ at
+radius above 16 cycles per image. These are the 32 px definitions of the ResNet study with every length doubled. They
+are also colourings in the explorer (Colour by → Image statistics). Threshold: 95th percentile, over
+{{fact:q.n_perm}} permutations of the images, of the largest $|\mathrm{corr}|$ over all 12 sites, 12 statistics and
+$\psi_1..\psi_8$: {{fact:q.img.thr_global}}.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_maxabs_psi">
+  <figcaption><b>Plotted:</b> rows: image statistics; columns: sites. Colour: $\max_{k = 1..8} |\mathrm{corr}(\text{statistic},
+  \psi_k)|$ over the 2,000 images, $\psi_k$ of the single-cell block. Default kernel rule. <b>Values:</b> largest
+  {{fact:q.img.max}} ({{fact:q.img.max_stat}}, {{fact:q.img.max_site}}); at L12 at most {{fact:q.img.L12_max}}
+  ({{fact:q.img.L12_max_stat}}).</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_maxabs_psi_wc">
+  <figcaption><b>Plotted:</b> as above, after subtracting each fine class's mean (100 classes, 20 images each) from both
+  the statistic and $\psi_k$ (within-class correlation). <b>Values:</b> largest {{fact:q.img.wc_max}}.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_maxabs_seba">
+  <figcaption><b>Plotted:</b> as the first chart, with the four $r = 4$ SEBA vectors of the single-cell block in place
+  of $\psi_1..\psi_8$: $\max_j |\mathrm{corr}(\text{statistic}, s_j)|$.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_r2_psi">
+  <figcaption><b>Plotted:</b> rows: $\psi_1..\psi_8$; columns: sites. Colour: $R^2$ of a least-squares fit of
+  $\psi_k$ on the 12 image statistics (with intercept), in-sample.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_imgstats.lines_maxabs_psi">
+  <figcaption><b>Plotted:</b> six rows of the first heatmap as lines: x: site; y: $\max_k |\mathrm{corr}(\text{statistic},
+  \psi_k)|$; horizontal line: the permutation threshold.</figcaption>
+</figure>
+
+<h2 id="decodability">Linear and nearest-neighbour decodability of class</h2>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_decod.lines">
+  <figcaption><b>Plotted:</b> x: site; y: held-out accuracy of a closed-form ridge readout and of a cosine kNN vote
+  (k = 20, weights $e^{\cos/0.07}$) for the 100 classes (solid) and the 18 WordNet superclasses (dashed). <b>Not
+  computed on the 2,000 images here:</b> these come from the earlier ViT run (fit on its 10,000 probe images, tested
+  on 10,000 held-out ImageNet-100 images, views centred with the probe mean and L2-normalised; ridge penalty by GCV).
+  Validation only. <b>Values:</b> ridge, 100 classes: L1 {{fact:q.decod.ridge_fine.L1}}, L12
+  {{fact:q.decod.ridge_fine.L12}}; kNN: L1 {{fact:q.decod.knn_fine.L1}}, L12 {{fact:q.decod.knn_fine.L12}}; chance
+  1% (100 classes).</figcaption>
+</figure>
+
+<h2 id="kernel">Kernel rules per site</h2>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/questions.json#q_kernel.kappa">
+  <figcaption><b>Plotted:</b> x: site; y: $\kappa$ of each temperature rule (for the per-point perplexity rules, the
+  median over images of $\kappa_i$). The kNN graph has no $\kappa$. <b>Values:</b> kNN scale
+  {{fact:q.kernel.kappa_scale_min}} to {{fact:q.kernel.kappa_scale_max}}; half-mass, calibrated
+  {{fact:q.kernel.kappa_half_min}} to {{fact:q.kernel.kappa_half_max}}.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/questions.json#q_kernel.mass">
+  <figcaption><b>Plotted:</b> x: site; y: median over images of the kernel mass on the 15 nearest neighbours (row of
+  the symmetric kernel before scaling). <b>Values:</b> kNN graph {{fact:q.kernel.mass_knn_min}} to
+  {{fact:q.kernel.mass_knn_max}}; half-mass, calibrated is 50% by construction.</figcaption>
+</figure>
+</div>

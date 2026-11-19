@@ -9,7 +9,7 @@ from pathlib import Path
 import json
 import numpy as np
 import torch
-from construction import FINGERPRINT
+from construction import FINGERPRINT,FINGERPRINTS
 from coherent import (block_modes, seba, seba_labels, seba_reconstruct,
                       centred_cosine_gram, kappa_modes, sinkhorn_operator, fixed_lazy_operator)
 
@@ -24,13 +24,14 @@ def pairs(n):
     return [(a,b) for a in range(n) for b in range(a,n)]
 
 
-def metadata(kappa, mass, self_weight, kappa_q10, kappa_q90, fixture=False):
-    return dict(schema_version=2, construction_fingerprint=FINGERPRINT, steps=STEPS, sites=SITES, modes=MODES,
+def metadata(kappa, mass, self_weight, kappa_q10, kappa_q90, fixture=False, kernel='cos'):
+    rule_prefix = '' if kernel=='cos' else 'KERNEL dot: every 1-C below is replaced by D=|x_i-x_j|^2/2 of unnormalized flattened activations divided by the probe-centred mean squared norm (SPEC_DOT.md); kappa therefore has units of 1/D. '
+    return dict(schema_version=2, construction_fingerprint=FINGERPRINTS[kernel], kernel=kernel, steps=STEPS, sites=SITES, modes=MODES,
                 kappa=np.asarray(kappa,dtype=object).tolist(), nn_mass=np.asarray(mass).tolist(), self_weight=np.asarray(self_weight,dtype=object).tolist(),
                 kappa_q10=np.asarray(kappa_q10,dtype=object).tolist(),kappa_q90=np.asarray(kappa_q90,dtype=object).tolist(),default_mode=0,
                 seba_r=RANKS, n_vecs=8, layer_pairs=pairs(12), time_pairs=pairs(8),
                 n=2000, classes=CLASSES, fixture=fixture,
-                rule='Cosine distance 1-C; midpoint medians. 0: union 15NN, weight1 on edges,1e-6 elsewhere, zero diagonal. 1/2: per-row conditional perplexity100/300 then symmetric mean affinity. 3: kappa=1/median15th-neighbour distance. 4: calibrate median raw nonself15NN mass=.5. All: log-domain symmetric scaling P of zero-diagonal affinity, M=(I+P)/2. kappa/q10/q90 are null for graph, per-point quantiles for perplexity, identical scalars for modes3/4. self_weight is null for modes0–2, retained-vMF Sinkhorn median diagonal for3/4. nn_mass uses each actual symmetric pre-Sinkhorn kernel.',
+                rule=rule_prefix+'Cosine distance 1-C; midpoint medians. 0: union 15NN, weight1 on edges,1e-6 elsewhere, zero diagonal. 1/2: per-row conditional perplexity100/300 then symmetric mean affinity. 3: kappa=1/median15th-neighbour distance. 4: calibrate median raw nonself15NN mass=.5. All: log-domain symmetric scaling P of zero-diagonal affinity, M=(I+P)/2. kappa/q10/q90 are null for graph, per-point quantiles for perplexity, identical scalars for modes3/4. self_weight is null for modes0–2, retained-vMF Sinkhorn median diagonal for3/4. nn_mass uses each actual symmetric pre-Sinkhorn kernel.',
                 quantization='int16, psi = vecs * scale / 32767; no renormalization after decoding',
                 seba='Reference Algorithm 3.1; mu=.99/sqrt(N); columns normalized within iteration; rotation acts on original signed unit eigenvectors; clip negatives only after reliability ordering.',
                 json_layout='Comparison rows: step, mode, a, b, r and agreement keys. decod.results: one protocol result per step; results[i].views[view][site].ridge_acc/knn_acc. curves.checkpoints: manifest entries.')
@@ -202,7 +203,7 @@ def fixture(root):
 def validate(root, require_derivatives=True):
     root=Path(root);meta=json.loads((root/'meta.json').read_text());n=meta['n']
     assert meta['schema_version']==2 and n==2000
-    assert meta.get('construction_fingerprint')==FINGERPRINT
+    assert meta.get('construction_fingerprint')==FINGERPRINTS[meta.get('kernel','cos')]
     assert meta['steps']==STEPS and meta['sites']==SITES and meta['modes']==MODES
     assert meta['layer_pairs']==[list(p) for p in pairs(12)] and meta['time_pairs']==[list(p) for p in pairs(8)]
     assert meta['seba_r']==RANKS and meta['n_vecs']==8 and len(meta['classes'])==10

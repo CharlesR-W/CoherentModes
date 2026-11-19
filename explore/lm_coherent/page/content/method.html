@@ -1,0 +1,152 @@
+<p class="lede">Definitions, the choices I made, what could go wrong and how it was checked, and how to rebuild the page.
+The construction is the ResNet study's, applied to snippets; what is new is listed under <a href="#method/deviations">deviations</a>.</p>
+
+<h2 id="substrate">Model, probe and cells</h2>
+
+<p><b>Model.</b> {{fact:model}}: 12 blocks with attention and MLP in parallel on the residual stream, width 768, rotary
+position embeddings on a quarter of each head (nothing positional is added to the residual), trained on the Pile for
+143,000 steps of about 2M tokens. Checkpoints: steps {{fact:steps}}. The forward pass runs in float32 with eager
+attention.</p>
+
+<p><b>Probe.</b> {{fact:n_items}} snippets, {{fact:n_per_source}} per source, each from a different document and each
+starting at a natural boundary (a paragraph break; a line start for poetry). Maths (arXiv), code (GitHub), Wikipedia
+and forum posts (StackExchange) come from the Pile's <em>test</em> split, which the model never trained on. Poetry comes
+from the Gutenberg poetry corpus, which may overlap Pythia's training data (PG-19 is in the Pile). Each snippet is
+128 tokens after an end-of-text token at position 0. Snippets are de-duplicated without labels: no two share the same
+multiset of tokens 1 to $t$ at any sampled $t$, and no two overlap by more than 0.2 in token 8-gram Jaccard. Items are
+shuffled, so an index says nothing about its source.</p>
+
+<p><b>Cells.</b> The <b>point view</b> of a cell is the residual stream after block $l$ at position $t$, recorded with a
+forward hook; $t$ is the number of snippet tokens read, and the residual at $t$ predicts token $t+1$. Positions 0 to 3
+are left out: position 0 is the same for every snippet, and at 1 to 3 different snippets can have identical inputs.</p>
+
+<h3 id="views">Views</h3>
+<table class="data">
+<thead><tr><th>view</th><th>$\phi(i)$ at (checkpoint, layer $l$, position $t$)</th><th>cells</th></tr></thead>
+<tbody>
+<tr><td><b>point</b></td><td>$h^l_t(i)$, the residual stream at position $t$</td><td>all {{fact:n_cells}}</td></tr>
+<tr><td><b>slab</b></td><td>$t^{-1/2}[\hat h^l_1(i), \ldots, \hat h^l_t(i)]$, every position up to $t$, each standardised as below</td><td>all {{fact:n_cells}}</td></tr>
+<tr><td><b>bag</b> (reference)</td><td>$\frac1t \sum_{u \le t} E[x_u(i)]$, the mean input embedding of tokens 1 to $t$</td><td>one per checkpoint and position</td></tr>
+</tbody></table>
+<p>Every view goes through the same standard step: centre over the $N$ snippets, scale each row to unit length, take
+cosines, in float64. The slab's cosine matrix is the mean of the per-position ones, re-centred. In a causal decoder the
+raw states of layer $l$ at positions 1 to $t$ determine every later layer at those positions, including its KV-cache
+entries, so these prefix states form a chain in depth while the point residual does not; the averaged blocks used here
+do not need that property. The slab view is a normalised geometry of those raw states (each position's norm is
+discarded), not the states themselves. The bag is a function of the token counts
+alone, a reference for what the counts give; it is not a layer.</p>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="gloss">
+<dt id="glossary-item">item, snippet</dt><dd>One of the {{fact:n_items}} probe texts (a <em>site</em> in the theory's language).</dd>
+<dt id="glossary-cell">cell</dt><dd>A (checkpoint, layer, position) triple; its walk $P_c$ is built from one view.</dd>
+<dt id="glossary-block">block</dt><dd>A run of cells along one axis, with equal weights. <b>Reading block</b>: one layer, positions 4 to 128. <b>Depth block</b>: one position, layers L2 to L12. <b>Training block</b>: one layer at $t = 128$, steps 0 to {{fact:final_step}} or 2,000 to {{fact:final_step}}. A single cell is also a block.</dd>
+<dt id="glossary-walk">walk $P_c$, lazy walk $M_c$</dt><dd>$P_c$ is the Sinkhorn-scaled kernel of a cell (symmetric, rows sum to 1, zero diagonal); $M_c = \frac12(I + P_c)$.</dd>
+<dt id="glossary-mbar">block operator $\bar M$</dt><dd>The mean of the block's $M_c$. Its eigenpairs are $\lambda_k$, $\psi_k$ (with $\psi_0$ constant, $\lambda_0 = 1$).</dd>
+<dt id="glossary-retention">retention $\rho_c$</dt><dd>$\rho_c(f) = f^\top M_c f / f^\top f$ in cell $c$; $\lambda_k$ is the mean of $\rho_c(\psi_k)$ over the block.</dd>
+<dt id="glossary-pn">participation number PN</dt><dd>$(\sum_i \psi_i^2)^2 / \sum_i \psi_i^4$: about $N$ for a spread function, small for one sitting on a few items. Below 10 flags a localised mode.</dd>
+<dt id="glossary-sets">coherent sets</dt><dd>The hard assignment from SEBA's $r$ sparse vectors on $\psi_0..\psi_{r-1}$; unassigned items are zero on all of them.</dd>
+<dt id="glossary-shares">walk shares $T$, $W$</dt><dd>Equation (2) on the Overview with the grouping by the token at $t$ ($T$) or by source ($W$). Linear in $P$, so a block's value is the mean of its cells' values.</dd>
+<dt id="glossary-x">pair mixing ratio $X$</dt><dd>$X_c(A, B) = \frac{N-1}{|A||B|}\sum_{i \in A, j \in B} (P_c)_{ij}$: 1 for a walk that ignores sources.</dd>
+<dt id="glossary-a">span agreement $a_r$</dt><dd>Mean $\cos^2$ of the principal angles between the spans of $\psi_1..\psi_r$ of two cells, constant removed; null $r/(N-1)$.</dd>
+<dt id="glossary-jaccard">matched Jaccard</dt><dd>Mean Jaccard index of two partitions' sets after the best one-to-one matching (Hungarian); null from 200 permutations, and a ceiling set by the set sizes.</dd>
+<dt id="glossary-own">own-source walk share</dt><dd>Per item and cell, the share of its row of $P_c$ that lands on its own source (validation).</dd>
+<dt id="glossary-upsilon">conductance $\phi$, clustering ratio $\Upsilon$</dt><dd>See <a href="#method/zoom-maths">the zoom</a>.</dd>
+</dl>
+
+<h2 id="zoom-maths">The zoom, precisely</h2>
+<p>For a node with snippets $S$ and the block's averaged zero-diagonal walk $\bar P^S$ (rebuilt on $S$), the conductance of
+$A \subset S$ is $\phi(A) = \sum_{i \in A, j \notin A} \bar P^S_{ij} / \min(|A|, n - |A|)$. Because every cell's walk has
+the uniform stationary measure, the block's $\phi$ is exactly the mean of the cells' $\phi$ <b>[thm]</b>, the discrete
+form of the averaged boundary in Froyland's dynamic isoperimetry. Candidates are the level sets of $\psi_1$, $\psi_2$ and
+$\psi_3$; the cheapest with both sides at least $\max(16, \lceil 0.05 n \rceil)$ wins. With $\mu_k = 1 - \lambda_k(\bar
+P^S)$, the unconstrained $\psi_1$ sweep satisfies $\mu_1/2 \le h \le \phi_{\text{free}} \le \sqrt{2\mu_1}$ <b>[thm]</b>, $h$
+being the smallest conductance of any cut; the constrained $\phi^*$ satisfies only $\phi^* \ge h \ge \mu_1/2$. The
+clustering ratio $\Upsilon = \mu_2/\phi^*$ follows Peng, Sun and Zanetti (2015); it is at most $2\mu_2/\mu_1$.</p>
+
+<h2 id="deviations">Deviations from the ResNet study</h2>
+<ol>
+<li>Items are snippets, and a cell has three indices (checkpoint, layer, position).</li>
+<li>One kernel rule (union {{fact:k}}-NN) and no kernel sweep.</li>
+<li>$N$ = {{fact:n_items}}.</li>
+<li>The slab and bag views are new.</li>
+<li>The walk shares $T$, $W$, the pair mixing ratio and the zoom tree are new.</li>
+<li>Eigenproblems are solved on CPU in float64, with the same algorithm.</li>
+<li>Layouts are aligned across positions (AlignedUMAP) rather than Procrustes-chained.</li>
+</ol>
+
+<h2 id="decisions">Decisions made on the owner's behalf</h2>
+<div class="table-scroll"><table class="data">
+<thead><tr><th>#</th><th>decision</th><th>default</th><th>alternative</th><th>test</th></tr></thead>
+<tbody>
+<tr><td>D1</td><td>model</td><td>pythia-160m</td><td>pythia-70m; the deduplicated variant</td><td>rerun F3 on 70m</td></tr>
+<tr><td>D2</td><td>probe</td><td>four Pile-test sources plus Gutenberg poetry, 200 each</td><td>one corpus throughout; more sources</td><td>a source swap is a rerun</td></tr>
+<tr><td>D3</td><td>positions</td><td>EOT prefix, $t$ = 4, 8, .., 128</td><td>include $t$ = 1, 2 (needs a duplicate policy); linear spacing</td><td>none</td></tr>
+<tr><td>D4</td><td>layers and steps</td><td>L2..L12 (even); steps {{fact:steps}}</td><td>all 12 layers; denser steps</td><td>units are independent</td></tr>
+<tr><td>D5</td><td>kernel</td><td>the ResNet union kNN, k = {{fact:k}}</td><td>perplexity 100; k = 8 or 30</td><td>not run (toy)</td></tr>
+<tr><td>D6</td><td>geometry</td><td>plain cosine of centred residuals</td><td>z-scored coordinates</td><td>not run; rogue-coordinate share reported (F11)</td></tr>
+<tr><td>D7</td><td>prefix view</td><td>aligned slab, uniform weights</td><td>lag-weighted window; pooled</td><td>none</td></tr>
+<tr><td>D8</td><td>zoom</td><td>rebuild on the subset; sweep over $\psi_{1..3}$, sides ≥ max(16, 5 %); depth 3; $\Upsilon$ read at the fixed threshold</td><td>restrict and rescale; $\psi_1$ only; a SEBA cut</td><td>which $\psi$ won; SEBA vs cut per node</td></tr>
+<tr><td>D9</td><td>page engine</td><td>one file with the ResNet site's CSS and renderers</td><td>the notebook engine with Plotly</td><td>owner preference</td></tr>
+<tr><td>D10</td><td>training axis</td><td>small multiples, one strip, lines; no slider</td><td>a checkpoint slider in the explorer</td><td>none</td></tr>
+<tr><td>D11</td><td>publication</td><td>private page</td><td>public (needs a licence review of the snippets)</td><td>owner decides</td></tr>
+<tr><td>D12</td><td>C1 gate (made by the run's orchestrator after the first pilot stopped at C1)</td><td>decide C1 in float64 (tolerance $10^{-10}$); report the float32 error per layer as a hazard</td><td>a float32 tolerance of $10^{-3}$</td><td>carry the float32 error through to the sets (a float64 run of one checkpoint)</td></tr>
+</tbody></table></div>
+
+<h2 id="hazards">Hazards and checks</h2>
+<p>The first row matters most for reading the results; see <a href="#findings/f-hazards">finding 9</a>.</p>
+<div class="table-scroll"><table class="data">
+<thead><tr><th>hazard</th><th>design</th><th>what the run shows</th></tr></thead>
+<tbody>
+<tr><td><b>rogue (dominant) coordinates</b></td><td>plain cosine after centring; no metric added (D6)</td><td>at the final step one coordinate holds {{fact:rogue1.final.L4_10.t4_32}} of the centred variance at L4 to L10 for $t \le 32$, at most {{fact:rogue1.final.t64_128.max}} at $t \ge 64$; top five up to {{fact:rogue5.max}}; at most {{fact:rogue1.early.max}} before step 16,000 (F11). The share is of squared magnitude before unit scaling, so
+its effect on the cosine geometry and the kNN graph is not measured; the z-scored variant was not run.</td></tr>
+<tr><td>localised leading modes</td><td>rank-based kernel; PN and smallest set reported</td><td>at $t \le 16$ in L2 to L10, $\psi_1$ of each cell sits on a small group (PN {{fact:loc.pn1.range}}; smallest PN anywhere {{fact:pn1.min}}, above the flag of 10); {{fact:n_empty_sets}} cells have an empty $r = 4$ set</td></tr>
+<tr><td>float32 forward pass</td><td>C1 decided in float64 (D12)</td><td>float64 error {{fact:c1.f64}}; float32 error {{fact:c1.f32.by_layer}}</td></tr>
+<tr><td>large first-token norm (attention sink)</td><td>EOT at position 0, identical for all, excluded; centring per cell</td><td>mean norm at position 0 is {{fact:norm.pos0.range}} by layer, against medians of {{fact:norm.rest.median.range}} elsewhere (F11)</td></tr>
+<tr><td>exact duplicates; one close pair takes over</td><td>multiset de-duplication, $t \ge 4$, rank-based kernel</td><td>smallest pairwise distance {{fact:min_dist.min}} (above the $10^{-9}$ assertion)</td></tr>
+<tr><td>selection by de-duplication</td><td>de-duplication on the multiset of tokens 1 to 4 (needed for distinct inputs)</td><td>it rejected {{fact:rej.code.dup4}} code and {{fact:rej.forum.dup4}} forum candidates with shared openings (licence headers, question templates), so those sources lean toward unusual openings</td></tr>
+<tr><td>positions 1 to 3 absent</td><td>excluded (identical inputs possible)</td><td>reading starts at $t = 4$; nothing here says what happens over the first three tokens</td></tr>
+<tr><td>poetry possibly in the training data</td><td>stated</td><td>Gutenberg poetry may overlap PG-19 in the Pile; the other four sources come from the Pile's test split</td></tr>
+<tr><td>no replicate probe</td><td>one probe of {{fact:n_items}} snippets</td><td>no sampling error is available for any number; permutation nulls test against chance, not against a second draw</td></tr>
+<tr><td>token identity dominates early</td><td>$T$ shown next to $W$ everywhere</td><td>F3</td></tr>
+<tr><td>log-spaced axes weight blocks</td><td>stated</td><td>early positions and early checkpoints count for more per token or step</td></tr>
+<tr><td>kNN graph falls apart inside a zoom node</td><td>rank-based kernel with a uniform floor</td><td>no node of T1 to T4 has more than {{fact:zoom.max_components}} connected piece</td></tr>
+<tr><td>clustering-ratio threshold calibrated on synthetic data</td><td>threshold 3 fixed on isotropic 32-dimensional fixtures before any real tree was opened</td><td>it separates planted from structureless splits there; it is not calibrated for residual-stream geometry (<a href="#findings/f-zoom">finding 5</a>)</td></tr>
+</tbody></table></div>
+
+<details class="more"><summary>Diagnostics per cell (F11)</summary>
+<figure class="fig wide live" data-live="f11">
+<figcaption><b>Plotted (F11):</b> top, the mean norm of the residual stream at each position (0 is the end-of-text
+token), per layer, at step {{fact:final_step}}, both axes logarithmic. Bottom, one diagnostic per cell (choose above),
+one panel per checkpoint, rows bag and L2 to L12, columns $t$, one colour range for all panels. <b>Values:</b> Sinkhorn
+row error at most {{fact:row_err.max}}; {{fact:sinkhorn_failures}} failures.</figcaption>
+</figure>
+<p><b>Observed.</b> Sinkhorn converges everywhere and no cell has a localised mode below the PN flag, but the
+dominant coordinate is large exactly where many cells sit (L4 to L10, $t \le 32$, final step), and it is absent
+before step 16,000. Results that rest on those cells (single-cell sets at early positions, four of the six cells of
+each middle-layer reading block) should be read with it in mind.</p>
+</details>
+
+<h2 id="reproduce">How to reproduce</h2>
+<p>The pipeline (<code>explore/lm_coherent/</code>) runs on Modal: a probe unit, one GPU unit per checkpoint for the
+forward passes and cosine matrices, one CPU unit per checkpoint for kernels, walks, blocks, statistics and trees, and a
+final unit for training blocks, layouts and validation. The page is then built on the orchestration machine:</p>
+<pre><code>export TMPDIR=/var/tmp/cm-lm
+uv run --with numpy --with matplotlib --with pillow python -I explore/lm_coherent/page/build_page.py {{fact:tag}}
+bash explore/lm_coherent/page/verify.sh /var/tmp/cm-lm/shots</code></pre>
+<p>Construction fingerprint <code>{{fact:fingerprint}}</code>; transformers {{fact:transformers}}. The run (tag
+<code>{{fact:tag}}</code>) cost about {{fact:run.cost}} on Modal (an upper bound from the attempts ledger) and took
+{{fact:run.wall}}; run ids and the spend table are in <code>explore/lm_coherent/README.md</code>.</p>
+
+<h2 id="references">References</h2>
+<ul class="refs">
+<li>Biderman et al. (2023), Pythia: a suite for analyzing large language models across training and scaling.</li>
+<li>Gao et al. (2020), The Pile: an 800GB dataset of diverse text for language modeling.</li>
+<li>Froyland (2015), Dynamic isoperimetry and the geometry of Lagrangian coherent structures.</li>
+<li>Froyland, Rock and Sakellariou (2019), Sparse eigenbasis approximation (SEBA).</li>
+<li>Peng, Sun and Zanetti (2015), Partitioning well-clustered graphs: spectral clustering works!</li>
+<li>Ethayarajh (2019), How contextual are contextualized word representations?</li>
+<li>Xiao et al. (2023), Efficient streaming language models with attention sinks.</li>
+<li>Sun et al. (2024), Massive activations in large language models.</li>
+<li>McInnes, Healy and Melville (2018), UMAP: uniform manifold approximation and projection; AlignedUMAP from the umap-learn package (layouts only).</li>
+</ul>

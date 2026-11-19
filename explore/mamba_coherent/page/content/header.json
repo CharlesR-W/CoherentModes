@@ -1,0 +1,5 @@
+{"title": "Coherent sets in a small Mamba model, with the whole recurrent state",
+ "subtitle": "the Pythia toy's construction on mamba-130m, where everything the model carries forward can be measured",
+ "short_title": "Coherent sets in mamba-130m",
+ "banner": "One model (mamba-130m), two checkpoints (HF initialisation, trained), the Pythia study's 1,000 snippets. A side study, not a stage of the main experiments.",
+ "date": ""}

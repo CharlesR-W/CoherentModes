@@ -1,0 +1,253 @@
+<p class="lede">I gave a small selective state-space model, {{fact:model}}, the same {{fact:n_items}} text snippets as the
+Pythia study ({{fact:n_per_source}} each of maths, code, Wikipedia, forum posts and poetry), recorded its residual
+stream <b>and its recurrent state</b> at six layers, after six numbers of tokens read, at two checkpoints (the HF
+initialisation and the trained model), and asked <b>which snippets it treats alike</b>, with the label-free
+construction used on the ResNet and on Pythia. The reason to look at Mamba: after reading $t$ tokens it holds a
+<b>fixed-size state</b>, and that state is <b>everything it carries forward</b>, so the whole of it can be measured
+directly, one vector per snippet per position.</p>
+
+<div class="boxed mini" id="miniature"><p><b>The idea in one example.</b> Fix layer 16 of the trained model. After
+<b>16 tokens</b>, centre the residual vectors over the snippets and compare every pair by cosine, link each snippet to
+its {{fact:k}} nearest, and turn the links into a <b>random walk</b> between snippets. Do the same after 4, 8, 32, 64
+and 128 tokens: six walks over the same snippets, in six different geometries. Their <b>average</b> is the walk of a
+<b>reading block</b> (a run of cells along the reading axis; not a Mamba block). Its slowest-changing functions, made
+sparse, give a few <b>coherent sets</b>. Then ask the same of layer 16's <b>own recurrent state</b>, and of the states of
+<b>all layers up to 16</b>; at layer 24 the latter is the model's whole state. Sources are never used, only checked
+afterwards.</p></div>
+
+<aside class="callout key" id="answer"><p class="callout-title">Where the targets stand</p>
+<p>The targets were written before the run (SPEC section 7) and are scored below by the build, from the data. Of the
+{{fact:v.n_hyp}} hypotheses: <b>met, {{fact:v.n_met}}</b> ({{fact:v.met_list}}); <b>not met, {{fact:v.n_notmet}}</b>
+({{fact:v.notmet_list}}); not decidable from this data, {{fact:v.n_nd}} ({{fact:v.nd_list}}). Of the {{fact:v.n_ctl}}
+controls: pass, {{fact:v.n_pass}}; fail, {{fact:v.ctl_fail_list}}; not run on this data, {{fact:v.ctl_notrun_list}}.</p>
+<p>The residual against the whole state, at the last layer and $t = 128$: span agreement $a_3$ =
+{{fact:pk.a3.L24.t128}} (null {{fact:a3.null}}), matched Jaccard of the sets {{fact:pk.jacc.L24.t128}}. Source
+separation $\tilde W$ at $t = 128$: whole state {{fact:Wex.stack.L24.t128}}, best residual layer
+{{fact:Wex.point.t128.max}}. Mamba against Pythia on the same snippets, point against point at $t = 128$:
+$a_3$ {{fact:ca.pp.a3.t128.range}} ({{fact:ca.status}}).</p>
+<!-- real -->
+<p><b>In words.</b> The whole recurrent state, all 24 layers' conv buffers and SSM states, separates the five sources
+more than any single residual layer does, and from the first few tokens. By $t = 128$ its picture is close to what
+token counts give and barely changes when the earlier tokens are reordered. The residual stream is a poor stand-in for
+the state: their eigenfunctions agree only weakly at most layers. On the same snippets, Mamba's coherent sets largely
+agree with Pythia's, most strongly between Pythia's prefix slab and Mamba's stacked state. See the
+<a href="#findings">Findings</a>.</p>
+<!-- /real -->
+</aside>
+
+<nav class="callout" id="where-to-look"><p class="callout-title">Where to look</p><ul>
+<li><b>Reading, in three views:</b> <a href="#explorer?sel=reading:16&c=sets4">the L16 reading block in the explorer</a> (switch View to state or stack); walk shares along $t$ in <a href="#measurements/q1">Q1</a>.</li>
+<li><b>The residual against the recurrent state:</b> <a href="#measurements/q3">Q3</a>, the question this model makes answerable.</li>
+<li><b>Initialisation against trained:</b> <a href="#measurements/q4">Q4</a> and the strip under the explorer grid. <b>The zoom</b>, including on the whole state (T4): <a href="#zoom">its tab</a>.</li>
+<li><b>Mamba against Pythia on the same snippets:</b> <a href="#measurements/q6">Q6</a>.</li>
+</ul></nav>
+
+<!-- mockup -->
+<aside class="callout caveat"><p class="callout-title">How to read this mockup</p>
+<p>Everything on this page is drawn from a <b>synthetic fixture</b> pushed through the real pipeline. Its items carry a
+planted three-level hierarchy (eight groups of 125) whose strength grows along layers; one layer (L8) carries a
+different, planted split instead. The state and stack views are fed by synthetic constituents (two per layer, with
+unequal item norms and non-zero means), so the state Gram identity and every page element run. Tokens and text are
+fake syllables, and the five "sources" are assigned in runs that follow the planted groups, so they line up with the
+structure only partly. The Mamba-against-Pythia comparison is between the two studies' fixtures, which plant the same
+seeded groups, so it agrees almost perfectly by construction. If the page works, the explorer shows four tight groups
+at the deeper layers in every view, the zoom recovers the planted groups for T1, and the initialisation looks
+structureless. The answer in words, and the Findings,
+will be written from the real data.</p>
+</aside>
+<!-- /mockup -->
+
+<figure class="fig wide">
+  <a href="#explorer?sel=reading:16&c=sets4"><img src="{{img:hero}}" loading="eager" alt="Six layers and a bag-of-tokens row at six positions, each panel a 2-d layout of the same snippets, coloured by the four coherent sets of the L16 point reading block."></a>
+  <figcaption><b>Colours come from one place, the outlined L16 row, and are painted on every panel</b>, so the same
+  snippet has the same colour everywhere; <b>dot positions are for display only</b> (an AlignedUMAP layout per row).
+  <b>Plotted (F1):</b> the explorer's grid at the trained checkpoint, point view: rows, the bag-of-tokens reference
+  and layers L4 to L24; columns, positions $t$ = 4 to 128 (tokens read); one dot per snippet. Colour: the snippet's
+  coherent set, $r = 4$, from the point reading block of L16 (T1's block); grey: unassigned. Set make-up (validation
+  only): {{fact:t1.set1.makeup}}; {{fact:t1.set2.makeup}}; {{fact:t1.set3.makeup}}; {{fact:t1.set4.makeup}};
+  unassigned: {{fact:t1.unassigned.makeup}}.
+  <details class="more"><summary>Values</summary> $\lambda_1, \lambda_2, \lambda_3$ = {{fact:t1.lambda1}},
+  {{fact:t1.lambda2}}, {{fact:t1.lambda3}}; gap $\lambda_3 - \lambda_4$ = {{fact:t1.gap}}; set sizes
+  {{fact:t1.set_sizes}}, {{fact:t1.n_unassigned}} unassigned. Matched Jaccard against sources {{fact:t1.jacc_r4}}
+  (null 97.5th percentile {{fact:t1.jacc_r4_null}}; the best possible for these set sizes, {{fact:t1.jacc_r4_ceiling}}).</details>
+  </figcaption>
+</figure>
+
+<p class="cta"><a class="explore-link big" href="#explorer?sel=reading:16&c=sets4">Open the explorer at this view</a></p>
+
+<h2 id="question">The question</h2>
+
+<p>In a causal transformer, what is carried forward from a prefix is the KV cache, which grows with $t$; the Pythia
+study could reach it only through a proxy, the prefix slab. A selective state-space model carries a <b>fixed-size
+recurrent state</b> instead. After reading token $t$, layer $l$ holds a convolution buffer and an SSM state, and the
+collection of these over all {{fact:n_layers}} layers is everything the model keeps about the prefix. I asked five
+things.</p>
+<ol>
+<li><b>Where does the walk separate kinds of text?</b> Along reading and depth, at initialisation and trained: does
+maths part from poetry, and from how many tokens on?</li>
+<li><b>Token or source?</b> How strongly is the walk tied to the token just read, and how strongly to the snippet's
+source?</li>
+<li><b>Residual, layer state or whole state?</b> Do the sets from the residual at position $t$ agree with those from
+layer $l$'s own recurrent state, and with those from the states of all layers up to $l$ (at $l$ = 24, the whole
+state)? Where along reading and depth do they part?</li>
+<li><b>What does zooming show?</b> Cut a block's snippets in two with the block's own walk, redo the analysis on each
+half, and repeat; once on the whole state.</li>
+<li><b>Mamba against Pythia.</b> On the same {{fact:n_items}} snippets (both models read the Pile with the same
+tokenizer), how far do the two models' coherent sets agree at matched relative depth?</li>
+</ol>
+
+<h2 id="quantity">What is measured</h2>
+
+<p>For each <b>cell</b> $c$ (a checkpoint, a layer, a position and a view) the construction builds a random walk $P_c$
+between the snippets from their cosine similarities (the procedure is below). A <b>block</b> $B$ is a run of cells
+along one axis, and everything on the page comes from the block's average walk.</p>
+
+<div class="boxed">
+<div class="eq" id="eq-penalty" data-num="1">$$ f^\top (I - \bar P_B)\, f \;=\; \frac{1}{|B|}\sum_{c \in B} f^\top (I - P_c)\, f
+\;=\; \frac{1}{|B|}\sum_{c \in B} \tfrac12 \sum_{i,j} (P_c)_{ij}\,(f_i - f_j)^2 $$</div>
+<div class="eq" id="eq-shares" data-num="2">$$ S_c(\mathcal G) = \frac1N \sum_{g \in \mathcal G}\ \sum_{i \ne j \in g} (P_c)_{ij},
+\qquad \tilde S = \frac{S - S^0}{1 - S^0} $$</div>
+<p class="where"><b>where</b> $f$ is any function on the $N$ snippets and $\bar P_B$ the mean of the cells' walks; a
+function that changes little across every walk step in every cell of the block has a small penalty (1), and the
+block's eigenfunctions $\psi_k$ are the functions with the smallest. $S_c(\mathcal G)$ is the share of the walk that
+stays inside the groups of a grouping $\mathcal G$, $S^0$ its chance level, and $\tilde S$ the excess over chance
+(0 for a walk that ignores the grouping, 1 for one that never leaves it). $\boldsymbol{T}$ groups snippets by the
+token at position $t$ (label-free: tokens are inputs); $\boldsymbol{W}$ groups them by source (validation).</p>
+</div>
+
+<p>$T$ and $W$ are associations between the walk and a grouping. They do not split the walk into a "token part" and a
+"context part", and nothing on this page reads them that way.</p>
+
+<h3 id="state">The recurrent state, and the three views</h3>
+
+<p>After the step that reads token $t$, layer $m$ holds a <b>conv buffer</b> $c^m_t$ (the last three inputs to its
+depthwise convolution, {{fact:state.conv_numbers}} numbers) and an <b>SSM state</b> $z^m_t$ ({{fact:state.ssm_numbers}}
+numbers). The tuple $\Sigma_t = (c^m_t, z^m_t)_{m=1}^{ {{fact:n_layers}} }$ ({{fact:state.whole_numbers}} numbers), with
+the tokens after $t$, determines every later residual, state and next-token distribution <b>[thm]</b>: that is the
+recurrence itself, and control C1b checks it on the measured state. The residual $h^l_t$ is not a state: what layer
+$l+1$ does next depends on its own state, which is not a function of $h^l_t$ alone.</p>
+
+<div class="table-scroll"><table class="data">
+<thead><tr><th>view</th><th>$\phi(i)$ at (checkpoint, layer $l$, position $t$)</th></tr></thead>
+<tbody>
+<tr><td><b>point</b></td><td>$h^l_t(i)$, the residual stream after block $l$ ({{fact:d_model}} numbers)</td></tr>
+<tr><td><b>state</b></td><td>layer $l$'s own state: the conv buffer and the SSM state, each through the standard step, cosine matrices averaged with equal weight</td></tr>
+<tr><td><b>stack</b></td><td>the states of layers 1 to $l$: the same average over all $2l$ constituents. At $l$ = 24 this is the <b>whole state</b> $\Sigma_t$</td></tr>
+<tr><td><b>bag</b> (reference)</td><td>the mean input embedding of tokens 1 to $t$: a function of the token counts alone</td></tr>
+</tbody></table></div>
+
+<aside class="callout key"><p class="callout-title">Labels</p>
+<p>The method uses no labels. A snippet's source is used only to assemble a balanced probe, to colour plots, for the
+validation statistics ($W$, the pair mixing ratio $X$, matched Jaccard against sources), and to choose which
+snippets the "follow" figure shows. Source never enters a kernel, an operator, a basis, a cut or the choice of a
+block.</p></aside>
+
+<h2 id="cells-blocks">Cells and blocks</h2>
+
+<p>There are {{fact:n_cells_view}} cells per view: two checkpoints (the HF initialisation and the trained model) by six
+layers ({{fact:layers}}) by six positions (t = {{fact:positions}}); with three views and the bag,
+{{fact:n_cells_all}} in all. A block runs along exactly one axis: a <b>reading block</b> is one layer at positions 4 to
+128 (trained, in any view), and a <b>depth block</b> is one position at layers L4 to L24 (trained, point view). A single
+cell is also a block. No intermediate training checkpoints of mamba-130m are published, so there is no training
+axis; the initialisation is a comparison, like Pythia's step 0. Positions are roughly log-spaced, so with equal
+weights per cell, early reading counts for more per token than late reading.</p>
+
+<figure class="fig">
+  <img src="{{img:cube}}" alt="A lattice of layers by positions in three views, with one reading block, one depth block and the whole-state cell marked.">
+  <figcaption><b>Plotted (F10):</b> the cells of the trained checkpoint as a lattice: position $t$ across, layer up,
+  view into the page (front: point; behind: state, stack). Marked: one reading block, one depth block, and the stack
+  cell at (L24, 128), the whole state. A block's operator is the average of its cells' lazy walks.</figcaption>
+</figure>
+
+<h2 id="procedure">The procedure in five steps</h2>
+
+<p><b>Five fixed computations, from activations to sets</b>, unchanged from the ResNet and Pythia studies. The pictures
+use the cell (L16, t = 128) and the point reading block of L16 at the trained checkpoint; in every matrix the
+snippets are in the order of that block's first zoom cut. Exact statements are in <a href="#method">Method</a>.</p>
+
+<div class="step">
+<h3 id="step-1">1. Compare snippets within one cell</h3>
+<a class="step-fig" style="--w: 38%" href="{{img:step1}}" target="_blank" rel="noopener"><img src="{{img:step1}}" alt="Cosine Gram of one cell"></a>
+<p>Take every snippet's vector in one cell, centre it over the {{fact:n_items}} snippets, scale each vector to unit
+length, and take the cosine between every pair. That cosine is the only geometry the construction assumes. For the
+state and stack views the same is done for each constituent (each conv buffer and each SSM state) separately, and the
+cosine matrices are averaged, so that no constituent's scale decides the weighting.</p>
+</div>
+
+<div class="step">
+<h3 id="step-2">2. Turn similarity into a walk</h3>
+<a class="step-fig" style="--w: 52%" href="{{img:step2}}" target="_blank" rel="noopener"><img src="{{img:step2}}" alt="Kernel and walk of one cell"></a>
+<p>Link two snippets if either is among the other's {{fact:k}} nearest neighbours (weight 1, a floor of $10^{-6}$
+elsewhere). Symmetric Sinkhorn scaling turns these links into a walk $P_c$ whose rows and columns sum to 1, so every
+snippet carries the same weight. The lazy walk $M_c = \tfrac12(I + P_c)$ stays put half the time.</p>
+</div>
+
+<div class="step">
+<h3 id="step-3">3. Average over a block</h3>
+<a class="step-fig" style="--w: 38%" href="{{img:step3}}" target="_blank" rel="noopener"><img src="{{img:step3}}" alt="Average lazy walk of the L16 reading block"></a>
+<p>A block's operator $\bar M$ is the plain average of its cells' lazy walks. No map between cells is fitted: each
+cell keeps its own geometry, and the cells meet only through the snippets they share.</p>
+</div>
+
+<div class="step">
+<h3 id="step-4">4. Take its eigenfunctions, with their retention in every cell</h3>
+<a class="step-fig" style="--w: 45%" href="{{img:step4}}" target="_blank" rel="noopener"><img src="{{img:step4}}" alt="Leading eigenfunctions of the block and their retention per cell"></a>
+<p>The leading eigenvectors $\psi_1, \psi_2, \ldots$ of $\bar M$ are the functions on the snippets with the smallest
+<em>average</em> penalty (1). An average can hide a cell where the function varies a lot, so next to each eigenfunction
+I show its <em>retention</em> $\rho_c(\psi_k) = \psi_k^\top M_c \psi_k$ in each cell: 1 means the function is constant on
+every walk neighbourhood of that cell, and a random function with mean zero gets about 0.5.</p>
+</div>
+
+<div class="step">
+<h3 id="step-5">5. Sparse vectors, coherent sets</h3>
+<a class="step-fig" style="--w: 52%" href="{{img:step5}}" target="_blank" rel="noopener"><img src="{{img:step5}}" alt="SEBA vectors and the resulting sets"></a>
+<p>SEBA rotates the first $r$ eigenvectors (with the constant $\psi_0$) into $r$ sparse, non-negative vectors. Each
+snippet goes to the vector on which it is largest, or is <em>unassigned</em> if all are zero. The page shows
+$r = 2$ and $r = 4$. These <b>coherent sets</b> are the groups on which the averaged walk's slowest functions
+concentrate.</p>
+</div>
+
+<h2 id="map">Experiment map</h2>
+
+<div class="table-scroll"><table class="data map">
+<thead><tr><th>where</th><th>question</th><th>readout</th><th>targets</th></tr></thead>
+<tbody>
+<tr><td><a href="#explorer">Explorer</a></td><td>where do sets appear along reading and depth, in each view, at each checkpoint?</td><td>sets, eigenfunctions and retention of any block</td><td>none (exploration)</td></tr>
+<tr><td><a href="#zoom">Zoom</a></td><td>what does recursively cutting a block show, including the whole state?</td><td>trees T1 to T4 (F9)</td><td>H6</td></tr>
+<tr><td><a href="#measurements/q0">Q0</a></td><td>do the identities and planted checks hold?</td><td>controls table, fixture tree (F2)</td><td>C1a, C1b, C2, P1 to P3</td></tr>
+<tr><td><a href="#measurements/q1">Q1</a></td><td>is the walk tied to the token just read, or to the source?</td><td>$\tilde T$ and $\tilde W$ per cell (F3)</td><td>H1, H2</td></tr>
+<tr><td><a href="#measurements/q2">Q2</a></td><td>when does the walk stop linking maths and poetry?</td><td>pair mixing $X$ (F4); two snippets followed (F5)</td><td>H3</td></tr>
+<tr><td><a href="#measurements/q3">Q3</a></td><td>residual, layer state or whole state?</td><td>span agreement $a_3$ between views; $\tilde W$ by view (F6')</td><td>H4</td></tr>
+<tr><td><a href="#measurements/q4">Q4</a></td><td>what does training add to the initialisation?</td><td>$\tilde W$ at both checkpoints; init sets against trained (F7')</td><td>H5</td></tr>
+<tr><td><a href="#measurements/q5">Q5</a></td><td>does reordering the earlier tokens change the sets?</td><td>original vs reordered probe (F8)</td><td>comparison only</td></tr>
+<tr><td><a href="#measurements/q6">Q6</a></td><td>do Mamba and Pythia find the same sets on the same snippets?</td><td>$a_3$ and matched Jaccard at matched depth; T1 root cuts (F12)</td><td>H7</td></tr>
+</tbody></table></div>
+
+<h2 id="verdict">Verdict against the targets</h2>
+
+<p>The targets were written before the run (SPEC section 7, inheriting the Pythia SPEC section 8). Controls pass or
+fail; hypotheses are numerical predictions without a claimed mechanism, each met, not met, or not determinable. Every
+status and value below is computed by the build from the data.</p>
+
+<!-- mockup -->
+<aside class="callout caveat"><p>On this mockup the statuses test the plumbing only: the fixture has no model in
+it, so "met" or "not met" here says nothing about mamba-130m. C1a and C1b need the model and are not run on it.</p></aside>
+<!-- /mockup -->
+
+<div class="table-scroll"><table class="data verdict">
+<thead><tr><th>id</th><th>target</th><th>label</th><th>measured</th><th>status</th></tr></thead>
+<tbody>
+<tr><td><b>C1a</b></td><td>recurrent decoding and the parallel forward give the same residuals at every sampled cell (float64 parameters and cache, relative error &lt; 1e-4)</td><td>identity, mixed precision</td><td>{{fact:v.C1a.value}} (<a href="#measurements/q0">F2</a>)</td><td>{{fact:v.C1a.status}}</td></tr>
+<tr><td><b>C1b</b></td><td>resuming the decode at $t = 64$ from the stored conv buffers and SSM states reproduces residuals and states at $t$ = 65..128 to 1e-12</td><td>identity</td><td>{{fact:v.C1b.value}}</td><td>{{fact:v.C1b.status}}</td></tr>
+<tr><td><b>C2</b></td><td>the bag view at $t = 128$ is identical for the original and reordered probes</td><td>identity</td><td>{{fact:v.C2.value}}</td><td>{{fact:v.C2.status}}</td></tr>
+<tr><td><b>P1</b></td><td>the zoom recovers the planted fixture tree; structureless splits read as weak</td><td>planted</td><td>{{fact:v.P1.value}}</td><td>{{fact:v.P1.status}}</td></tr>
+<tr><td><b>P2</b></td><td>a planted transient split tops its cell, a persistent one tops the block</td><td>planted</td><td>{{fact:v.P2.value}}</td><td>{{fact:v.P2.status}}</td></tr>
+<tr><td><b>P3</b></td><td>block statistics are the means of the cells'; state and stack Grams equal the explicit concatenation of normalised constituents</td><td>[thm]</td><td>{{fact:v.P3.value}}</td><td>{{fact:v.P3.status}}</td></tr>
+<tr><td><b>H1</b></td><td>$\tilde T$ higher at L4 than at L24 at every $t$ (trained, point)</td><td>hypothesis</td><td>{{fact:v.H1.value}}</td><td>{{fact:v.H1.status}}</td></tr>
+<tr><td><b>H2</b></td><td>$\tilde W(128) - \tilde W(4) \ge 0.2$ at L12 to L24 (trained, point)</td><td>hypothesis</td><td>{{fact:v.H2.value}}</td><td>{{fact:v.H2.status}}</td></tr>
+<tr><td><b>H3</b></td><td>$X(\text{maths}, \text{poetry}) < 0.5$ at (L16, $t = 16$), point</td><td>hypothesis</td><td>{{fact:v.H3.value}}</td><td>{{fact:v.H3.status}}</td></tr>
+<tr><td><b>H4</b></td><td>at $t = 128$ the whole-state cell (stack, L24) has $\tilde W$ within 0.05 of, or above, the largest point-view $\tilde W$ over layers</td><td>hypothesis</td><td>{{fact:v.H4.value}}</td><td>{{fact:v.H4.status}}</td></tr>
+<tr><td><b>H5</b></td><td>$\tilde W$ at (L16, 128), point, at initialisation is less than half its trained value</td><td>hypothesis</td><td>{{fact:v.H5.value}}</td><td>{{fact:v.H5.status}}</td></tr>
+<tr><td><b>H6</b></td><td>T1's first cut puts ≥ 80 % of code and ≥ 80 % of poetry on opposite sides</td><td>hypothesis</td><td>{{fact:v.H6.value}}</td><td>{{fact:v.H6.status}}</td></tr>
+<tr><td><b>H7</b></td><td>Pythia point vs Mamba point at $t = 128$: $a_3 \ge 0.3$ (null 0.003) at every matched pair from relative depth 1/2 (Pythia L6..L12 vs Mamba L12..L24)</td><td>hypothesis</td><td>{{fact:v.H7.value}}</td><td>{{fact:v.H7.status}}</td></tr>
+</tbody></table></div>

@@ -1,0 +1,77 @@
+<div class="ex" id="ex">
+  <div class="ex-bar" id="ex-bar">
+    <div class="ctl">
+      <span class="ctl-label">Block</span>
+      <span class="ex-sel" id="ex-sel"></span>
+      <button type="button" class="link-btn" id="ex-reset" title="Back to the point reading block of L16 (T1's block)">reset</button>
+    </div>
+    <div class="ctl">
+      <label class="ctl-label" for="ex-color">Colour by</label>
+      <select id="ex-color">
+        <optgroup label="From the selected block (label-free)">
+          <option value="sets4">coherent sets, r = 4</option>
+          <option value="sets2">coherent sets, r = 2</option>
+          <option value="psi1">eigenfunction &psi;&#8321;</option>
+          <option value="psi2">eigenfunction &psi;&#8322;</option>
+          <option value="nodal">sign of &psi;&#8321; (nodal domains)</option>
+        </optgroup>
+        <optgroup label="From each panel (label-free)">
+          <option value="tok">token at t (10 most frequent)</option>
+        </optgroup>
+        <optgroup label="Validation only">
+          <option value="src">source</option>
+          <option value="own">own-source walk share</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="ctl">
+      <span class="ctl-label">View</span>
+      <div class="seg" id="ex-view" role="radiogroup" aria-label="View of the layer rows">
+        <button type="button" data-v="p" title="Point view: the residual stream after block l at position t">point</button>
+        <button type="button" data-v="s" title="State view: layer l's own recurrent state after t tokens (conv buffer and SSM state, equal weight)">state</button>
+        <button type="button" data-v="k" title="Stack view: the states of layers 1..l after t tokens; at L24, the whole model state">stack</button>
+      </div>
+      <span class="ctl-sub" id="ex-view-note"></span>
+    </div>
+    <div class="ctl">
+      <label class="ctl-label" for="ex-pin">Pin</label>
+      <select id="ex-pin" aria-label="Pin one of the ten follow items"></select>
+    </div>
+    <div class="ctl ctl-end">
+      <button type="button" class="guide-btn" id="ex-howto-btn" aria-controls="ex-howto" aria-expanded="false">How to use</button>
+    </div>
+  </div>
+  <div class="ex-body" id="ex-body">
+    <div class="ex-main" id="ex-main">
+      <p class="desktop-note">The explorer is meant for a laptop or desktop screen: panels are small here, and hovering a point (to read its snippet) needs a mouse.</p>
+      <details class="ex-howto" id="ex-howto">
+        <summary>How to use the explorer</summary>
+        <div class="ex-howto-text ex-howto-wide">
+          <p><b>The grid.</b> Rows are layers and a <b>bag</b> reference row; columns are positions t, the number of
+          snippet tokens read. The <b>View</b> switch chooses what a layer row measures: the <b>point</b> view (the
+          residual stream after block l at t), the <b>state</b> view (layer l's own recurrent state after t tokens) or the
+          <b>stack</b> view (the states of layers 1 to l; at L24 that is everything the model carries forward). Every panel
+          shows the same {{fact:n_items}} snippets at one cell, placed by a 2-d layout of that cell in that view. The
+          layouts are for display only; no number on this page is computed from them. Under the grid, a <b>strip</b> shows
+          one layer at t = 128 at the HF initialisation and trained.</p>
+          <p><b>Pick a block.</b> Click a panel for that cell alone, a row label for the layer's <b>reading block</b>
+          (t = 4 to 128, in the current view), a column header for the position's <b>depth block</b> (L4 to L24, point
+          view), or a strip panel for that cell at either checkpoint. The block's averaged walk gives the colours, which
+          are painted on every panel so you can follow the same snippets elsewhere.</p>
+          <p><b>Read the side panel.</b> Sets with their snippets and source make-up (validation only), the spectrum, the
+          walk shares $\tilde T$ and $\tilde W$, and the retention of each function in every cell along the block's
+          axis. Hover a point to read its snippet up to that panel's position.</p>
+        </div>
+      </details>
+      <ol class="ex-steps">
+        <li><span><b>Pick a view and a block.</b> point, state or stack; then a panel, a row label or a column header.</span></li>
+        <li><span><b>Hover a point.</b> The same snippet is ringed in every panel.</span></li>
+        <li><span><b>Read the side panel.</b> Sets, snippets, spectrum, retention.</span></li>
+      </ol>
+      <div class="ex-key" id="ex-key"></div>
+      <div class="ex-gridwrap"><div class="ex-grid" id="ex-grid"></div></div>
+      <p class="ex-caption" id="ex-caption"></p>
+    </div>
+    <aside class="ex-side" id="ex-side" aria-label="Selection details"></aside>
+  </div>
+</div>

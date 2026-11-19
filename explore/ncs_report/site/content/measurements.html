@@ -1,0 +1,64 @@
+<p class="lede">The numbers behind the findings, by question. Captions say what is plotted; what it means is argued in <a href="#findings">Findings</a>. Every chart reads the stored results through the build, and hovering a chart gives its values.</p>
+
+<nav class="callout" id="measurements-toc"><p class="callout-title">Questions</p><ol>
+<li><a href="#measurements/q-eigen">What do the eigenfunctions separate, layer by layer?</a></li>
+<li><a href="#measurements/q-neighbours">What do linked contexts share, layer by layer?</a></li>
+<li><a href="#measurements/q-depth">How much do the sets change with depth?</a></li>
+<li><a href="#measurements/q-reading">How long do sets last along reading?</a></li>
+<li><a href="#measurements/q-objects">How do Mamba's objects relate to each other?</a></li>
+<li><a href="#measurements/q-spectra">Spectra and spread</a></li>
+</ol></nav>
+
+<h2 id="q-eigen">1. What do the eigenfunctions separate, layer by layer?</h2>
+<p>$\eta^2$ of an eigenfunction against a grouping of the items is the share of its variance that lies between the groups' means; it needs no sets.</p>
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#v_eta" data-height="240">
+  <figcaption><b>Plotted:</b> DINOv2 ViT-S/14, each single-snapshot block L1 to L12: $\eta^2$ of $\psi_1..\psi_8$ against the 100 fine classes and against the 10 class groups, averaged with weights $\lambda_k$; dashed: chance $(G-1)/(N-1)$ for the fine classes.</figcaption>
+</figure>
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#m_eta" data-height="260">
+  <figcaption><b>Plotted:</b> Mamba-130m, residual stream at single layers 4, 8, …, 24: $\eta^2$ of $\psi_1..\psi_{16}$ against five groupings of the contexts (stored with the run), averaged with weights $\lambda_k$; bands: 50 permutations of the grouping. Groupings with many small groups (token ids, snippets) have high chance levels, which the bands show.</figcaption>
+</figure>
+
+<h2 id="q-neighbours">2. What do linked contexts share, layer by layer?</h2>
+<p>For a grouping, $S$ is the share of a walk's off-diagonal mass on pairs in the same group and $S_0$ its value for a uniform walk; the plotted excess is $(S - S_0)/(1 - S_0)$. Bands are 50 permutations of the grouping, in the same units. $\tilde\kappa$ is the excess Bhattacharyya similarity of the trained model's next-token distributions over linked pairs from different snippets; $\tilde\kappa_{|T}$ is the same against a null that permutes predictions only among contexts with the same token at $t$.</p>
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#m_shares_point" data-height="300">
+  <figcaption><b>Plotted:</b> Mamba-130m residual stream, layers 1 to 24: excess shares for six groupings and the two predictive coherences (dashed).</figcaption>
+</figure>
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#m_shares_state" data-height="300">
+  <figcaption><b>Plotted:</b> the same for each layer's recurrent state (its convolution buffer and SSM state, Gram-averaged).</figcaption>
+</figure>
+
+<h2 id="q-depth">3. How much do the sets change with depth?</h2>
+<figure class="fig wide live" data-live="heatmap" data-src="assets/ncs.json#v_carry_r8">
+  <figcaption><b>Plotted:</b> DINOv2 ViT-S/14: matched Jaccard (mean Jaccard of the best one-to-one matching of sets, each set with all its members, as in the explorer; see the <a href="#method/glossary-agreement">glossary</a>) between the $r = 8$ sets of every pair of single-snapshot blocks. Adjacent sites range from {{fact:v.carry.r8.adjacent_min}} ({{fact:v.carry.r8.adjacent_min_pair}}) to {{fact:v.carry.r8.adjacent_max}} ({{fact:v.carry.r8.adjacent_max_pair}}); L1 against L12 is {{fact:v.carry.r8.L1_L12}}.</figcaption>
+</figure>
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/ncs.json#m_thirds">
+  <figcaption><b>Plotted:</b> Mamba-130m: $a_8$, the mean squared cosine of the principal angles between the spans of $\psi_1..\psi_8$, for the residual blocks of layers 1–8, 9–16 and 17–24.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/ncs.json#v_ge16" data-height="230">
+  <figcaption><b>Plotted:</b> ViT, as in finding 3: classes with at least 16 of their 20 images in one $r = 8$ set, by site.</figcaption>
+</figure>
+</div>
+
+<h2 id="q-reading">4. How long do sets last along reading?</h2>
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#m_lags" data-height="280">
+  <figcaption><b>Plotted:</b> Mamba-130m: retention $f^\top P f / f^\top f$ of the centred $r = 8$ SEBA vectors of the residual all-layer block and the state all-layer block in the walk of a single layer (8, 16 or 24) of the same view, and of the whole state in its own walk, after $\tau$ further tokens; mean over the 8 vectors. The subspace agreement $a_8$ between the residual at layer 16 and the same layer read 2 tokens later is {{fact:m.laga8.point_L16.t2}}; for the whole state read 16 tokens later it is {{fact:m.laga8.whole.t16}}.</figcaption>
+</figure>
+
+<h2 id="q-objects">5. How do Mamba's objects relate to each other?</h2>
+<figure class="fig wide live" data-live="heatmap" data-src="assets/ncs.json#m_objects">
+  <figcaption><b>Plotted:</b> $a_8$ between the leading subspaces of five objects: the residual and per-layer state all-layer blocks, the whole state, and two references (<em>bag</em>: the order-insensitive average of the model's input embeddings over the prefix; <em>pred</em>: the model's own next-token distribution, as a view; see the <a href="#method/glossary-reference">glossary</a>).</figcaption>
+</figure>
+
+<h2 id="q-spectra">6. Spectra and spread</h2>
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/ncs.json#v_spectra" data-height="230">
+  <figcaption><b>Plotted:</b> ViT: $\lambda_1..\lambda_8$ of the block operators of L1, L6, L9 and L12 alone and of the block L9 to L12.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/ncs.json#m_spectra" data-height="230">
+  <figcaption><b>Plotted:</b> Mamba: $\lambda_1..\lambda_{16}$ of five objects.</figcaption>
+</figure>
+</div>
+<figure class="fig wide live" data-live="lines" data-src="assets/ncs.json#v_pn" data-height="230">
+  <figcaption><b>Plotted:</b> ViT, each single-snapshot block: participation number $(\sum_i \psi_{k,i}^2)^2 / \sum_i \psi_{k,i}^4$ of $\psi_1, \psi_2, \psi_4, \psi_8$, divided by $N$ = {{fact:v.n}}. A value near $1/N$ would mean an eigenfunction sits on one image.</figcaption>
+</figure>
