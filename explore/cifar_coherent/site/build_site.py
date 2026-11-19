@@ -4,6 +4,8 @@
     uv run --with numpy --with pillow --with scipy --with scikit-learn python site/build_site.py r20s0b --baselines r20s0c
                                                                       # + "Sets from" data and the Baselines and nulls tab
     ... build_site.py r20s0b --baselines r20s0c --alignment ../spectral_align/data   # + the Alignment tab (site/alignment.py)
+    ... build_site.py r20s0b --layout-tag r20s1b --dot-tag r20s0d   # + viewer/site/d_dot/ (dot kernel, SPEC_DOT.md section 5)
+    ... build_site.py r20s0b --dot-tag r20s0d --dot-only              # rebuild d_dot/ + kernels.json only (d/ untouched)
     uv run --with numpy --with pillow python site/build_site.py <tag> --facts      # list {{fact:NAME}} values
     python3 -m http.server 8765 --bind 127.0.0.1 -d viewer/site                    # then open http://127.0.0.1:8765/
 
@@ -49,6 +51,13 @@ DEFAULT_SUBTITLE = ("or, Sparse Eigenbases of the Tempered Cross-Hankel Operator
 DEFAULT_SHORT_TITLE = "Coherent sets in ResNet-20"
 TOUR_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 POINT_FIELDS = ["loss", "jac_fro", "grad_cos", "grad_dot", "grad_norm"]   # f32; plus pred/correct
+DOT_ROOT = "d_dot"             # second data root: the dot-product (Euclidean) kernel, SPEC_DOT.md section 5
+DOT_LABEL = "dot (Euclidean, keeps the norm)"
+SIZE_CAP = 800e6               # whole site; above it the dot root ships rules 0-1 only (SPEC_DOT.md section 5)
+COARSE_FORMAT = "coarse-v1"    # bump when d/ext, d/km or d/coarse change layout (SPEC_COARSE.md sections 3 and 5)
+EXT_CAP = 300e6                # psi_9..psi_32 add-on; above it: all rules for single cells, the default rule for chains
+EXT_FAMS = {"layer": "avg", "layerprodR": "prodR", "layerprodL": "prodL"}   # explorer data key -> coarse npz prefix
+KEEP_D = ("blk", "meta.json", "ext", "km", "coarse")   # incremental (stamped) parts of d/ kept between builds
 
 
 def log(*a):
@@ -145,6 +154,9 @@ class Builder:
             self.modes.index("half-mass (calibrated)") if "half-mass (calibrated)" in self.modes else 0)
         self.facts: dict[str, str] = {}
         self.d = OUT / "d"
+        self.ref0 = None            # seed-0 layout: Procrustes target (DotBuilder: the cosine seed-0 layout); None = chain only
+        self.extra_meta: dict = {}  # extra keys for meta.json (DotBuilder)
+        self.coarse_meta = None     # d/ext, d/km, d/coarse description (cosine root only; see coarse())
 
     # -- layout of one block chunk (byte offsets); X = number of cells along the retention axis
     def block_layout(self, X: int, product: bool = False):
@@ -167,9 +179,11 @@ class Builder:
         if OUT.exists():
             # block chunks are rebuilt incrementally (stamp per family/anchor); everything else is rewritten
             for p in OUT.iterdir():
+                if p.name == DOT_ROOT:   # the dot-kernel root belongs to DotBuilder: a cosine rebuild never deletes it
+                    continue
                 if p.name == "d" and not self.clean:
                     for q in p.iterdir():
-                        if q.name not in ("blk", "meta.json"):
+                        if q.name not in KEEP_D:
                             shutil.rmtree(q) if q.is_dir() else q.unlink()
                     continue
                 shutil.rmtree(p) if p.is_dir() else p.unlink()
@@ -180,6 +194,7 @@ class Builder:
         self.points()
         if not self.skip_blocks:
             self.blocks()
+        self.coarse()
         self.small_json()
         self.write_meta()
         if self.baselines:       # site/baselines.py: d/src/ (explorer "Sets from") and d/bn/ (Baselines and nulls tab)
@@ -188,11 +203,12 @@ class Builder:
         if self.alignment:       # site/alignment.py: d/al/ (Alignment tab; analysis by explore/spectral_align/analyze.py)
             import alignment
             self.facts.update(alignment.build(self, self.alignment))
+        if getattr(self, "dot_tag", None):   # second data root d_dot/ (SPEC_DOT.md section 5): the explorer's Kernel switch
+            DotBuilder(self.dot_tag, self.tag, self.clean, getattr(self, "dot_rules", "auto"), getattr(self, "allow_missing", False)).run()
+        link_kernels()
         self.assemble_html()
         (OUT / ".nojekyll").write_text("")
-        tot = sum(p.stat().st_size for p in OUT.rglob("*") if p.is_file())
-        nfiles = sum(1 for p in OUT.rglob("*") if p.is_file())
-        log(f"wrote {OUT}: {tot / 1e6:.1f} MB in {nfiles} files ({time.time() - t0:.0f} s)")
+        report_size(t0)
 
     # ------------------------------------------------------------------ static files
     def copy_static(self):
@@ -239,7 +255,7 @@ class Builder:
     # ------------------------------------------------------------------ UMAP layouts
     def layouts(self):
         emb = np.stack([np.load(self.src / f"umap_{s}.npy") for s in self.steps])  # T,S,N,2
-        e0 = procrustes_chain(emb)
+        e0 = procrustes_chain(emb, ref=self.ref0)
         write(self.d / "umap_0.bin", quantise_layout(e0).tobytes())
         self.layout_info = [{"seed": 0, "tag": self.tag}]
         if self.layout_tag:
@@ -326,14 +342,15 @@ class Builder:
                     continue
                 if self.only is not None and f"{fam}:{idx}" not in self.only:
                     with np.load(self.src / f"{fam}_{name}.npz") as zz:
-                        self.vals_all[fam].append(np.round(zz["vals"].astype(np.float64), 6).tolist())
+                        self.vals_all[fam].append(np.round(zz["vals"][:self.M].astype(np.float64), 6).tolist())
                     continue
                 srcf = self.src / f"{fam}_{name}.npz"
                 z = np.load(srcf)
                 stampf = self.d / "blk" / fam / str(idx) / "stamp.txt"
-                stamp = f"{BLOCK_FORMAT}|{self.tag}|{srcf.stat().st_mtime_ns}|{srcf.stat().st_size}|{self.points_stamp}"
+                trim = f"|rules0-{self.M - 1}" if self.M < len(self.meta["modes"]) else ""     # DotBuilder may ship leading rules only
+                stamp = f"{BLOCK_FORMAT}|{self.tag}{trim}|{srcf.stat().st_mtime_ns}|{srcf.stat().st_size}|{self.points_stamp}"
                 if stampf.exists() and stampf.read_text() == stamp:
-                    self.vals_all[fam].append(np.round(z["vals"].astype(np.float64), 6).tolist())
+                    self.vals_all[fam].append(np.round(z["vals"][:self.M].astype(np.float64), 6).tolist())
                     log(f"  {fam} {name}: unchanged, kept")
                     continue
                 n_bc0 = len(self.browser_corr)
@@ -347,7 +364,7 @@ class Builder:
                 lab, rot, perm = z["seba_label"], z["seba_rot"], z["seba_perm"]
                 rpsi, rseba = z["retention_psi"], z["retention_seba"]
                 gpsi, gseba = (z["gain_psi"], z["gain_seba"]) if product else (None, None)
-                self.vals_all[fam].append(np.round(vals.astype(np.float64), 6).tolist())
+                self.vals_all[fam].append(np.round(vals[:self.M].astype(np.float64), 6).tolist())
                 for mi in range(self.M):
                     P = len(pairs)
                     rep_all, pn_all, bc_all = [], [], []
@@ -409,6 +426,146 @@ class Builder:
             log("warning (int8 vecs): " + msg)
         log(f"blocks: {total_bytes / 1e6:.1f} MB gzipped ({raw_bytes / 1e6:.1f} MB raw); SEBA recompute min agreement {worst_agree:.4f}")
 
+    # ------------------------------------------------------------------ coarse-graining add-ons (SPEC_COARSE.md 3, 5)
+    def coarse(self):
+        """Cosine root only. From data/<tag>/coarse/coarse_<step>_<rule>.npz and coarse_summary.json (coarse_modal.py,
+        coarse_summary.py) write three lazily loaded add-ons; the blk/ format and n_vecs are untouched:
+          ext/<fam>/<t>/<rule>/<pair>.bin.gz   psi_9..psi_32 of the layer average (fam "layer") and of the ordered
+                                               product's start / end side ("layerprodR" / "layerprodL"); layout in
+                                               meta.coarse.ext. A single cell (a == b) is stored once, under "layer"
+                                               (all three operators coincide there).
+          km/<step>_<rule>/<pair>.bin.gz       spectral k-means partitions, k = 2..16, start side then (chains) end side,
+                                               4 bits per image, groups renumbered by decreasing size (display only)
+          coarse/<step>_<rule>.json.gz         per block: spectrum (top 65), retention ceilings F_k, gap reports, the
+                                               chi^2 scores of every partition method (4 significant digits)
+        Which rules ship for chains is decided from the measured compressed size (EXT_CAP; recorded in meta)."""
+        cdir, summ = self.src / "coarse", self.src / "coarse_summary.json"
+        files = {(t, r): cdir / f"coarse_{s}_{r}.npz" for t, s in enumerate(self.steps) for r in range(self.M)}
+        roots = [self.d / x for x in ("ext", "km", "coarse")]
+        if not summ.exists() or not all(f.exists() for f in files.values()):
+            for q in roots:
+                shutil.rmtree(q, ignore_errors=True)
+            log("coarse: no data/<tag>/coarse/ (or coarse_summary.json): explorer coarse-graining add-ons not built")
+            return
+        pairs = [tuple(p) for p in self.meta["layer_pairs"]]
+        assert pairs == [(a, b) for a in range(self.S) for b in range(a, self.S)], "coarse npz pair order differs from layer_pairs"
+        stamp = f"{COARSE_FORMAT}|{EXT_CAP}|{summ.stat().st_mtime_ns}|" + "|".join(f"{f.stat().st_mtime_ns}" for f in files.values())
+        index = self.d / "coarse" / "index.json"
+        if index.exists():
+            old = json.loads(index.read_text())
+            if old.get("stamp") == stamp:
+                self.coarse_meta = old["meta"]
+                log("coarse add-ons: unchanged, kept")
+                return
+        t0 = time.time()
+        for q in roots:
+            shutil.rmtree(q, ignore_errors=True)
+        sys.path.insert(0, str(ROOT))
+        from coarse_summary import block_gap        # the same descriptive gap rule as coarse_summary.json
+        S_ = json.loads(summ.read_text())
+        K, methods = S_["K"], S_["methods"]
+        g4 = lambda x: None if x is None or not np.isfinite(x) else float(f"{float(x):.4g}")
+        L4 = lambda a: [g4(x) for x in a]
+        cell_of = [a == b for a, b in pairs]
+        n, NE, first = self.n, 24, 9
+        lay = {"vals": {"offset": 0, "dtype": "f32", "count": 33}, "scale": {"offset": 132, "dtype": "f32", "count": NE},
+               "vecs": {"offset": 132 + 4 * NE, "dtype": "i8", "count": NE * n}}
+        ext_bytes = 132 + 4 * NE + NE * n
+        ks = list(range(2, 17))
+        half = (n + 1) // 2
+
+        def q8(v):     # int16 -> int8 with the blk/ rule: a non-zero entry never rounds to 0 (nodal signs stay exact)
+            q = np.round(v.astype(np.float64) * 127.0 / 32767.0)
+            return np.clip(np.where((q == 0) & (v != 0), np.sign(v), q), -127, 127).astype(np.int8)
+
+        def nib(lab):  # (k, N) int8 in 0..15 -> (k, ceil(N/2)) uint8, low nibble = even index
+            v = lab.astype(np.uint8)
+            if v.shape[-1] % 2:
+                v = np.concatenate([v, np.zeros(v.shape[:-1] + (1,), np.uint8)], -1)
+            return (v[..., 0::2] | (v[..., 1::2] << 4)).astype(np.uint8)
+
+        def by_size(lab):   # renumber groups by decreasing size (ties: first occurrence); display only
+            out = np.empty_like(lab)
+            for i, row in enumerate(lab):
+                u, first_i, cnt = np.unique(row, return_index=True, return_counts=True)
+                order = u[np.lexsort((first_i, -cnt))]
+                m_ = np.zeros(int(row.max()) + 1, np.int8); m_[order] = np.arange(len(order))
+                out[i] = m_[row]
+            return out
+
+        sizes = {"ext_cells": 0, "ext_chains": {}, "km_cells": 0, "km_chains": {}, "coarse": 0}
+        written = []      # (path, bytes, rule, is_cell, kind) so the chains of unshipped rules can be dropped afterwards
+
+        def put(rel, data, rule, cell, kind):
+            gz = gzip.compress(data, compresslevel=6, mtime=0)
+            write(self.d / rel, gz)
+            written.append((self.d / rel, len(gz), rule, cell, kind))
+            if cell:
+                sizes[kind + "_cells"] += len(gz)
+            else:
+                sizes[kind + "_chains"][rule] = sizes[kind + "_chains"].get(rule, 0) + len(gz)
+
+        for (t, r), f in files.items():
+            step = self.steps[t]
+            z = np.load(f)
+            unit = S_["units"][f"{step}_{r}"]
+            for fam, pre in EXT_FAMS.items():
+                vals_all = z["avg_vals"] if pre == "avg" else z["sv"]
+                vecs, scale = z[f"{pre}_vecs"], z[f"{pre}_scale"]
+                assert vecs.shape[1] == NE, vecs.shape
+                for pi, cell in enumerate(cell_of):
+                    if cell and fam != "layer":
+                        continue
+                    blob = f32(vals_all[pi, :33]).tobytes() + f32(scale[pi]).tobytes() + q8(vecs[pi]).tobytes()
+                    assert len(blob) == ext_bytes
+                    put(f"ext/{fam}/{t}/{r}/{pi}.bin.gz", blob, r, cell, "ext")
+            ls, le = z["lab_start"], z["lab_end"]
+            assert ls.min() >= 0 and le.min() >= 0 and ls.max() < 16 and le.max() < 16, "k-means labels outside 0..15"
+            for pi, cell in enumerate(cell_of):
+                data = nib(by_size(ls[pi])).tobytes() + (b"" if cell else nib(by_size(le[pi])).tobytes())
+                put(f"km/{step}_{r}/{pi}.bin.gz", data, r, cell, "km")
+            blocks = []
+            for pi, (a, b) in enumerate(pairs):
+                u = unit[pi]
+                assert (u["a"], u["b"]) == (a, b)
+                cell = a == b
+                rec = {"sv": L4(u["sv"]), "F": L4(u["F"]), "total": g4(u["total"]), "gap": u["gap"],
+                       "avg": L4(z["avg_vals"][pi, :65]), "avg_gap": block_gap(z["avg_vals"][pi].astype(float), True)}
+                keys = ["I_start", "I_end", "I_two", "keff_start", "keff_end"] + (["ncut", "maxleak"] if cell else [])
+                rec["m"] = {mt: {k: L4(u[mt][k]) for k in keys} for mt in methods}
+                if cell:
+                    rec["kyfan"], rec["cheeger_lo"] = L4(u["kyfan"]), L4(u["cheeger_lo"])
+                blocks.append(rec)
+            data = json.dumps({"step": step, "rule": r, "blocks": blocks}, separators=(",", ":"), allow_nan=False).encode()
+            gz = gzip.compress(data, compresslevel=9, mtime=0)
+            write(self.d / "coarse" / f"{step}_{r}.json.gz", gz)
+            sizes["coarse"] += len(gz)
+            log(f"  coarse {step} rule {r}: {time.time() - t0:.0f} s")
+        # chains: every rule if the extension fits EXT_CAP, else the default rule only (SPEC_COARSE.md section 3)
+        ext_all = sizes["ext_cells"] + sum(sizes["ext_chains"].values())
+        chain_rules = list(range(self.M)) if ext_all <= EXT_CAP else [self.default_mode]
+        for path, nb, r, cell, kind in written:
+            if not cell and r not in chain_rules:
+                path.unlink()
+        ext_shipped = sizes["ext_cells"] + sum(v for r, v in sizes["ext_chains"].items() if r in chain_rules)
+        km_shipped = sizes["km_cells"] + sum(v for r, v in sizes["km_chains"].items() if r in chain_rules)
+        note = ("all rules" if len(chain_rules) == self.M else
+                f"single cells: all rules; multi-site blocks: rule {self.default_mode} ({self.modes[self.default_mode]}) only "
+                f"(all rules would be {ext_all / 1e6:.0f} MB gzipped, over the {EXT_CAP / 1e6:.0f} MB target)")
+        self.coarse_meta = {
+            "format": COARSE_FORMAT, "K": K, "methods": methods, "ks": ks, "steps": self.steps,
+            "ext": {"first": first, "last": first + NE - 1, "fields": lay, "bytes": ext_bytes, "fams": list(EXT_FAMS),
+                    "cells_under": "layer", "rules_cells": list(range(self.M)), "rules_chains": chain_rules,
+                    "quant": "int8 round(127 psi / max|psi|), non-zero floor; psi = vecs * scale / 127",
+                    "gz_bytes": ext_shipped, "gz_bytes_all_rules": ext_all, "note": note},
+            "km": {"ks": ks, "half": half, "rules_cells": list(range(self.M)), "rules_chains": chain_rules, "gz_bytes": km_shipped,
+                   "note": "spectral k-means (Lloyd on the top k-1 spectral coordinates, coarse_modal.py); groups renumbered by decreasing size"},
+            "summary": {"gz_bytes": sizes["coarse"], "rules": list(range(self.M)), "sig_digits": 4},
+        }
+        write(index, json.dumps({"stamp": stamp, "meta": self.coarse_meta}).encode())
+        log(f"coarse add-ons ({time.time() - t0:.0f} s): ext {ext_shipped / 1e6:.1f} MB gz shipped (all rules {ext_all / 1e6:.1f} MB; "
+            f"chain rules {chain_rules}), k-means labels {km_shipped / 1e6:.1f} MB, summaries {sizes['coarse'] / 1e6:.1f} MB")
+
     # ------------------------------------------------------------------ JSON copies + derived
     def small_json(self):
         for name in ["decod.json", "curves.json", "avgprod.json", "normalisation_compare.json", "sweep.json", "product_summary.json"]:
@@ -437,7 +594,9 @@ class Builder:
             "kappa_q90": rnd(fl("kappa_q90")), "self_weight": rnd(fl("self_weight")), "nn_mass": rnd(mass), "seba_r": self.seba_r, "n_vecs": N_VECS, "n": self.n,
             "classes": m["classes"], "rule": m.get("rule", ""), "layer_pairs": m["layer_pairs"], "time_pairs": m["time_pairs"],
             "vals": self.vals_all, "block_layout": self.layouts_blk, "n_fun": self.n_fun, "browser_seba_corr": getattr(self, "browser_seba", None),
-            "points_fields": self.points_fields, "layouts": self.layout_info,
+            "points_fields": self.points_fields, "layouts": self.layout_info, "kernel": m.get("kernel", "cosine"),
+            "shared_fingerprint": shared_fingerprint(self.src, m), **self.extra_meta,
+            **({"coarse": self.coarse_meta} if self.coarse_meta else {}),
             "val_acc": self.val_acc, "sprite_cols": self.sprite_cols, "palette": self.palette,
             "source_meta": {k: v for k, v in m.items() if k not in ("kappa", "kappa_q10", "kappa_q90", "self_weight", "nn_mass", "layer_pairs", "time_pairs", "steps", "sites", "modes", "classes")},
         }
@@ -489,6 +648,13 @@ class Builder:
                     sys.exit(f'assets/questions.json["facts"]["{k}"]: expected a string or number, got {type(v).__name__}')
                 self.facts[f"q.{k}"] = v if isinstance(v, str) else f"{v:,}" if isinstance(v, int) else f"{v:.3g}"
             log(f"facts: {len(qf)} q.* facts from assets/questions.json")
+        # Coarse-graining facts (coarse_summary.py --facts-only), quoted as {{fact:c.<name>}}.
+        for k in [k for k in self.facts if k.startswith("c.")]:
+            del self.facts[k]
+        cp = self.src / "coarse_facts.json"
+        if cp.exists():
+            for k, v in json.loads(cp.read_text()).items():
+                self.facts[f"c.{k}"] = v if isinstance(v, str) else f"{v:,}" if isinstance(v, int) else f"{v:.3g}"
         (self.d / "facts.json").write_text(json.dumps(self.facts, indent=1))
 
     # ------------------------------------------------------------------ HTML
@@ -587,6 +753,154 @@ class Builder:
         return re.sub(r"""((?:src|href)=")((?:js|css)/[A-Za-z0-9_-]+\.(?:js|css))(")""", rf"\1\2?v={v}\3", page)
 
 
+# ----------------------------------------------------------------------------------------------- dot-kernel root
+def shared_fingerprint(src: Path, m: dict) -> str:
+    """sha256 over what two data roots must share to be shown side by side: the grid (steps, sites, n), every probe.npz
+    array (idx, labels, images) and the per-image diagnostics (points_<step>.npz contents, which the dot root reads
+    from d/). Written into each root's meta.json; kernels.json advertises d_dot/ only when it equals d/'s."""
+    import hashlib
+    h = hashlib.sha256(json.dumps([m["steps"], m["sites"], m["n"]]).encode())
+    files = [src / "probe.npz"] + [src / f"points_{s}.npz" for s in m["steps"]]
+    for f in files:
+        h.update(f.name.encode())
+        if not f.exists():
+            h.update(b"<missing>")
+            continue
+        with np.load(f) as z:
+            for k in sorted(z.files):
+                a = np.ascontiguousarray(z[k])
+                h.update(f"{k}|{a.dtype.str}|{a.shape}".encode()); h.update(a.tobytes())
+    return h.hexdigest()[:20]
+
+
+def tree_state(p: Path) -> list:
+    return sorted((str(q.relative_to(p)), q.stat().st_size, q.stat().st_mtime_ns) for q in p.rglob("*") if q.is_file())
+
+
+def tree_bytes(p: Path) -> int:
+    return sum(q.stat().st_size for q in p.rglob("*") if q.is_file()) if p.exists() else 0
+
+
+class DotBuilder(Builder):
+    """viewer/site/d_dot/: the dot-kernel measurement (data/<dot_tag>, schema v2, meta "kernel": "dot") in d/'s formats.
+    Ships meta.json, umap_<i>.bin (seed 0, Procrustes onto the cosine seed-0 layout, and the spectral layout) and blk/.
+    Labels, sprite and points are kernel-independent copies: checked equal to the cosine tag's and read from d/.
+    Never touches anything outside d_dot/. rules: 'auto' (all unless the site would pass SIZE_CAP, then 0-1), 'all', or a
+    count of leading rules."""
+
+    def __init__(self, tag: str, cos_tag: str, clean: bool, rules: str = "auto", allow_missing: bool = False):
+        super().__init__(tag, None, None, False, clean)
+        self.d = OUT / DOT_ROOT
+        self.cos_src = ROOT / "data" / cos_tag
+        self.only, self.allow_missing, self.baselines, self.alignment = None, allow_missing, None, None
+        if self.meta.get("kernel") != "dot":
+            sys.exit(f"{self.src}/meta.json: expected \"kernel\": \"dot\", got {self.meta.get('kernel')!r}")
+        cm = json.loads((self.cos_src / "meta.json").read_text())
+        for k in ("steps", "sites", "n", "seba_r", "n_vecs", "classes", "layer_pairs", "time_pairs"):
+            if cm.get(k) != self.meta.get(k):
+                sys.exit(f"--dot-tag {tag}: '{k}' differs from {cos_tag}; the two kernels must share the grid")
+        if cm["modes"] != self.meta["modes"][:len(cm["modes"])]:
+            sys.exit(f"--dot-tag {tag}: rule list differs from {cos_tag}")
+        self.rules = rules
+
+    def choose_rules(self) -> int:
+        M = len(self.meta["modes"])
+        if self.rules == "all":
+            return M
+        if self.rules != "auto":
+            return max(1, min(M, int(self.rules)))
+        # projection: the site without d_dot plus, per rule, what the cosine root's blocks for that rule weigh
+        cos_d = OUT / "d" / "blk"
+        per = [sum(tree_bytes(q / str(mi)) for q in cos_d.glob("*/*")) for mi in range(M)]
+        rest = sum(tree_bytes(q) if q.is_dir() else q.stat().st_size for q in OUT.iterdir() if q.name != DOT_ROOT)
+        proj = rest + sum(per) + 3e6
+        K = M if proj <= SIZE_CAP else 2
+        log(f"dot root: site without d_dot {rest / 1e6:.0f} MB; projected with all {M} dot rules {proj / 1e6:.0f} MB "
+            f"(cap {SIZE_CAP / 1e6:.0f} MB) -> shipping rules 0-{K - 1}")
+        return K
+
+    def trim(self, K: int):
+        self.M = K
+        self.modes = self.meta["modes"][:K]
+        for key in ("kappa", "kappa_q10", "kappa_q90", "self_weight", "nn_mass"):
+            if key in self.meta:
+                self.meta[key] = self.meta[key][:K]
+        if self.default_mode >= K:
+            self.default_mode = 0
+        self.extra_meta = {"kernel_label": DOT_LABEL, "shared_from": "d", "modes_all": self.meta["modes"],
+                           "modes_note": "" if K == len(self.meta["modes"]) else
+                           f"rules {K}-{len(self.meta['modes']) - 1} not shipped (site size cap {SIZE_CAP / 1e6:.0f} MB)",
+                           "layouts_note": "seed 0 and spectral only (no seed-1 dot layout); seed 0 rotated onto the cosine seed-0 layout"}
+
+    def check_shared(self):
+        """labels, images and per-image diagnostics are copies of the cosine tag's: the browser reads them from d/."""
+        a, b = np.load(self.src / "probe.npz"), np.load(self.cos_src / "probe.npz")
+        for k in sorted(set(a.files) | set(b.files)):
+            if k not in a.files or k not in b.files or not np.array_equal(a[k], b[k]):
+                sys.exit(f"{self.src}/probe.npz: '{k}' differs from {self.cos_src.name}; the kernels must share the probe")
+        for step in self.steps:
+            fa, fb = self.src / f"points_{step}.npz", self.cos_src / f"points_{step}.npz"
+            if not fa.exists():
+                continue
+            with np.load(fa) as pa, np.load(fb) as pb:
+                for k in set(pa.files) & set(pb.files):
+                    if not np.array_equal(pa[k], pb[k], equal_nan=pa[k].dtype.kind == "f"):
+                        sys.exit(f"{fa.name}: '{k}' differs from {self.cos_src.name}; per-image diagnostics are kernel-independent")
+        self.points_stamp = "|".join(f"{(self.src / f'points_{s}.npz').stat().st_mtime_ns}" for s in self.steps if (self.src / f'points_{s}.npz').exists())
+
+    def run(self):
+        t0 = time.time()
+        K = self.choose_rules()
+        self.trim(K)
+        if self.d.exists():
+            if self.clean:
+                shutil.rmtree(self.d)
+            else:      # keep block chunks (incremental, stamped); drop rules no longer shipped
+                for q in self.d.iterdir():
+                    if q.name not in ("blk", "meta.json"):
+                        shutil.rmtree(q) if q.is_dir() else q.unlink()
+                for q in self.d.glob("blk/*/*/*"):
+                    if q.is_dir() and q.name.isdigit() and int(q.name) >= K:
+                        shutil.rmtree(q)
+        self.d.mkdir(parents=True, exist_ok=True)
+        self.check_shared()
+        cm = json.loads((OUT / "d" / "meta.json").read_text())       # the cosine root, built first
+        self.palette, self.sprite_cols, self.points_fields = cm["palette"], cm["sprite_cols"], cm["points_fields"]
+        self.ref0 = procrustes_chain(np.stack([np.load(self.cos_src / f"umap_{s}.npy") for s in self.steps]))
+        self.layouts()
+        self.blocks()
+        self.val_acc = cm["val_acc"]
+        self.write_meta()
+        log(f"wrote {self.d}: {tree_bytes(self.d) / 1e6:.1f} MB, rules {self.modes} ({time.time() - t0:.0f} s)")
+
+
+def link_kernels():
+    """viewer/site/kernels.json: the other data roots the explorer may offer (only d_dot/ for now), read from each root's
+    own meta.json. A root is listed only if its shared_fingerprint equals d/'s (same grid, probe and per-image data),
+    so a preserved d_dot/ built against another probe is never advertised. Writes nothing inside d/ or d_dot/."""
+    out = {}
+    mp, dp = OUT / "d" / "meta.json", OUT / DOT_ROOT / "meta.json"
+    if mp.exists() and dp.exists():
+        cm, dm = json.loads(mp.read_text()), json.loads(dp.read_text())
+        fc, fd = cm.get("shared_fingerprint"), dm.get("shared_fingerprint")
+        if fc and fc == fd:
+            out["dot"] = {"root": DOT_ROOT, "tag": dm["tag"], "label": DOT_LABEL, "modes": dm["modes"], "fingerprint": fd}
+            log(f"kernel switch: {DOT_ROOT}/ ({dm['tag']}, rules {len(dm['modes'])})")
+        else:
+            log(f"warning: {DOT_ROOT}/ ({dm.get('tag')}) does not match d/ ({cm.get('tag')}): shared fingerprint {fd} != {fc}; "
+                f"not offered in the explorer (rebuild it with --dot-tag)")
+    (OUT / "kernels.json").write_text(json.dumps(out, separators=(",", ":")))
+
+
+def report_size(t0: float):
+    tot = tree_bytes(OUT)
+    nfiles = sum(1 for p in OUT.rglob("*") if p.is_file())
+    log(f"wrote {OUT}: {tot / 1e6:.1f} MB in {nfiles} files (of which {DOT_ROOT}/ {tree_bytes(OUT / DOT_ROOT) / 1e6:.1f} MB) "
+        f"({time.time() - t0:.0f} s)")
+    if tot > SIZE_CAP * 1.02:
+        log(f"warning: the site is over the {SIZE_CAP / 1e6:.0f} MB cap; rebuild with --dot-rules 2")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("tag")
@@ -600,6 +914,9 @@ def main():
     ap.add_argument("--clean", action="store_true", help="discard all previous output, including block chunks")
     ap.add_argument("--baselines", default=None, help="data tag of the baselines study (e.g. r20s0c): explorer 'Sets from' data + Baselines and nulls tab")
     ap.add_argument("--alignment", default=None, help="spectral-alignment data directory (e.g. ../spectral_align/data): the Alignment tab")
+    ap.add_argument("--dot-tag", default=None, help=f"data tag of the dot-kernel measurement (e.g. r20s0d): second data root {DOT_ROOT}/, the explorer's Kernel switch")
+    ap.add_argument("--dot-rules", default="auto", help="dot root: 'auto' (all rules unless the site would pass 800 MB, then 0-1), 'all', or a number of leading rules")
+    ap.add_argument("--dot-only", action="store_true", help=f"rebuild only {DOT_ROOT}/ (needs a previous build of <tag>, the cosine root); touches nothing else")
     a = ap.parse_args()
     if a.facts:
         p = OUT / "d" / "facts.json"
@@ -613,6 +930,18 @@ def main():
     b.allow_missing = a.allow_missing
     b.baselines = a.baselines
     b.alignment = a.alignment
+    b.dot_tag, b.dot_rules = a.dot_tag, a.dot_rules
+    if a.dot_only:
+        if not a.dot_tag or not (OUT / "d" / "meta.json").exists():
+            sys.exit("--dot-only needs --dot-tag and a previous build of the cosine root")
+        t0 = time.time()
+        before = tree_state(OUT / "d")
+        DotBuilder(a.dot_tag, a.tag, a.clean, a.dot_rules, a.allow_missing).run()
+        link_kernels()
+        if tree_state(OUT / "d") != before:      # --dot-only must never write inside the cosine root
+            sys.exit(f"--dot-only changed files under {OUT / 'd'}: this is a bug in build_site.py")
+        report_size(t0)
+        return
     if a.html_only:   # development: re-copy static files and re-assemble index.html from the previous build's data
         b.facts = json.loads((OUT / "d" / "facts.json").read_text())
         b.copy_static(); b.assemble_html()

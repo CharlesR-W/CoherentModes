@@ -31,6 +31,28 @@ def centred_cosine_gram(x: torch.Tensor) -> torch.Tensor:
     return c.clamp(-1.0, 1.0)
 
 
+def centred_dot_gram(x: torch.Tensor) -> torch.Tensor:
+    """x: (N, D). Centre over the probe set, divide by the RMS row norm, return G = X X^T (no row normalization)."""
+    x = x.reshape(x.shape[0], -1).double()
+    x = x - x.mean(0, keepdim=True)
+    g = x @ x.T
+    return g / g.diagonal().mean()
+
+
+def dot_effective_cosine(g: torch.Tensor) -> torch.Tensor:
+    """c_eff = 1 - D with D_ij = (G_ii + G_jj)/2 - G_ij = |x_i - x_j|^2/2 (SPEC_DOT.md section 1).
+
+    Every rule in sweep_math reads its distances as 1 - c, so passing c_eff runs the cosine
+    rules on the half squared Euclidean distance of the unnormalized rows. With unit rows,
+    c_eff equals the cosine Gram exactly. Exact zero on the diagonal.
+    """
+    g = g.double()
+    d = (g.diagonal()[:, None] + g.diagonal()[None, :]) / 2 - g
+    d = d.clamp_min(0)
+    d.diagonal().zero_()
+    return 1 - d
+
+
 def knn_dist(c: torch.Tensor, k: int) -> torch.Tensor:
     """Per-point cosine distance (1 - cos) to the k-th nearest other point."""
     d = 1.0 - c

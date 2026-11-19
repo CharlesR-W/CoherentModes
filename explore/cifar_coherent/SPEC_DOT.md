@@ -94,3 +94,31 @@ all five rules only if the total site stays under ~800 MB; otherwise rules 0–1
 
 Modal ≤ $15 total (estimate: dot pipeline ≈ $3.5, GGN/NTK ≈ $1, comparisons ≈ $0.5). No commits or pushes without
 the owner's request.
+
+## 7. Revisions after plan review (GPT-6.2 Sol, 2026-11-19)
+
+1. **Fixed GGN reference.** The headline is a paired difference against a *fixed* reference: for each gradient-side
+   Gram R (GGN-cos, GGN-dot, NTK-cos, NTK-dot, loss-gradient-cos), agreement(dot site, R) − agreement(cos site, R),
+   reported for every R (the full site-form × reference-form grid). Gradient views follow the activation order:
+   centre the features over the probe first (double-centring the Gram, HKH), then (cos form) normalize rows; rows
+   with centred norm below 1e-8 × median raise. CKA uses the linear, double-centred Grams of the *feature-centred*
+   views named explicitly: site-dot G, site-cos C, GGN K, NTK K, each normalized as stated.
+2. **Raw dot product (maximum inner product) diagnostic.** Euclidean is the matched "no row normalization" variant
+   and is labelled "dot (Euclidean)" in the explorer. Separately, rule 0 built from raw-dot ranking (top-15 by G_ij
+   on centred activations, union, same scaling) at steps 2,560 and 64,000: neighbour overlap with cosine and
+   Euclidean, in-degree hubness, and r = 4/10 span agreement with both. The exp(κG) ≡ exp(−κD) identity holds at a
+   fixed κ; the calibrated rules 3–4 calibrate on D.
+3. **Separate float64 analysis pass.** The schema exports 8 nontrivial modes and SEBA r ≤ 8, so the comparisons do
+   not read the viewer files. A Modal analysis pass recomputes from the saved float64 operators (and averages for
+   blocks) the leading 33 modes; span ranks exclude the constant, SEBA ranks include it; each comparison records
+   λ_r − λ_{r+1} at its cutoff (both operators) so a near-tie is visible.
+4. **Probe.** The 2,000-image probe was stratified by label (200 per class) for the whole study; this comparison
+   inherits it for pairing with the existing results. Kernels and bases use no labels, but the sample was chosen
+   with them. Disclosed; not re-probed.
+5. **Explorer.** Two data roots (`d/`, `d_dot/`) built together; the builder must not delete the other root;
+   every client cache and the explorer context are keyed by kernel; prose figures, baselines and alignment stay on
+   cosine. Seed-1 layout and any unshipped rule are disabled under dot. Test cosine → dot → cosine on one block,
+   with rapid switching.
+6. **Budget gate.** Coordinator guard for `r20s0d` at $10. GGN: one-checkpoint pilot (peak memory, time) before
+   fan-out; J (2,000 × 10 × 0.27M, float32 ≈ 22 GB) held on an 80 GB GPU, Grams by tiled matmul with float64
+   accumulation. Arc-cosine is dropped first if the budget tightens.

@@ -12,6 +12,8 @@ without them.</p>
 <li><a href="#findings/f-depth">Where depth redraws the grouping</a></li>
 <li><a href="#findings/f-block-vs-cell">One snapshot's split against a block's</a></li>
 <li><a href="#findings/f-gradients">The sets and the training signal</a></li>
+<li><a href="#findings/f-coarse">What a k-block partition can keep</a></li>
+<li><a href="#findings/f-markov">Is the coarse-grained walk through the layers Markov?</a></li>
 <li><a href="#findings/qualitative">Readings from the images themselves (coming)</a></li>
 <li><a href="#findings/next-checks">Checks I'd like to run</a></li>
 </ol></nav>
@@ -367,6 +369,169 @@ on the same images would show how much of this coherence remains without the lab
 
 <p><b>Try it.</b> Open <a class="explore-link" href="#explorer?tour=b9-all-training">b9's sets over all of
 training</a> and switch the colouring to the gradient cosine with the mean gradient, checkpoint by checkpoint.</p>
+
+<!-- ============================================================ 6 -->
+<h2 id="f-coarse">6. What a k-block partition can keep</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>The <b>coarse-graining card</b> in the explorer's side panel. Every operator here is doubly stochastic, so it defines a
+coupling between "an image" and "where the walk takes it": a single snapshot $M$ couples an image with a neighbour at
+the same site, and a layer chain $Q = M_b \cdots M_a$ couples the image at site $a$ with an image at site $b$. The card
+asks how much of that coupling a partition of the images into $k$ blocks can keep, and how close the spectral
+partitions come to the best possible. Open it on
+<a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=km&amp;km=10">the b9 snapshot</a> or
+<a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=11&amp;m=0&amp;op=start&amp;c=km&amp;km=10">the chain b9 to logits</a>.</p></div>
+
+<p><b>The statements</b> <em>(theorems about this operator, standard results for couplings and reversible chains; each is checked
+numerically in <code>test_coarse.py</code>).</em> Let $Q = \sum_i \sigma_i\, a_i b_i^\top$ be the singular value decomposition, with
+$\sigma_1 = 1$ for the constant. Measure dependence by the $\chi^2$ mutual information,
+$I(X;Y) = \lVert Q \rVert_F^2 - 1 = \sum_{i \ge 2} \sigma_i^2$, which agrees with Shannon's to leading order near
+independence. For a partition $c$ of the start images into $k$ blocks:</p>
+<ul>
+<li><b>Loss is spread in the spectral embedding</b> (exact). With $\Psi(x) = \sqrt N\,(\sigma_2 b_2(x), \sigma_3 b_3(x), \dots)$,
+$$ I(X;Y) - I(c(X);Y) \;=\; \frac1N \sum_x \big\lVert \Psi(x) - \bar\Psi_{c(x)} \big\rVert^2 , $$
+the within-block variance. So k-means in $\Psi$ <em>is</em> the problem of keeping the most information, and the
+level sets of $\Psi$ are the partitions that lose none.</li>
+<li><b>Ceiling.</b> No $k$-block partition keeps more than $F_k = \sigma_2^2 + \dots + \sigma_k^2$ (Eckart&ndash;Young);
+the same ceiling holds when both ends are partitioned. It is reached exactly when $b_2, \dots, b_k$ are constant on
+the blocks.</li>
+<li><b>Leakage</b> (single snapshots, where $M$ is symmetric). The per-step probability $\varphi_j$ of leaving block
+$j$ satisfies $\sum_j \varphi_j \ge \sum_{i \le k} (1 - \lambda_i)$ (Ky Fan) and $\max_j \varphi_j \ge (1 - \lambda_k)/2$
+(the lower side of the higher-order Cheeger inequality).</li>
+</ul>
+
+<p><b>What is plotted.</b> For $k = 2, \dots, 32$: the ceiling $F_k$, and what four partitions actually keep. These are
+k-means on the top $k-1$ coordinates of $\Psi$ (the construction the first statement suggests), SEBA, k-means on the
+top 50 principal components of the activations (a baseline with no operator in it), and random balanced partitions
+(the null). The CIFAR classes and the network's predictions appear as validation markers only. They never choose
+$k$, a mode or a rule.</p>
+
+<p><b>Claim 1</b> <em>(observed).</em> Spectral k-means comes close to the ceiling everywhere, and much closer than the
+classes do until the last layers. At the final checkpoint with $k = 10$, averaged over the five rules, single
+snapshots keep this fraction of $F_{10}$:</p>
+<div class="table-scroll"><table class="data">
+<tr><th></th><th>spectral k-means</th><th>SEBA</th><th>PCA k-means</th><th>random</th><th>classes</th><th>predictions</th></tr>
+<tr><td>stem</td><td>{{fact:c.cell.stem.spectral}}</td><td>{{fact:c.cell.stem.seba}}</td><td>{{fact:c.cell.stem.pca}}</td><td>{{fact:c.cell.stem.random}}</td><td>{{fact:c.cell.stem.labels}}</td><td>{{fact:c.cell.stem.pred}}</td></tr>
+<tr><td>b6</td><td>{{fact:c.cell.b6.spectral}}</td><td>{{fact:c.cell.b6.seba}}</td><td>{{fact:c.cell.b6.pca}}</td><td>{{fact:c.cell.b6.random}}</td><td>{{fact:c.cell.b6.labels}}</td><td>{{fact:c.cell.b6.pred}}</td></tr>
+<tr><td>b9</td><td>{{fact:c.cell.b9.spectral}}</td><td>{{fact:c.cell.b9.seba}}</td><td>{{fact:c.cell.b9.pca}}</td><td>{{fact:c.cell.b9.random}}</td><td>{{fact:c.cell.b9.labels}}</td><td>{{fact:c.cell.b9.pred}}</td></tr>
+<tr><td>logits</td><td>{{fact:c.cell.logits.spectral}}</td><td>{{fact:c.cell.logits.seba}}</td><td>{{fact:c.cell.logits.pca}}</td><td>{{fact:c.cell.logits.random}}</td><td>{{fact:c.cell.logits.labels}}</td><td>{{fact:c.cell.logits.pred}}</td></tr>
+</table></div>
+<p>Over training the classes catch up at b9, from {{fact:c.cell.b9.labels_first}} of the ceiling at step 0 to
+{{fact:c.cell.b9.labels_last}} at the end, but much less at b3 ({{fact:c.cell.b3.labels_first}} to
+{{fact:c.cell.b3.labels_last}}).</p>
+
+<p><b>Read the fractions with the absolute values next to them.</b> A single snapshot carries
+$I(X;Y)$ = {{fact:c.cell.total_min}}&ndash;{{fact:c.cell.total_max}} in total, almost all of it in fine local structure
+and in the lazy half of $M = (I+P)/2$; no 32-block partition can keep more than {{fact:c.cell.F32_max}} of it. Random
+partitions already reach about half of $F_{10}$ in a single snapshot, so the ratio to the ceiling is a tightness check,
+not evidence of grouping. (On a walk with no geometry at all, every partition attains the ceiling; that is one of the
+tests.) Over chains the null collapses: for two independent random partitions of the ends, the two-sided value is
+{{fact:c.chain.L1.two.random}} of the ceiling, against {{fact:c.chain.L1.two.spectral}} for spectral k-means on adjacent
+sites and {{fact:c.chain.L11.two.spectral}} from stem to logits. For those chains the classes keep
+{{fact:c.chain.L1.two.labels}} and {{fact:c.chain.L11.two.labels}}, and PCA k-means run separately at each end keeps
+{{fact:c.chain.L1.two.pca}} and {{fact:c.chain.L11.two.pca}}. The ceiling itself falls from {{fact:c.chain.L1.F10}}
+(adjacent sites, median) to {{fact:c.chain.L11.F10}} (stem to logits).</p>
+
+<p><b>Claim 2</b> <em>(observed).</em> There is rarely a clean spectral gap; where there is one at 10, it is late and
+deep. In single snapshots at the final checkpoint the clearest gap (on the $1 - \lambda$ scale, since laziness
+compresses ratios of $\lambda$) comes after the first nontrivial mode in {{fact:c.cell.gap2_clear}} of
+{{fact:c.cell.n_final}} cells. At b9, pool and logits, {{fact:c.cell.late_second10}} of {{fact:c.cell.late_n}} have
+their first or second candidate at $k$ between 9 and 12. The chain from b9 to logits at the last checkpoint is the
+cleanest case: $\sigma_{10}$ = {{fact:c.chain.b9_logits.s10}} against $\sigma_{11}$ = {{fact:c.chain.b9_logits.s11}}
+under the kNN graph, a clear gap after 10 under {{fact:c.chain.b9_logits.clear_rules}} of the five rules. Under the
+kNN graph it is clear only at step {{fact:c.chain.b9_logits.clear_steps_rule0}}.</p>
+
+<p><b>Claim 3</b> <em>(observed).</em> Spectral partitions leak more than the bound requires, but not by much. At
+$k = 10$, the summed leakage of spectral k-means in single snapshots is {{fact:c.cell.ncut_kf_min}}&ndash;{{fact:c.cell.ncut_kf_max}}
+times the Ky Fan lower bound over all cells (median {{fact:c.cell.ncut_kf_final_med}} at the final checkpoint).</p>
+
+<p><b>How I read it</b> <em>(reading).</em> The spectral embedding is the right space to coarse-grain in, in a precise
+sense: losing little of the coupling and being compact in $\Psi$ are the same thing, and k-means there gets most of
+what any partition could. What the spectrum does <em>not</em> give, except late in the network, is a preferred $k$. Most
+snapshots look like a continuum with one dominant direction rather than $k$ separated blocks. The 10-way structure
+the classes would suggest appears as a gap only from b9 on, at the end of training. Whether 2, 4 or 10 blocks is the
+"right" coarse-graining elsewhere is a choice of resolution, and the card shows its cost.</p>
+
+<p><b>What else it could be.</b> $\chi^2$ information weights fine structure heavily, and the lazy half inflates the
+single-snapshot totals; Shannon information would rank partitions the same way to leading order, but not with the
+same values. The gap verdicts use fixed thresholds (largest ratio at least 1.15 and 10% above the runner-up), and
+one seed. Markov closure of the coarse walk over layers is the next section.</p>
+
+<p><b>Try it.</b> In the card, switch between start side, end side and two-sided for a chain; click a $k$ to colour the
+grid by that partition; switch to "I / F_k" to see tightness. The explorer now offers $\psi_1$ to $\psi_{32}$ for layer
+blocks (all rules for single snapshots, the default rule for longer blocks), and the spectrum strip above the card
+marks the gap.</p>
+
+<!-- ============================================================ 7 -->
+<h2 id="f-markov">7. Is the coarse-grained walk through the layers Markov?</h2>
+
+<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
+<p>A walk through the network: an image after site $s$'s walk $M_s$ moves on by $M_{s+1}$. Each site carries its own
+partition into $k$ blocks, and the <b>coarse process</b> records only which block the walk is in at each site. The
+fine walk is Markov by construction. The question is whether the coarse one is: does knowing the current block
+suffice to predict the next, or does the past still help? Every number below is exact, computed from the operators
+(specification: <code>SPEC_COARSE.md</code> section 6, tests in <code>test_markov.py</code>). The values are for the
+final checkpoint at $k = 10$, medians over sites and the five rules unless stated.</p></div>
+
+<p><b>Three tests, and what each can and cannot show.</b></p>
+<ul>
+<li><b>One-step lumpability defect</b> $I(Z_s; C_{s+1} \mid C_s)$: how much the exact image still tells you about the
+next block once you know the current one. It is zero exactly when every image in a block has the same next-block
+distribution. Reported as a fraction of $I(Z_s; C_{s+1})$.</li>
+<li><b>Coarse memory</b> $I(C_{s+2}; C_s \mid C_{s+1})$, as a fraction of $H(C_{s+2} \mid C_{s+1})$: how much of the
+uncertainty about the next block that the current block leaves is removed by also knowing the previous one. A positive
+value shows the coarse process is not Markov; zero would not prove that it is.</li>
+<li><b>Chapman&ndash;Kolmogorov test</b>, the standard check for Markov state models: the true coarse transition from
+site $a$ to site $b$, against chaining the one-step coarse transitions. The error is a mass-weighted total-variation
+distance, shown beside the distance of the true transition from independence (how much there is to get wrong).</li>
+</ul>
+
+<p><b>The control matters.</b> Every walk here is lazy: an image stays put with probability $\tfrac12$ at each step.
+So image identity carries memory from site to site whenever the partitions at different sites disagree, even with no
+geometry at all. Every partition sequence is therefore also run on the <b>lazy uniform walk</b>, which keeps the
+laziness and nothing else, and the real numbers are read against it. Partition sequences: each site's own spectral
+k-means (neighbouring sites agree with normalised mutual information {{fact:c.mk.k10.spectral.nmi}}); a single
+<b>shared</b> partition (b9's spectral k-means) used at every site; PCA k-means per site; independent random
+partitions (a reference with no alignment); and the classes at every site (validation only).</p>
+
+<p><b>Claim 1</b> <em>(observed).</em> With each site's own partition, the one-step defect is large, and it is
+alignment, not geometry. A fraction {{fact:c.mk.k10.spectral.real.defect}} of the next-block information is not
+carried by the current block. The geometry-free control gives {{fact:c.mk.k10.spectral.uniform.defect}} for the same
+partitions. Most of the defect comes from images that stay put while the partition changes under them. Late in the
+network it nearly vanishes: from b9 to pool and pool to logits the defect is {{fact:c.mk.late.spectral.defect}},
+against up to {{fact:c.mk.mid.spectral.defect_max}} in the convolutional sites.</p>
+
+<p><b>Claim 2</b> <em>(observed).</em> The coarse process has real memory, about ten times the control's. Knowing the
+previous block removes {{fact:c.mk.k10.spectral.real.mem}} of the uncertainty about the next block that the current
+block leaves, against {{fact:c.mk.k10.spectral.uniform.mem}} on the uniform walk with the same partitions. It is
+largest at the end of the network ({{fact:c.mk.final.spectral.mem_logits}} for b9, pool, logits) and higher early in
+training ({{fact:c.mk.first.spectral.mem}} at step 0, control {{fact:c.mk.first.spectral.mem_unif}}). Chaining the
+one-step coarse transitions misses the true two-site transition by {{fact:c.mk.h2.spectral.real.ck}} in total variation
+(control {{fact:c.mk.h2.spectral.uniform.ck}}). Over eight sites it misses by {{fact:c.mk.h8.spectral.real.ck}}, against a
+distance of {{fact:c.mk.h8.spectral.ckind}} from independence: the composed coarse model forgets most of the
+long-range dependence that the walk keeps.</p>
+
+<p><b>Claim 3</b> <em>(observed).</em> A partition shared across sites is far closer to closed. With b9's partition at
+every site the defect is {{fact:c.mk.k10.shared.real.defect}}, the memory {{fact:c.mk.k10.shared.real.mem}}, and the
+eight-site Chapman&ndash;Kolmogorov error {{fact:c.mk.h8.shared.real.ck}} (distance from independence
+{{fact:c.mk.h8.shared.ckind}}). The classes used the same way score almost identically (defect
+{{fact:c.mk.k10.labels.real.defect}}, memory {{fact:c.mk.k10.labels.real.mem}}). On the uniform walk a shared
+partition is exactly closed, so these residuals are geometry.</p>
+
+<p><b>How I read it</b> <em>(reading).</em> Coarse-graining each layer separately and stringing the results together
+does not give a good Markov description of depth. That is mostly because the layers' own partitions do not line up,
+and partly because the walk carries information the blocks discard. A single grouping carried through all the
+layers, whether b9's or the classes', is nearly lumpable: what the network does to a block barely depends on which
+member of the block it is. That favours describing depth by one coarse state space that the layers act on over
+per-layer clusterings. It also points to the next measurement: choose the partitions <em>jointly</em> across sites
+to minimise the defect (a closure-optimal coarse-graining) rather than per site.</p>
+
+<p><b>What else it could be.</b> Laziness makes "the image stays put" the dominant memory path; the uniform control
+removes it from the comparison but not from the absolute values. Only adjacent triples and pairwise transitions are
+tested, so a process could pass these and still have longer memory. Shannon information in nats; $k = 10$ shown, and
+$k = 4$ behaves the same way (per-site defect {{fact:c.mk.k4.spectral.real.defect}} against control
+{{fact:c.mk.k4.spectral.uniform.defect}}, memory {{fact:c.mk.k4.spectral.real.mem}} against
+{{fact:c.mk.k4.spectral.uniform.mem}}). One seed.</p>
 
 <!-- ============================================================ stub -->
 <h2 id="qualitative">Readings from the images themselves (coming)</h2>

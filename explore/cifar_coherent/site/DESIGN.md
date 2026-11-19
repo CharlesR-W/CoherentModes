@@ -143,7 +143,8 @@ blocks); `a`, `b` = first and last site index (layer) or checkpoint index (time)
 `m` = kappa mode index; `c` = `seba` | `nodal` | `eig` | `class` | `loss` | `correct` | `jac` | `gcos` | `gdot` |
 `px:<stat>` (a per-image pixel statistic, `<stat>` one of `mean_r mean_g mean_b luminance contrast saturation bc_r
 bc_g bc_b bc_lum bc_dist hf_frac`; write `px%3Aluminance` or `px:luminance` in a link);
-`k` = eigenfunction 1..8; `r` = SEBA rank (2, 3, 4, 6, 8); `j` = focused set (0-based); `src` = "Sets from" source
+`k` = eigenfunction 1..8 (1..32 where the coarse add-on ships, below); `km` = number of spectral k-means blocks
+(2..16, with `c=km`), `kms` = `end` for the end-side partition of a multi-site layer block (default start); `r` = SEBA rank (2, 3, 4, 6, 8); `j` = focused set (0-based); `src` = "Sets from" source
 id (`M0` default, `L1 L2 L3 G1 G1n G2 C1first C1mid C1last C2 C3 I1 I2 I3 Y1 Y2 N3 N2a N2b N4 N5`, `js/sources.js`;
 kernel rule 0 and the average operator only; an unavailable source falls back to `M0` with a status message); `at` = `own` | `final`
 (for per-image diagnostics); `lay` = `0` | `1` (which seed's UMAP lays out the points); `tour` = a tour id (below).
@@ -293,3 +294,36 @@ Block chunks are rebuilt only when their source `.npz` changes (`--clean` forces
 `{{fact:NAME}}` values of the last build. The page works only over HTTP (it fetches data), not from `file://`.
 `python3 -m http.server` sends no cache headers, so Chrome may keep serving old `js/*.js` after a rebuild: reload with
 the cache disabled, or close and reopen the browser session (`playwright-cli -s=<name> close`).
+
+**Dot-kernel root** (SPEC_DOT.md section 5). `--dot-tag r20s0d` also builds `viewer/site/d_dot/` from the dot-kernel
+measurement (same formats as `d/`: `meta.json` with `"kernel": "dot"`, `umap_0.bin` = seed-0 layout Procrustes-rotated
+onto the cosine one, `umap_1.bin` = spectral, `blk/`; labels, sprite and points are checked equal to the cosine tag's
+and read from `d/`). `--dot-rules auto` (default) ships every rule unless the projected site passes 800 MB, then rules
+0-1 only (`meta.modes` is trimmed, `modes_all` keeps the full list); `all` or a number overrides. `viewer/site/kernels.json`
+(written by every build) points the explorer at the second root, only if its `meta.shared_fingerprint` (grid, probe.npz
+arrays, per-image data) equals `d/`'s, so a preserved `d_dot/` built from another probe is never offered. A cosine rebuild
+never deletes `d_dot/` (`--clean` included); `--dot-tag X --dot-only` rebuilds `d_dot/` and `kernels.json` only and exits
+with an error if anything under `d/` changed. A kernel switch commits the new context, block, layout, badge and hash
+together once all have loaded; a failed load reverts to the kernel on screen. In the explorer the Kernel switch (more options, hash
+`kern=dot`, localStorage `cm.explorer.kernel`) swaps the context of `explorer.js` (`context(kernel)`, one per root):
+blocks, spectra, kappa, retention, products and layouts come from it; Sets from, seed 1 and unshipped rules are disabled
+under dot; prose figures, Baselines and Alignment always read `d/`.
+
+**Coarse-graining add-ons** (SPEC_COARSE.md sections 3 and 5; cosine root, layer blocks only). When
+`data/<tag>/coarse/coarse_<step>_<rule>.npz` and `data/<tag>/coarse_summary.json` exist, `build_site.py` (`coarse()`)
+writes three lazily loaded parts of `d/`, described in `meta.coarse` and stamped in `d/coarse/index.json` (kept between
+builds like `blk/`): `ext/<fam>/<t>/<rule>/<pair>.bin.gz` (ψ9..ψ32 and the values λ/σ 0..32 of the layer average
+`layer` and of the product's start/end sides `layerprodR`/`layerprodL`, int8 with the `blk/` quantisation; a single cell
+is stored once, under `layer`); `km/<step>_<rule>/<pair>.bin.gz` (spectral k-means partitions k = 2..16, 4 bits per
+image, start side then end side, groups numbered by decreasing size); `coarse/<step>_<rule>.json.gz` (per block: top-65
+spectrum of the product and of the average, F_k, gap reports, the χ² scores of every partition method, 4 significant
+digits). The `blk/` format and `n_vecs` are unchanged (the dot root needs equal `n_vecs`). If ψ9..ψ32 for every rule
+would pass 300 MB gzipped, multi-site blocks ship (ψ9..ψ32 and k-means labels) for the default rule only and single
+cells for every rule; `meta.coarse.ext.note` says which. In the explorer: the ψ selector offers ψ1..ψ32 where the add-on
+exists (otherwise ψ is clamped to 8 with a status note; per-snapshot retention, gains and the all-blocks map are not
+shipped for ψ>8 and say so; representative images for ψ>8 are ranked in the browser from the 8-bit vector); the block
+card has a top-64 spectrum strip (log scale, gap marker, dashed when there is no clear gap); the coarse-graining card
+plots retained χ² information vs the number of occupied blocks (spectral k-means, SEBA, PCA k-means, random null,
+labels and predictions as validation markers) against the ceiling F_k, with an efficiency view and, for single cells,
+leakage over the Ky Fan and Cheeger bounds; clicking k there colours the grid by that k-means partition (`c=km`).
+All of this is hidden under the dot kernel.

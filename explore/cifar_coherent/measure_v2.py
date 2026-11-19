@@ -12,7 +12,7 @@ import sys
 import subprocess
 import time
 import modal
-from construction import FINGERPRINT,SWEEP_FINGERPRINT,PRODUCT_FINGERPRINT,cached_completion
+from construction import FINGERPRINT,SWEEP_FINGERPRINT,PRODUCT_FINGERPRINT,cached_completion,KERNEL_OF_TAG,FINGERPRINTS,PRODUCT_FINGERPRINTS
 
 HERE=Path(__file__).resolve().parent
 APP='cm-cifar-coherent-v2'
@@ -72,12 +72,13 @@ def activations(model,x):
     pool=h.mean((2,3));return acts+[pool,model.fc(pool)]
 
 
-def finished(work,name,start,cpu=2,mem=12,gpu=True,**extra):
+def finished(work,name,start,cpu=2,mem=12,gpu=True,tag=TAG,**extra):
     seconds=time.time()-start
     row=dict(unit=name,seconds=seconds,estimated_usd=seconds*((GPU_RATE if gpu else 0)+cpu*CPU_RATE+mem*MEM_RATE),
              started_at=start,completed_at=time.time(),**extra)
     if name.startswith(('extract_final5_','layer_','time_','products_')) or name in ('normalization','validation'):
-        row['construction_fingerprint']=FINGERPRINT
+        row['construction_fingerprint']=FINGERPRINTS[KERNEL_OF_TAG.get(tag,'cos')]
+    row.update(extra)
     (work/f'timing_{name}.json').write_text(json.dumps(row,allow_nan=False));vol.commit()
     return row
 
@@ -86,12 +87,14 @@ def finished(work,name,start,cpu=2,mem=12,gpu=True,**extra):
 def extract(step:int,run:str=RUN,tag:str=TAG,pcs_only:bool=False):
     import numpy as np
     import torch
-    from coherent import centred_cosine_gram,symmetric_balance
+    from coherent import centred_cosine_gram,centred_dot_gram,dot_effective_cosine,symmetric_balance
     from sweep_math import final_kernel_bank
+    kernel=KERNEL_OF_TAG.get(tag,'cos');fp=FINGERPRINTS[kernel]
     from schema_v2 import point_arrays
     environment();vol.reload();root,work=paths(tag);name=f'extract_{step}' if pcs_only else f'extract_final5_{step}';start=time.time()
     required=[root/f'pcs_{step}.npy'] if pcs_only else [work/f'operators_{step}_{si}.npy' for si in range(12)]
-    cached=cached_completion(work/f'timing_{name}.json',required,require_fingerprint=not pcs_only)
+    if kernel=='dot' and not pcs_only:required.append(root/f'pcs_{step}.npy')
+    cached=cached_completion(work/f'timing_{name}.json',required,require_fingerprint=not pcs_only,expected_fingerprint=fp)
     if cached:return cached
     model,data,idx=model_data(run,step)
     storage=[[] for _ in SITES]
@@ -107,9 +110,13 @@ def extract(step:int,run:str=RUN,tag:str=TAG,pcs_only:bool=False):
             val,v=torch.linalg.eigh(c);pcs.append((v[:,-50:]*val[-50:].clamp_min(0).sqrt()).flip(1).cpu().numpy())
         np.save(root/f'pcs_{step}.npy',np.stack(pcs).astype('f4'))
     else:
-        info_rows=[];near_one=[]
+        info_rows=[];near_one=[];pcs=[];scales=[]
         for si,a in enumerate(acts):
-            c=centred_cosine_gram(a.cuda())
+            if kernel=='dot':
+                g=centred_dot_gram(a.cuda());c=dot_effective_cosine(g)
+                scales.append(float((a.reshape(len(a),-1).double()-a.reshape(len(a),-1).double().mean(0)).pow(2).sum(1).mean()))
+                val,v=torch.linalg.eigh(g);pcs.append((v[:,-50:]*val[-50:].clamp_min(0).sqrt()).flip(1).cpu().numpy())
+            else:c=centred_cosine_gram(a.cuda())
             bank=final_kernel_bank(c);info_rows.append([info for _,info in bank])
             matrices=[]
             for logk,info in bank:
@@ -123,7 +130,9 @@ def extract(step:int,run:str=RUN,tag:str=TAG,pcs_only:bool=False):
             print('extracted',step,SITES[si],flush=True)
         fields={key:[[info[key] for info in cell] for cell in info_rows] for key in ('kappa','kappa_q10','kappa_q90','nn_mass','self_weight','sinkhorn_iterations','row_error')}
         (work/f'kappa_{step}.json').write_text(json.dumps(dict(**fields,
-            nontrivial_eigenvalues_above_0995=near_one,variant='final5 zero-diagonal fixed-lazy')))
+            nontrivial_eigenvalues_above_0995=near_one,variant='final5 zero-diagonal fixed-lazy',kernel=kernel,
+            dot_scale_mean_sq_norm=scales or None)))
+        if kernel=='dot':np.save(root/f'pcs_{step}.npy',np.stack(pcs).astype('f4'))
         channels=[a.mean((2,3)).numpy() if a.ndim==4 else a.numpy() for a in acts]
         points=point_arrays(channels,acts[-1].numpy(),data.test_y[idx].numpy(),model.fc.weight.detach().cpu().numpy(),model.fc.bias.detach().cpu().numpy())
         if (root/f'points_{step}.npz').exists():
@@ -131,9 +140,9 @@ def extract(step:int,run:str=RUN,tag:str=TAG,pcs_only:bool=False):
                 for key in ('jac_fro','grad_dot','grad_cos','grad_norm'):
                     if key in previous:points[key]=previous[key]
         np.savez_compressed(root/f'points_{step}.npz',**points)
-    if step==0:
+    if step==0 and kernel=='cos':
         np.savez_compressed(root/'probe.npz',idx=idx,labels=data.test_y[idx].numpy(),images=data.test_x[idx].permute(0,2,3,1).numpy())
-    return finished(work,name,start)
+    return finished(work,name,start,tag=tag)
 
 
 @app.function(image=image,gpu='A100-40GB',cpu=2,memory=12288,timeout=1800,max_containers=8,retries=0,volumes=VOLS)
@@ -143,7 +152,7 @@ def spectra(family:str,index:int,tag:str=TAG):
     from schema_v2 import allocate,pairs,block_record,put_record
     environment();vol.reload();root,work=paths(tag);start=time.time()
     name=f'{family}_{STEPS[index] if family=="layer" else SITES[index]}'
-    cached=cached_completion(work/f'timing_{name}.json',[root/f'{name}.npz'])
+    cached=cached_completion(work/f'timing_{name}.json',[root/f'{name}.npz'],expected_fingerprint=FINGERPRINTS[KERNEL_OF_TAG.get(tag,'cos')])
     if cached:return cached
     nc=12 if family=='layer' else 8
     ps=pairs(nc);arrays=allocate(5,len(ps),2000,nc)
@@ -158,7 +167,7 @@ def spectra(family:str,index:int,tag:str=TAG):
             put_record(arrays,mi,pi,rec)
         print(name,'mode',mi,'seconds',time.time()-start,flush=True)
     np.savez_compressed(root/f'{name}.npz',**arrays)
-    return finished(work,name,start)
+    return finished(work,name,start,tag=tag)
 
 
 @app.function(image=image,gpu='A100-40GB',cpu=2,memory=12288,timeout=1200,max_containers=8,retries=0,volumes=VOLS)
@@ -168,7 +177,7 @@ def products(step:int,tag:str=TAG):
     from coherent import block_modes
     from schema_v2 import comparison
     environment();vol.reload();root,work=paths(tag);start=time.time();name=f'products_{step}'
-    cached=cached_completion(work/f'timing_{name}.json',[work/f'avgprod_{step}.json'])
+    cached=cached_completion(work/f'timing_{name}.json',[work/f'avgprod_{step}.json'],expected_fingerprint=FINGERPRINTS[KERNEL_OF_TAG.get(tag,'cos')])
     if cached:return cached
     # Explicit constant projection (left AND right) prevents the trivial singular
     # value 1 from swamping weak nontrivial directions in a long product.
@@ -190,7 +199,7 @@ def products(step:int,tag:str=TAG):
                                      end_right=comparison(v,vhe.T,r),end_left=comparison(v,ue,r),
                                      product_sigma_r=float(sv[r-1]),end_sigma_r=float(se[r-1])))
     (work/f'avgprod_{step}.json').write_text(json.dumps(rows,allow_nan=False))
-    return finished(work,name,start)
+    return finished(work,name,start,tag=tag)
 
 
 @app.function(image=image,gpu='A100-40GB',cpu=2,memory=12288,timeout=2400,max_containers=10,retries=0,volumes=VOLS)
@@ -203,7 +212,7 @@ def prodspectra(family:str,index:int,tag:str=TAG):
     environment();vol.reload();root,work=paths(tag);start=time.time()
     name=STEPS[index] if family=='layer' else SITES[index];unit=f'prod_{family}_{name}'
     outs={side:root/f'{family}prod{side}_{name}.npz' for side in 'RL'}
-    cached=cached_completion(work/f'timing_{unit}.json',list(outs.values()),expected_fingerprint=PRODUCT_FINGERPRINT)
+    cached=cached_completion(work/f'timing_{unit}.json',list(outs.values()),expected_fingerprint=PRODUCT_FINGERPRINTS[KERNEL_OF_TAG.get(tag,'cos')])
     if cached:return cached
     nc=12 if family=='layer' else 8
     ps=pairs(nc);arrays={side:allocate_product(5,len(ps),2000,nc) for side in 'RL'}
@@ -223,7 +232,7 @@ def prodspectra(family:str,index:int,tag:str=TAG):
     for side in 'RL':
         worst[side]=validate_product(arrays[side],nc,len(ps))
         np.savez_compressed(outs[side],**arrays[side])
-    return finished(work,unit,start,construction_fingerprint=PRODUCT_FINGERPRINT,worst_gain_identity_error=worst)
+    return finished(work,unit,start,tag=tag,construction_fingerprint=PRODUCT_FINGERPRINTS[KERNEL_OF_TAG.get(tag,'cos')],worst_gain_identity_error=worst)
 
 
 @app.function(image=image,gpu='A100-40GB',cpu=2,memory=12288,timeout=1800,max_containers=1,retries=0,volumes=VOLS)
@@ -233,7 +242,7 @@ def normalization(tag:str=TAG):
     from coherent import block_modes,diffusion_operator,sinkhorn_operator
     from schema_v2 import comparison,pairs
     environment();vol.reload();root,work=paths(tag);start=time.time();name='normalization'
-    cached=cached_completion(work/f'timing_{name}.json',[root/'normalisation_compare.json'])
+    cached=cached_completion(work/f'timing_{name}.json',[root/'normalisation_compare.json'],expected_fingerprint=FINGERPRINTS[KERNEL_OF_TAG.get(tag,'cos')])
     if cached:return cached
     ks=json.loads((work/'kappa_64000.json').read_text())['kappa'];rows=[]
     for mi in (3,4):
@@ -248,7 +257,7 @@ def normalization(tag:str=TAG):
                                             retained_agreement=comparison(vr[:,1:],vn[:,1:],r)))
     (root/'normalisation_compare.json').write_text(json.dumps(dict(rows=rows,
         convention='Discard each leading eigenvector (analytical constant for the Sinkhorn constructions; only a leading-vector convention for the legacy average, which has no shared stationary mode), project the remaining columns off the constant, orthonormalize, compare mean squared principal cosines.'),allow_nan=False))
-    return finished(work,name,start)
+    return finished(work,name,start,tag=tag)
 
 
 @app.function(image=image,gpu='L40S',cpu=4,memory=32768,timeout=1250,max_containers=4,retries=0,volumes=VOLS)
@@ -345,13 +354,44 @@ def spectral_embed(step:int,tag:str=TAG,mode:int=0,n_coords:int=32):
     return finished(work,name,start,cpu=4,mem=8,gpu=False,mode=mode,n_coords=n_coords)
 
 
+def correct_dot_export_norms(root):
+    """Localized dot modes can exceed the int16 decode norm tolerance.
+
+    Adjust only the float32 scales for those vectors. The int16 directions,
+    full-precision operators, rotations and measured retention stay unchanged.
+    Also handles already cached layer/time and product exports.
+    """
+    import numpy as np
+    count=0
+    for pattern in ('layer_*.npz','time_*.npz','layerprod[RL]_*.npz','timeprod[RL]_*.npz'):
+        for path in sorted(root.glob(pattern)):
+            with np.load(path) as src:
+                q=src['vecs'].astype(np.float64)
+                scale=src['scale']
+                qnorm=np.linalg.norm(q,axis=-1)
+                bad=np.abs(qnorm*scale/32767-1)>=1.99e-5
+                if not bad.any():continue
+                arrays={key:src[key] for key in src.files}
+            assert np.all(qnorm[bad]>0)
+            scale[bad]=32767/qnorm[bad]
+            arrays['scale']=scale
+            temp=path.with_suffix('.tmp.npz')
+            np.savez_compressed(temp,**arrays)
+            temp.replace(path)
+            count+=int(bad.sum())
+    print(f'Corrected int16 decode scale for {count} dot-export vectors',flush=True)
+    return count
+
+
 @app.function(image=image,cpu=2,memory=4096,timeout=1800,volumes=VOLS)
 def validation(tag=TAG,require_derivatives=True):
     from schema_v2 import validate
     vol.reload();root,work=paths(tag);start=time.time()
+    corrected=correct_dot_export_norms(root) if KERNEL_OF_TAG.get(tag)=='dot' else 0
     result=validate(root,require_derivatives)
+    if KERNEL_OF_TAG.get(tag)=='dot':result['export_scale_corrections']=corrected
     (root/'validation.json').write_text(json.dumps(result))
-    return finished(work,'validation',start,gpu=False,mem=4,**result)
+    return finished(work,'validation',start,gpu=False,mem=4,tag=tag,**result)
 
 
 @app.function(image=image,gpu='A100-40GB',cpu=2,memory=12288,timeout=420,max_containers=8,retries=0,volumes=VOLS)
@@ -428,11 +468,11 @@ def audit_provenance(tag=TAG):
 
 
 @app.function(image=image,cpu=.25,memory=1024,timeout=12*3600,volumes=VOLS)
-def coordinate(stage='all'):
+def coordinate(stage='all',tag=TAG):
     import numpy as np
     import shutil
     from schema_v2 import metadata,MODES
-    root,work=paths(TAG)
+    root,work=paths(tag);kernel=KERNEL_OF_TAG.get(tag,'cos')
     log=work/'coordinator.log'
     def say(text):
         with log.open('a') as f:f.write(time.strftime('%Y-%m-%d %H:%M:%S ')+text+'\n')
@@ -442,31 +482,38 @@ def coordinate(stage='all'):
         return sum(json.loads(p.read_text())['estimated_usd'] for p in work.glob('timing_*.json'))
     def guard():
         usd=spent();say(f'estimated completed compute ${usd:.3f}')
-        if usd>18:raise RuntimeError('Pause at $18 seed0 compute estimate; leaves reserve under $25 total ceiling.')
+        if usd>(10 if kernel=='dot' else 18):raise RuntimeError('Pause: compute estimate over the guard ($18 cos seed0; $10 dot, SPEC_DOT.md 7.6).')
     if stage in ('all','extract'):
-        say('extract checkpoints');list(extract.map(STEPS));guard()
+        say('extract checkpoints');list(extract.starmap([(s,RUN,tag) for s in STEPS]));guard()
         vol.reload()
         kr=[json.loads((work/f'kappa_{s}.json').read_text()) for s in STEPS]
         k=np.array([r['kappa'] for r in kr]).transpose(2,0,1);mass=np.array([r['nn_mass'] for r in kr]).transpose(2,0,1)
         sw=np.array([r['self_weight'] for r in kr],dtype=object).transpose(2,0,1)
         q10=np.array([r['kappa_q10'] for r in kr],dtype=object).transpose(2,0,1)
         q90=np.array([r['kappa_q90'] for r in kr],dtype=object).transpose(2,0,1)
-        (root/'meta.json').write_text(json.dumps(metadata(k,mass,sw,q10,q90),indent=1,allow_nan=False))
+        (root/'meta.json').write_text(json.dumps(metadata(k,mass,sw,q10,q90,kernel=kernel),indent=1,allow_nan=False))
+        if kernel=='dot':
+            # Kernel-independent public files come from the cosine run (same probe, checkpoints, derivatives).
+            cosroot=Path('/out/analysis/r20s0b')
+            for f in ['probe.npz','curves.json','decod.json']+[f'points_{s}.npz' for s in STEPS]+[f'gradgram_{s}.npy' for s in STEPS]:
+                shutil.copy2(cosroot/f,root/f)
+            vol.commit()
         source=Path('/out/analysis/r20s0')
         # Use exactly the existing layouts, not a re-fit or an extra alignment.
-        for step in STEPS:shutil.copy2(source/f'umap_{step}.npy',root/f'umap_{step}.npy')
-        assert np.array_equal(np.load(source/'probe.npz')['idx'],np.load(root/'probe.npz')['idx'])
-        shutil.copy2(source/'probe.npz',root/'probe.npz')
+        if kernel=='cos':
+          for step in STEPS:shutil.copy2(source/f'umap_{step}.npy',root/f'umap_{step}.npy')
+          assert np.array_equal(np.load(source/'probe.npz')['idx'],np.load(root/'probe.npz')['idx'])
+          shutil.copy2(source/'probe.npz',root/'probe.npz')
         manifest=json.loads(Path(f'/out/runs/{RUN}/manifest.json').read_text())
         (root/'curves.json').write_text(json.dumps(manifest,allow_nan=False));vol.commit()
     if stage in ('all','spectra'):
         say('layer and time spectra')
-        jobs=[('layer',i,TAG) for i in range(8)]+[('time',i,TAG) for i in range(12)]
+        jobs=[('layer',i,tag) for i in range(8)]+[('time',i,tag) for i in range(12)]
         list(spectra.starmap(jobs));guard()
     if stage in ('all','comparisons'):
         say('average/product and normalization comparisons')
-        normcall=normalization.spawn(TAG)
-        list(products.map(STEPS));normcall.get();guard();vol.reload()
+        normcall=normalization.spawn(tag)
+        list(products.starmap([(s,tag) for s in STEPS]));normcall.get();guard();vol.reload()
         rows=sum([json.loads((work/f'avgprod_{step}.json').read_text()) for step in STEPS],[])
         (root/'avgprod.json').write_text(json.dumps(dict(modes=[0,1],rows=rows),allow_nan=False));vol.commit()
     if stage in ('all','decod'):
@@ -476,17 +523,19 @@ def coordinate(stage='all'):
             protocol=results[0]['protocol'],validation_only=True),allow_nan=False));vol.commit()
     if stage=='prodspectra':
         say('product (composition) block spectra')
-        jobs=[('layer',i,TAG) for i in range(8)]+[('time',i,TAG) for i in range(12)]
+        jobs=[('layer',i,tag) for i in range(8)]+[('time',i,tag) for i in range(12)]
         list(prodspectra.starmap(jobs));guard()
     if stage=='specembed':
-        say('spectral (diffusion-coordinate) layouts');list(spectral_embed.map(STEPS));guard()
+        say('spectral (diffusion-coordinate) layouts');list(spectral_embed.starmap([(s,tag) for s in STEPS]));guard()
     if stage=='derivatives':
         say('per-sample derivatives and gradient cosine Grams');list(derivatives.map(STEPS));guard()
     if stage=='layouts':
-        tag='r20s1b';rr,ww=paths(tag)
-        say('seed1 extraction and layouts')
-        list(extract.starmap([(s,'resnet20-relu-seed1',tag,True) for s in STEPS]))
-        list(embed.map(STEPS));vol.reload()
+        ltag='r20s1b' if kernel=='cos' else tag;rr,ww=paths(ltag)
+        if kernel=='cos':
+            say('seed1 extraction and layouts')
+            list(extract.starmap([(s,'resnet20-relu-seed1',ltag,True) for s in STEPS]))
+        else:say('seed0 dot-PC layouts')
+        list(embed.starmap([(s,ltag) for s in STEPS]));vol.reload()
         # Match build_viewer.py: centre and unit-RMS each site, orthogonal
         # Procrustes along checkpoints (reflections allowed).
         previous=None
@@ -497,6 +546,7 @@ def coordinate(stage='all'):
                 for si in range(12):
                     u,_,vt=np.linalg.svd(e[si].T@previous[si]);e[si]=e[si]@(u@vt)
             np.save(rr/f'umap_{step}.npy',e.astype('f4'));previous=e
+        if kernel=='dot':vol.commit();say('layouts complete');return dict(stage=stage,estimated_usd=spent())
         man=json.loads(Path('/out/runs/resnet20-relu-seed1/manifest.json').read_text())
         cp={r['step']:r for r in man['checkpoints']}
         (rr/'meta.json').write_text(json.dumps(dict(steps=STEPS,sites=SITES,n=2000,seed=1,
@@ -511,7 +561,7 @@ def coordinate(stage='all'):
             validation='Hungarian-matched set/class Jaccard; labels are used only after all spectral construction',
             sinkhorn='10 damped log-domain warmups followed by line-searched Newton; strict row residual <2e-12'),allow_nan=False));vol.commit()
     if stage=='audit':audit_provenance.remote()
-    if stage=='validate':validation.remote()
+    if stage=='validate':validation.remote(tag)
     say(f'{stage} complete; completed seed0 estimate ${spent():.3f}')
     return dict(stage=stage,estimated_seed0_usd=spent())
 
@@ -521,16 +571,17 @@ if __name__=='__main__':
     command=args[0] if args else 'deploy'
     if command=='deploy':subprocess.run([sys.executable,'-m','modal','deploy',__file__],check=True)
     elif command=='launch':
-        stage=args[1] if len(args)>1 else 'all'
-        call=modal.Function.from_name(APP,'coordinate').spawn(stage)
-        rec=dict(stage=stage,call_id=call.object_id,launched=time.ctime())
-        (recdir/f'v2-{stage}.json').write_text(json.dumps(rec,indent=1));print(json.dumps(rec))
+        stage=args[1] if len(args)>1 else 'all';tag=args[2] if len(args)>2 else TAG
+        call=modal.Function.from_name(APP,'coordinate').spawn(stage,tag)
+        rec=dict(stage=stage,tag=tag,call_id=call.object_id,launched=time.ctime())
+        (recdir/f'v2-{stage}{"" if tag==TAG else "-"+tag}.json').write_text(json.dumps(rec,indent=1));print(json.dumps(rec))
     elif command=='status':
-        stage=args[1] if len(args)>1 else 'all';rec=json.loads((recdir/f'v2-{stage}.json').read_text())
+        stage=args[1] if len(args)>1 else 'all';tag=args[2] if len(args)>2 else TAG
+        rec=json.loads((recdir/f'v2-{stage}{"" if tag==TAG else "-"+tag}.json').read_text())
         try:print(json.dumps(modal.FunctionCall.from_id(rec['call_id']).get(timeout=0)))
         except TimeoutError:
             print('running')
-            try:print(b''.join(vol.read_file(f'work/{TAG}/coordinator.log')).decode()[-3000:])
+            try:print(b''.join(vol.read_file(f'work/{tag}/coordinator.log')).decode()[-3000:])
             except Exception as e:print(type(e).__name__)
     elif command=='fetch':
         tag=args[1] if len(args)>1 else TAG

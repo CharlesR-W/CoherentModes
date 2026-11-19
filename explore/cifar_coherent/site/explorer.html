@@ -24,6 +24,13 @@
       <select id="ex-mode"></select>
       <button type="button" class="info-btn" id="ex-kappa-btn" aria-expanded="false" aria-controls="ex-kappa-help" title="What are the kernel rules?">?</button>
     </div>
+    <div class="ctl dev-only" id="ex-kern-ctl" hidden>
+      <span class="ctl-label">Kernel</span>
+      <div class="seg" id="ex-kern" role="radiogroup" aria-label="Kernel: which measurement the blocks, spectra and layouts come from">
+        <button type="button" data-v="cos" title="Cosine similarity of the activations (rows normalised): the default, and what the text, figures, baselines and alignment use">cosine</button>
+        <button type="button" data-v="dot" title="Half squared Euclidean distance on the unnormalised activations, so the norm counts (exploratory second measurement). Blocks, spectra, retention, products and layouts switch; Sets from and the seed-1 layout are cosine only">dot (Euclidean, keeps the norm)</button>
+      </div>
+    </div>
     <div class="ctl">
       <label class="ctl-label" for="ex-color">Colour by</label>
       <select id="ex-color">
@@ -31,6 +38,7 @@
           <option value="seba">coherent sets (SEBA)</option>
           <option value="eig">eigenfunction &psi;&#8342;</option>
           <option value="nodal" data-dev="1">sign of &psi;&#8342; (nodal domains)</option>
+          <option value="km" id="ex-color-km">spectral k-means partition (k blocks)</option>
         </optgroup>
         <optgroup label="Labels (validation only)">
           <option value="class">CIFAR class</option>
@@ -43,6 +51,11 @@
           <option value="gdot">gradient alignment (dot product)</option>
         </optgroup>
       </select>
+      <select id="ex-kmk" aria-label="Number of k-means blocks k" hidden title="Number of blocks k of the spectral k-means partition (Lloyd on the top k − 1 spectral coordinates of the selected layer block)"></select>
+      <div class="seg" id="ex-kms" role="radiogroup" aria-label="Which end of the chain is partitioned" hidden>
+        <button type="button" data-v="start" title="Partition of the images at the first site of the block (right singular vectors of the ordered product)">start</button>
+        <button type="button" data-v="end" title="Partition of the images at the last site of the block (left singular vectors of the ordered product)">end</button>
+      </div>
       <span class="ctl-sub" id="ex-k-label" hidden title="The side panel (spectrum, images, retention) describes this selection">side panel</span>
       <select id="ex-k" aria-label="Eigenfunction k, or number of coherent sets r"></select>
       <div class="seg" id="ex-at" role="radiogroup" aria-label="Diagnostics measured at">
@@ -65,11 +78,12 @@
       </div>
     </div>
     <div class="ctl ctl-end ctl-guide">
-      <label class="dev-toggle" title="Show the extra controls: kernel rules, nodal domains, per-image diagnostics, image statistics, the second network's layout, and the per-snapshot table"><input type="checkbox" id="ex-dev"> more options</label>
+      <label class="dev-toggle" title="Show the extra controls: kernel rules, the cosine / dot kernel switch, nodal domains, per-image diagnostics, image statistics, the second network's layout, and the per-snapshot table"><input type="checkbox" id="ex-dev"> more options</label>
       <label class="ctl-label" for="ex-tour-sel">Tours</label>
       <select id="ex-tour-sel"><option value="">choose a view…</option></select>
       <button type="button" class="guide-btn" id="ex-howto-btn" aria-controls="ex-howto" aria-expanded="false">How to use</button>
     </div>
+    <span class="kern-badge" id="ex-kern-badge" hidden title="The explorer is showing the dot-kernel measurement (more options, Kernel). The text, figures, baselines and alignment use the cosine kernel."></span>
     <span class="status" id="ex-status" aria-live="polite"></span>
     <div class="ex-help" id="ex-src-help" hidden>
       <p><b>Sets from</b> keeps the selected block and chooses whose sets colour every panel: the method (default), a simpler method run on the same block, the method on other data (pixels, the untrained network, a second training seed), the class labels, or one stored draw of a null. Each source gives hard labels for the same probe images; the side panel shows their sizes, class make-up and images, and their agreement with the method's sets for the same block and $r$, with its permutation value. Sources that do not exist for the current block are greyed out with the reason.</p>
@@ -135,11 +149,34 @@
         <div class="card-sub" id="blk-sub"></div>
         <div id="blk-spec" class="chart"></div>
         <div class="card-note" id="blk-spec-note"></div>
+        <div id="blk-strip-wrap" hidden>
+          <div class="sub-h" id="blk-strip-title">Top 64</div>
+          <div id="blk-strip" class="chart"></div>
+          <div class="card-note" id="blk-strip-note"></div>
+        </div>
         <details class="card-more" id="blk-map-wrap">
           <summary>All blocks at this <span id="blk-map-anchor">checkpoint</span></summary>
           <div id="blk-map" class="chart"></div>
           <div class="card-note" id="blk-map-note"></div>
         </details>
+      </section>
+      <section class="card" id="card-coarse" hidden>
+        <h3 class="card-title" id="cg-title">Coarse-graining: what a k-block partition keeps</h3>
+        <div class="card-sub" id="cg-sub"></div>
+        <div class="cg-ctl">
+          <div class="seg" id="cg-side" role="radiogroup" aria-label="Which information is scored"></div>
+          <div class="seg" id="cg-view" role="radiogroup" aria-label="Absolute or relative to the ceiling">
+            <button type="button" data-v="abs" title="Retained χ² information, log scale">absolute</button>
+            <button type="button" data-v="eff" title="Efficiency: retained information divided by the ceiling F at the partition's number of occupied blocks">I / F<sub>k</sub></button>
+          </div>
+        </div>
+        <div id="cg-chart" class="chart"></div>
+        <div class="card-note" id="cg-note"></div>
+        <div id="cg-cell" hidden>
+          <div class="sub-h">Leakage against its spectral bounds (single cell)</div>
+          <div id="cg-cell-chart" class="chart"></div>
+          <div class="card-note" id="cg-cell-note"></div>
+        </div>
       </section>
       <section class="card" id="card-legend">
         <h3 class="card-title" id="leg-title">Legend</h3>

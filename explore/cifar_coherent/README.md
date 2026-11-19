@@ -182,6 +182,23 @@ start .29 (r = 8: .61, .74, .38). The explorer's **Operator** switch (average / 
 product·end) shows them; the retention strip adds step gains. The build ships all four product
 families or none. The site grew from 135 MB to 362 MB.
 
+## Coarse-graining certificates and 32 modes (added 2026-11-19)
+
+Spec: `SPEC_COARSE.md` (plan-reviewed by GPT-6.2 Sol, two rounds). For every single cell and every layer chain
+Q = M_b...M_a (all 8 checkpoints, 5 rules): full float64 SVD, chi^2 information kept by k-block partitions
+(spectral k-means, SEBA, PCA k-means, random; classes/predictions as validation) against the Eckart-Young ceiling
+F_k, leakage against Ky Fan / Cheeger bounds, gap reports, and eigen/singular vectors 9..32 for averages and both
+product sides. Code `coarse.py` (tests `test_coarse.py`), Modal `coarse_modal.py` (app `cm-cifar-coherent-coarse`,
+40 units, about **$6.3**), aggregation `coarse_summary.py` (`coarse_summary.json`, `coarse_facts.json`). Stored
+vectors 1..8 agree with the existing files to |cos| >= 0.99999994. Site: explorer psi1..psi32 (all rules for cells,
+default rule for longer blocks: 85 MB gz), spectrum strip, coarse-graining card, k-means colouring; Findings section 6.
+
+Markov closure (SPEC_COARSE.md section 6, reviewed): per-site partitions on the walk through the layers, one-step
+lumpability defect, coarse two-step memory, Chapman-Kolmogorov test, each against the lazy uniform walk as a
+geometry-free control; partitions per site (spectral, PCA), shared (b9), random, classes. `coarse_modal.py markov`
+(40 units, about **$1.9**), `test_markov.py`, `markov_summary.py` (-> `markov_summary.json`, facts merged into
+`coarse_facts.json`); Findings section 7.
+
 ## Spectral layout (added 2026-11-15)
 
 Third explorer layout, "spectral": per snapshot, diffusion coordinates λ_kψ_k (k = 1..32) of
@@ -189,6 +206,42 @@ that snapshot's own lazy walk under rule 0 (kNN graph), then the same AlignedUMA
 (n_neighbors 15, min_dist .1, alignment .02) across sites and Procrustes across checkpoints
 as the activation layouts. Modal stage `specembed` (`measure_v2.spectral_embed`, CPU,
 about $0.07); outputs `umapspec_<step>.npy`. Display only.
+
+## Dot (Euclidean) kernel and GGN comparison (added 2026-11-19)
+
+Spec `SPEC_DOT.md` (GPT plan review, one revision). Tag **`r20s0d`**: every rule's 1 − cos replaced by
+|x_i − x_j|²/2 of the unnormalized activations (global scale only; with unit rows it is exactly the cosine
+pipeline; `test_dot.py`). Full schema-v2 export, validated (5,280 records). Gradient-side Grams per checkpoint
+(`kernels_modal.py`, `test_kernels.py`): GGN ⟨H_i^{1/2}J_i, H_j^{1/2}J_j⟩_F (label-free), trace NTK, and the stored
+loss-gradient cosine. Comparisons in `data/kernels/compare_{single,blocks,ggn}.json`. Spend ≈ $4.5.
+
+**Verdict: keeping the norm makes things worse here, mostly because of hubness, and moves sites further from the GGN, not closer.**
+- **Euclidean kNN-15 breaks in the conv sites (stem–b8).** Images near the probe mean become hubs: the max 15-NN
+  in-degree is 860–1,700 of 2,000, against about 140 for cosine. Everyone's out-edges go to them, so the remaining images form
+  near-disconnected mutual pairs. The leading modes then have participation ratio **2** (λ ≈ .98, flat), against
+  hundreds of images for cosine. Agreement with cosine is about .00–.15 (r = 4) at stem–b5, and class-span agreement is about .01–.15.
+  These are artefacts of the rule, not structure.
+- **Perplexity 100 copes better:** agreement with cosine is .37–.79 (r = 4) in conv sites and ≥ .96 at b9/pool/logits
+  (final step). Past 3–4 modes it also localizes. Class alignment is somewhat lower than cosine
+  (median class-span r = 10: .22 vs .29).
+- **Late sites (b9, pool, logits): the norm barely matters.** Agreement is .86–.97 under both rules. Here the
+  norm is mostly confidence.
+- **Full stem→logits average** (final step): agreement .80 (r = 4) under kNN and .89 under perplexity, with SEBA
+  sets matching .67–.82. Averaging over sites dilutes the broken snapshots.
+- **GGN / NTK:** against every *fixed* gradient-side reference (GGN-cos, GGN-dot, NTK-cos, NTK-dot,
+  loss-gradient), Euclidean site spectra are **farther** than cosine at almost every site. Δagreement at r = 10 runs
+  from −.1 to −.4 in the conv sites and is about 0 at the late sites. Linear CKA barely moves in mid sites and drops at
+  b9–logits against GGN (e.g. pool .099 → .066 at the final step). The full-block average is also slightly farther
+  (−.02 to −.04).
+- **Raw dot ranking (maximum inner product), checked as a diagnostic:** it behaves like cosine, not like Euclidean
+  (neighbour overlap .71 vs .17; span agreement with cosine .86–.92), with mild hubs (max in-degree about 205).
+- **Arc-cosine:** skipped. In its angular form it ranks neighbours exactly as cosine does.
+- **Caveats:** one seed; the inherited label-stratified probe; near-tied cutoffs make single fixed-rank spans
+  noisy (gaps recorded in the JSON). The loss-gradient reference starts from the stored unit-gradient view, since
+  reconstructing raw gradients gave ties.
+
+Explorer: a **Kernel** switch (cosine / dot) under *more options*. The dot root `viewer/site/d_dot/` ships rules
+0–1 only, because of size. The seed-1 layout is cosine-only, and the dot PCA layout is rotated onto the cosine one for display.
 
 ## Reproduce and validate
 
@@ -278,6 +331,9 @@ uv run --with numpy --with pillow python build_viewer.py r20s0
 
 ```
 uv run --with numpy --with pillow python site/build_site.py r20s0b --layout-tag r20s1b   # -> viewer/site/
+# with the explorer's Kernel switch (dot-kernel root viewer/site/d_dot/, SPEC_DOT.md section 5), baselines and alignment:
+uv run --with numpy --with pillow --with scipy --with scikit-learn python site/build_site.py r20s0b --layout-tag r20s1b \
+    --baselines r20s0c --alignment ../spectral_align/data --dot-tag r20s0d
 # deploy: copy viewer/site/ into an empty directory, add .nojekyll, commit as a single
 # orphan commit on branch gh-pages and force-push (the branch holds only the built site)
 ```

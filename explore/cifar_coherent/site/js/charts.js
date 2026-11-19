@@ -268,3 +268,91 @@ export function heatmap(container, o) {
   draw();
   return { redraw: draw };
 }
+
+// ---------- xy chart: every series has its own x positions; log or linear y; point markers; vertical rules
+// o: series [{name, pts: [[x, y], ...], color, dash, width, dots, noline, marker: "diamond"|"triangle" (markers only, no line), hollow}],
+//    ylog, yrange, xrange, xticks, xfmt, yfmt, height, ml, xname, ytitle, vlines [{x, label, dash, color}],
+//    hl (x to emphasise), onclick(x), tipExtra(x) -> rows, legend (bool)
+export function xyChart(container, o) {
+  container.replaceChildren();
+  const wrap = h("div", { class: "chart-wrap" });
+  container.append(wrap);
+  const W = Math.max(220, container.clientWidth || 320), H = o.height || 170;
+  const m = { l: o.ml ?? 42, r: o.mr ?? 10, t: o.mt ?? 8, b: o.xname ? 32 : 20 };
+  const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.title || "chart" }, wrap);
+  const pts = o.series.flatMap(s => s.pts).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && (!o.ylog || p[1] > 0));
+  const [x0, x1] = o.xrange || [Math.min(...pts.map(p => p[0])), Math.max(...pts.map(p => p[0]))];
+  let [ylo, yhi] = o.yrange || [Math.min(...pts.map(p => p[1])), Math.max(...pts.map(p => p[1]))];
+  if (o.ylog) { ylo = Math.pow(10, Math.floor(Math.log10(ylo) * 4) / 4); yhi = Math.pow(10, Math.ceil(Math.log10(yhi) * 4) / 4); if (yhi <= ylo) yhi = ylo * 10; }
+  else if (!o.yrange) { const pad = (yhi - ylo) * .06 || .05; ylo -= pad; yhi += pad; }
+  const X = scale("linear", x0, x1, m.l, W - m.r), Y = scale(o.ylog ? "log" : "linear", ylo, yhi, H - m.b, m.t);
+  const yfmt = o.yfmt || (v => o.ylog ? (v >= 1e3 || v < 1e-2 ? v.toExponential(0) : (+v.toPrecision(2)).toString()) : (+v.toFixed(3)).toString());
+  const xfmt = o.xfmt || (v => String(v));
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  let yt;
+  if (o.ylog) {
+    yt = [];
+    for (let e = Math.floor(Math.log10(ylo)); e <= Math.ceil(Math.log10(yhi)); e++) for (const c of [1, 2, 5]) { const v = c * Math.pow(10, e); if (v >= ylo * .999 && v <= yhi * 1.001) yt.push(v); }
+    const dec = yt.filter(v => Math.abs(Math.log10(v) - Math.round(Math.log10(v))) < 1e-9);
+    if (dec.length >= 2) yt = dec;
+    if (yt.length > 6) yt = yt.filter((_, i) => i % Math.ceil(yt.length / 5) === 0);
+    if (yt.length < 3) yt = niceTicks(ylo, yhi, 3).filter(v => v > 0);    // less than a decade: plain ticks
+  } else yt = niceTicks(ylo, yhi, Math.max(3, Math.round(H / 50)));
+  for (const v of yt) { el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, g); const t = el("text", { x: m.l - 5, y: Y(v) + 3.5, "text-anchor": "end" }, svg); t.textContent = yfmt(v); }
+  el("line", { x1: m.l, x2: W - m.r, y1: H - m.b + .5, y2: H - m.b + .5 }, ax);
+  const xt = (o.xticks || niceTicks(x0, x1, Math.max(3, Math.round(W / 60)))).filter(v => v >= x0 - 1e-9 && v <= x1 + 1e-9);
+  for (const v of xt) { el("line", { x1: X(v), x2: X(v), y1: H - m.b, y2: H - m.b + 4 }, ax); const t = el("text", { x: X(v), y: H - m.b + 14, "text-anchor": "middle" }, svg); t.textContent = xfmt(v); }
+  if (o.xname) { const t = el("text", { x: (m.l + W - m.r) / 2, y: H - 3, "text-anchor": "middle", class: "ttl" }, svg); t.textContent = o.xname; }
+  if (o.ytitle) { const t = el("text", { x: 0, y: 0, "text-anchor": "middle", class: "ttl", transform: `translate(10,${(m.t + H - m.b) / 2}) rotate(-90)` }, svg); t.textContent = o.ytitle; }
+  if (o.hl != null && o.hl >= x0 && o.hl <= x1) el("rect", { x: X(o.hl) - 4, y: m.t, width: 8, height: H - m.b - m.t, fill: "rgba(22,22,26,.06)" }, svg);
+  for (const v of o.vlines || []) {
+    if (v.x < x0 || v.x > x1) continue;
+    el("line", { x1: X(v.x), x2: X(v.x), y1: m.t, y2: H - m.b, stroke: v.color || "#16161a", "stroke-width": 1.2, ...(v.dash ? { "stroke-dasharray": "4 3" } : {}) }, svg);
+    if (v.label) { const t = el("text", { x: X(v.x) + (X(v.x) > W - 90 ? -4 : 4), y: v.top ? m.t + 9 : H - m.b - 5, "text-anchor": X(v.x) > W - 90 ? "end" : "start", style: `font-size:10px;fill:${v.color || "#16161a"}` }, svg); t.textContent = v.label; }
+  }
+  const ok = p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && (!o.ylog || p[1] > 0);
+  const groups = o.series.map(s => {
+    const gg = el("g", {}, svg), P = s.pts.filter(ok);
+    if (!s.marker && !s.noline && P.length > 1) {
+      const d = P.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(Math.max(ylo, Math.min(yhi, p[1]))).toFixed(1)).join("");
+      const path = el("path", { d, fill: "none", stroke: s.color, "stroke-width": s.width || 1.8, "stroke-linejoin": "round", "stroke-linecap": "round" }, gg);
+      if (s.dash) path.setAttribute("stroke-dasharray", "5 4");
+    }
+    for (const p of P) {
+      const cx = X(p[0]), cy = Y(Math.max(ylo, Math.min(yhi, p[1])));
+      if (s.marker === "diamond") el("path", { d: `M${cx},${cy - 6.5}L${cx + 6},${cy}L${cx},${cy + 6.5}L${cx - 6},${cy}Z`, ...(s.hollow ? { fill: "none", stroke: s.color, "stroke-width": 1.6 } : { fill: s.color, stroke: "#fff", "stroke-width": 1.2 }) }, gg);
+      else if (s.marker === "triangle") el("path", { d: `M${cx},${cy - 5.5}L${cx + 5},${cy + 4}L${cx - 5},${cy + 4}Z`, fill: s.color, stroke: "#fff", "stroke-width": 1.2 }, gg);
+      else if (s.dots) el("circle", { cx, cy, r: s.dots, fill: s.color, stroke: "#fff", "stroke-width": 1 }, gg);
+    }
+    return gg;
+  });
+  const xsAll = [...new Set(pts.map(p => p[0]))].sort((a, b) => a - b);
+  const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "#16161a", "stroke-width": 1, opacity: 0 }, svg);
+  const hit = el("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: "transparent", style: o.onclick ? "cursor:pointer" : "" }, svg);
+  const nearest = px => xsAll.reduce((b, x) => Math.abs(X(x) - px) < Math.abs(X(b) - px) ? x : b, xsAll[0]);
+  hit.addEventListener("pointermove", ev => {
+    const r = svg.getBoundingClientRect(), x = nearest(ev.clientX - r.left);
+    cross.setAttribute("x1", X(x)); cross.setAttribute("x2", X(x)); cross.setAttribute("opacity", .3);
+    const rows = [];
+    o.series.forEach(s => { const p = s.pts.find(q => q[0] === x && ok(q)); if (p) rows.push({ name: s.name, value: yfmt2(p[1]), color: s.color }); });
+    showTip(ev.clientX, ev.clientY, tipRows((o.xname ? o.xname + " = " : "") + xfmt(x), rows.concat(o.tipExtra ? o.tipExtra(x) : [])));
+  });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("opacity", 0); hideTip(); });
+  if (o.onclick) hit.addEventListener("click", ev => { const r = svg.getBoundingClientRect(); hideTip(); o.onclick(nearest(ev.clientX - r.left)); });
+  if (o.legend !== false && o.series.length > 1) {
+    const lg = h("div", { class: "chart-legend" });
+    o.series.forEach((s, si) => {
+      const key = h("i", { style: { "--sw": s.color } });
+      if (s.dash) key.style.background = `repeating-linear-gradient(90deg, ${s.color} 0 4px, transparent 4px 7px)`;
+      if (s.marker === "diamond") Object.assign(key.style, { width: "8px", height: "8px", transform: "rotate(45deg)", borderRadius: "1px", background: s.hollow ? "transparent" : s.color, boxShadow: s.hollow ? `inset 0 0 0 1.5px ${s.color}` : "" });
+      if (s.marker === "triangle") Object.assign(key.style, { width: "10px", height: "9px", borderRadius: "0", background: s.color, clipPath: "polygon(50% 0, 100% 100%, 0 100%)" });
+      const k = h("span", { class: "k" }, key, s.name);
+      k.addEventListener("pointerenter", () => groups.forEach((p, j) => p.setAttribute("opacity", j === si ? 1 : .15)));
+      k.addEventListener("pointerleave", () => groups.forEach(p => p.setAttribute("opacity", 1)));
+      lg.append(k);
+    });
+    wrap.append(lg);
+  }
+  return { svg, X, Y };
+}
+const yfmt2 = v => Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 1e-3 ? (+v.toPrecision(4)).toString() : v.toExponential(3);
