@@ -45,6 +45,8 @@ const fmt = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : "n/a";
 // fixed decimals without a "-0.00"
 const nz = d => v => { if (!Number.isFinite(v)) return "n/a"; const t = v.toFixed(d); return /^-0\.?0*$/.test(t) ? t.slice(1) : t; };
 const pct = v => Number.isFinite(v) ? (100 * v).toFixed(0) + "%" : "n/a";
+// a share that may be tiny (through-depth weights): 2 significant figures down to 0.1%, then powers of ten
+const share = w => !Number.isFinite(w) ? "n/a" : w >= .1 ? (100 * w).toFixed(0) + "%" : w >= 1e-3 ? (100 * w).toPrecision(2) + "%" : (100 * w).toExponential(0) + "%";
 
 // ------------------------------------------------------------------------------------------- shared context
 // One context per kernel ("cos": data root d/, the default and what the prose figures use; "dot": d_dot/ when built).
@@ -144,9 +146,34 @@ export function tours() {
   try { return JSON.parse(document.getElementById("tours-data")?.textContent || "[]"); } catch (e) { console.error(e); return []; }
 }
 
+// ------------------------------------------------------------------------------------------- diffusion wavelets
+// build_site.py wavelets(), wavelets_modal.py (Coifman-Maggioni on a single snapshot's lazy walk M; cosine root, one
+// kernel rule). State: st.dwj (level j), st.dwk (1 wavelets | 0 scaling functions), st.dwf (index within that level and
+// kind, pivot order), st.dwi (clicked image or null: then st.dwf is the function carrying it most). st._dw = {cell,
+// step, site} once loaded.
+const dwGroup = (cell, j, k) => { const g = []; cell.fun.forEach((r, f) => { if (r[0] === j && r[1] === k) g.push(f); }); return g; };
+const dwLevels = cell => [...new Set(cell.fun.map(r => r[0]))].sort((a, b) => a - b);
+const dwStepSite = (m, st) => st.fam === "layer" ? [m.steps[st.anchor], st.b] : [m.steps[st.b], st.anchor];
+const dwName = (st, f) => `${st.dwk ? "ψ" : "φ"}${st.dwj},${f + 1}`;
+// clamp the level, kind and function to what the snapshot stores; resolve a clicked image to a function
+function fitDwFun(st, cell, N) {
+  const levs = dwLevels(cell);
+  if (!levs.includes(st.dwj)) st.dwj = levs.find(j => dwGroup(cell, j, 1).length) ?? levs[0];
+  if (st.dwk !== 0 && st.dwk !== 1) st.dwk = 1;
+  if (!dwGroup(cell, st.dwj, st.dwk).length) st.dwk = st.dwk ? 0 : 1;
+  const g = dwGroup(cell, st.dwj, st.dwk);
+  if (st.dwi != null) {     // largest |f(i)| relative to the function's own peak, precomputed at full precision (build_site.py)
+    const gi = cell.groups.findIndex(x => x[0] === st.dwj && x[1] === st.dwk);
+    if (gi >= 0) st.dwf = cell.win[gi * N + st.dwi];
+  }
+  if (!(st.dwf >= 0 && st.dwf < g.length)) st.dwf = 0;
+  return g[st.dwf];
+}
+
 // ------------------------------------------------------------------------------------------- colouring
 // Returns {ci: [T] Uint8Array(N), order: [T] Uint16Array(N), cols: css[], legend}
 export function colouring(ctx, st, blk) {
+  if (st.color === "depth") return depthColouring(ctx, st);
   const { m, pal, labels, pts, T, N } = ctx;
   const same = (ci, order) => ({ ci: Array(T).fill(ci), order: Array(T).fill(order) });
   const orderBy = key => Uint16Array.from({ length: N }, (_, i) => i).sort((a, b) => key[a] - key[b]);
@@ -170,6 +197,15 @@ export function colouring(ctx, st, blk) {
   } else if (c === "km" && st._km) {
     const K = st._km, ci = Uint8Array.from(K.lab), cols = [...Array(K.k)].map((_, j) => kmColour(pal, j));
     out = { ...same(ci, hashOrder), cols, groups: { ids: ci, n: K.k, names: [...Array(K.k)].map((_, j) => `group ${j + 1}`) } };
+  } else if (c === "dw") {
+    if (!st._dw) { out = { ...same(new Uint8Array(N), hashOrder), cols: [DIM] }; }
+    else {
+      const W = st._dw, f = dwGroup(W.cell, st.dwj, st.dwk)[st.dwf], v = D.dwFun(m, W.cell, f);
+      let mx = 0; for (let i = 0; i < N; i++) mx = Math.max(mx, Math.abs(v[i]));
+      const ci = Uint8Array.from(v, x => qDiv(x / (mx || 1))), key = Float64Array.from(v, x => Math.abs(x));
+      out = { ...same(ci, orderBy(key)), cols: divLUT(pal), cont: { kind: "div", lo: -1, hi: 1, label: `${dwName(st, st.dwf)} / max|${dwName(st, st.dwf)}|` },
+        dw: { f, v, mx, row: W.cell.fun[f] } };
+    }
   } else if (c === "nodal" || c === "eig") {
     const v = D.psi(m, blk, st.k);
     let mx = 0; for (let i = 0; i < N; i++) mx = Math.max(mx, Math.abs(v[i]));
@@ -232,6 +268,75 @@ export function colouring(ctx, st, blk) {
   out.pal32 = new Uint32Array(out.cols.map(css32));
   return out;
 }
+
+// ------------------------------------------------------------------------------------------- through depth
+// SPEC_SPACETIME.md sections 4 and 6; data from build_site.py spacetime() (cosine root, one kernel rule). One checkpoint
+// row (st.anchor) is coloured, each site's panel by its own slice of the selected mode (u_l = f_l / |f_l|, diverging,
+// scaled to max |u_l|) or by the set readout; every other row is light grey. A slice holding less than
+// meta.spacetime.low_weight of its mode's squared norm is drawn in a uniform grey: a normalised numerical tail is not a
+// direction. State: st.dv (variant id), st.dt (coupling index; 0 for paper), st.dm (1..K or "sets"), st.dk (k), st.dr
+// (readout "a" | "s"), st.dsite (site shown in the images card; null = automatic). st._dep = {U, Sm, step} once loaded.
+const DEPTH_LOW = "#bdbcb6";
+export const depthReady = st => st.color === "depth" && !!st._dep;
+const depthC = st => st.dv === "paper" ? 0 : st.dt;
+export const depthPlane = (m, st) => m.spacetime.sets.findIndex(s => s.k === st.dk && s.readout === st.dr);
+export const fracLabel = f => f >= 1 ? String(f) : `1/${Math.round(1 / f)}`;
+// the per-site arrays of the current setting: {R (variant readings), c, w (weights of the mode or null), k}
+export function depthView(ctx, st) {
+  const R = st._dep.Sm.variants[st.dv], c = depthC(st), k = st.dm === "sets" ? null : st.dm - 1;
+  return { R, c, k, w: k == null ? null : R.weight[c][k] };
+}
+// labels of the set readout at site s (Int8Array N, -1 = no label)
+export function depthLabels(ctx, st, s) {
+  const U = st._dep.U, p = depthPlane(ctx.m, st), N = ctx.N;
+  return U.lab.subarray(((p * U.C + depthC(st)) * U.L + s) * N, ((p * U.C + depthC(st)) * U.L + s + 1) * N);
+}
+// the int8 unit slice of the mode at site s (scaled so max |u| = 127)
+export function depthSlice(ctx, st, s) {
+  const U = st._dep.U, N = ctx.N, off = ((depthC(st) * U.K + st.dm - 1) * U.L + s) * N;
+  return U.vecs.subarray(off, off + N);
+}
+// per-site status of the selected row: low (grey) and why
+export function depthSiteInfo(ctx, st) {
+  const { m, S } = ctx, low = m.spacetime.low_weight, { w } = depthView(ctx, st);
+  return [...Array(S)].map((_, s) => {
+    if (w) return { w: w[s], low: !(w[s] >= low) };
+    const lab = depthLabels(ctx, st, s); let n = 0; for (const l of lab) if (l >= 0) n++;
+    return { labelled: n, low: n === 0 };
+  });
+}
+function depthColouring(ctx, st) {
+  const { pal, T, S, N } = ctx, t0 = st.anchor, ident = Uint16Array.from({ length: N }, (_, i) => i);
+  const ciCell = Array(T * S).fill(null), orderCell = Array(T * S).fill(null), info = depthSiteInfo(ctx, st);
+  let cols, grey, out;
+  if (st.dm !== "sets") {
+    cols = divLUT(pal).concat([DIM, DEPTH_LOW]);
+    const G = cols.length - 2, LO = cols.length - 1;
+    grey = new Uint8Array(N).fill(G);
+    for (let s = 0; s < S; s++) {
+      if (info[s].low) { ciCell[t0 * S + s] = new Uint8Array(N).fill(LO); orderCell[t0 * S + s] = ident; continue; }
+      const v = depthSlice(ctx, st, s); let mx = 0;
+      for (let i = 0; i < N; i++) mx = Math.max(mx, Math.abs(v[i]));
+      ciCell[t0 * S + s] = Uint8Array.from(v, x => qDiv(x / (mx || 1)));
+      orderCell[t0 * S + s] = Uint16Array.from(ident).sort((a, b) => Math.abs(v[a]) - Math.abs(v[b]));    // largest |u| on top
+    }
+    out = { cont: { kind: "div", lo: -1, hi: 1, label: `mode ${st.dm}: u_l / max|u_l|, each site its own slice` } };
+  } else {
+    const k = st.dk, f = st.focus;
+    cols = [...Array(k)].map((_, j) => kmColour(pal, j)).concat([pal.unassigned, DIM]);
+    const NO = k, G = k + 1;
+    grey = new Uint8Array(N).fill(G);
+    for (let s = 0; s < S; s++) {
+      const lab = depthLabels(ctx, st, s);
+      const ci = Uint8Array.from(lab, l => l < 0 ? NO : f != null && l !== f ? G : l);
+      ciCell[t0 * S + s] = ci;
+      // the hash order of the other colourings, with grey (no label, or outside the isolated set) drawn first
+      orderCell[t0 * S + s] = Uint16Array.from(ident).sort((a, b) => (ci[a] >= NO ? 0 : 1) - (ci[b] >= NO ? 0 : 1) || (Math.sin(a * 12.9898) * 43758.5453 % 1) - (Math.sin(b * 12.9898) * 43758.5453 % 1));
+    }
+    out = { sets: { k, names: [...Array(k)].map((_, j) => `set ${j + 1}`), none: NO } };
+  }
+  return { ...out, ci: Array(T).fill(grey), order: Array(T).fill(ident), ciCell, orderCell, cols, depth: { info, t: t0 }, pal32: new Uint32Array(cols.map(css32)) };
+}
 const _c32 = new Map();
 function css32(css) {
   if (_c32.has(css)) return _c32.get(css);
@@ -252,7 +357,9 @@ function stamp(radius) {
 export function paint(buf, W, H, cells, coords, col, N, radius) {
   const offs = stamp(radius), no = offs.length;
   for (const c of cells) {
-    const ci = col.ci[c.t], order = col.order[c.t], pal = col.pal32, base = (c.t * c.S + c.s) * N * 2;
+    // per-panel colours where a colouring has them (through depth: each site its own slice), else one array per row
+    const cell = c.t * c.S + c.s, ci = col.ciCell?.[cell] || col.ci[c.t], order = col.orderCell?.[cell] || col.order[c.t];
+    const pal = col.pal32, base = cell * N * 2;
     for (let q = 0; q < N; q++) {
       const i = order[q], px = Math.round(c.x + c.w * coords[base + 2 * i]), py = Math.round(c.y + c.w * (1 - coords[base + 2 * i + 1]));
       const v = pal[ci[i]];
@@ -320,6 +427,8 @@ export class Explorer {
       fam: "layer", anchor: T - 1, a: 0, b: S - 1, mode: m.default_mode, color: "seba", k: 1, r: m.seba_r.includes(4) ? 4 : m.seba_r[0],
       kind: "set", focus: null, j: null, at: "own", lay: 0, ps: 1.6, cmp: null, tap: "end", op: "avg", src: "M0", kern: "cos",
       kmk: 4, kms: "start", cgSide: "start", cgView: "abs",
+      dv: "own", dt: 3, dm: 1, dk: 5, dr: "a", dsite: null,      // through depth (depthColouring)
+      dwj: null, dwk: 1, dwf: 0, dwi: null,                       // diffusion wavelets (fitDwFun)
     };
     this.srcIdx = await D.srcIndex().catch(() => null);   // baselines study (build_site.py --baselines); null if absent
     // layout coordinates by "<root>:<layout file index>"; st.lay indexes the cosine root's m.layouts (see layIndex)
@@ -353,7 +462,14 @@ export class Explorer {
       segInit("ex-tap", () => this.st.tap, v => { this.st.tap = v; }),
       segInit("ex-kern", () => this.st.kern, v => this.setKernel(v)),
       segInit("ex-kms", () => this.st.kms, v => { this.st.kms = v; this.st.focus = null; }),
+      segInit("ex-dv", () => this.st.dv, v => { this.st.dv = v; this.st.focus = null; this.st.dsite = null; }),
+      segInit("ex-dr", () => this.st.dr, v => { this.st.dr = v; this.st.focus = null; }),
+      segInit("ex-dwk", () => this.st.dwk, v => { this.st.dwk = +v; if (this.st.dwi == null) this.st.dwf = 0; }),
     ];
+    $("ex-dwj").addEventListener("change", e => { this.st.dwj = +e.target.value; if (this.st.dwi == null) this.st.dwf = 0; this.update(); });
+    $("ex-dwf").addEventListener("change", e => { this.st.dwf = +e.target.value; this.st.dwi = null; this.update(); });
+    if (!m.dw) $("ex-color-dw").remove();
+    this.buildDepthControls();
     // coarse-graining card controls (redraw the card only)
     const cgSeg = (id, get, set) => {
       const seg = $(id);
@@ -401,6 +517,65 @@ export class Explorer {
     try { if (dev && ctx.kernels.dot && localStorage.getItem("cm.explorer.kernel") === "dot") this.st.kern = "dot"; } catch (e) { /* private mode */ }
     $("ex-dev").addEventListener("change", e => { this.setDev(e.target.checked, true); this.update(); });
     this.buildGuide();
+  }
+  // through depth: variant (segment, set up with the others), coupling slider, mode or sets; absent without the add-on
+  buildDepthControls() {
+    const m = this.ctx.m, S_ = m.spacetime;
+    if (!S_) { $("ex-color-depth-grp").remove(); return; }
+    const dm = $("ex-dm");
+    for (let k = 1; k <= S_.K; k++) dm.add(new Option(`mode ${k}`, String(k)));
+    const og = document.createElement("optgroup"); og.label = "Sets (post-hoc k-means readout)";
+    [...new Set(S_.sets.map(s => s.k))].forEach(k => og.append(new Option(`sets, k = ${k}`, "s" + k)));
+    dm.append(og);
+    dm.addEventListener("change", e => {
+      const v = e.target.value, st = this.st;
+      if (v[0] === "s") { st.dm = "sets"; st.dk = +v.slice(1); } else st.dm = +v;
+      st.focus = null; st.dsite = null; this.update();
+    });
+    const dt = $("ex-dt"); dt.max = String(S_.factors.length - 1);
+    dt.addEventListener("input", e => { this.st.dt = +e.target.value; this.st.focus = null; this.syncDepthLabel(); this.update(); });
+    $("ex-depth-lock").textContent = `kernel: cosine · rule: ${m.modes[S_.rule]} (fixed)`;
+  }
+  // coupling label: t / t* from meta, the actual t from the loaded summary of the shown checkpoint
+  syncDepthLabel() {
+    const st = this.st, S_ = this.ctxCos.m.spacetime;
+    if (!S_) return;
+    const f = S_.factors[st.dt], R = st._dep?.Sm.variants[st.dv];
+    const t = R && R.t && st._dep.step === this.ctxCos.m.steps[st.anchor] ? R.t[st.dt] : null;
+    $("ex-dt-val").textContent = `t/t* = ${fracLabel(f)}` + (t != null ? ` · t = ${(+t.toPrecision(3)).toString()}` : "");
+    $("ex-dt").value = String(st.dt);
+    $("ex-dt").setAttribute("aria-valuetext", $("ex-dt-val").textContent);
+  }
+  // the through-depth colouring fixes the kernel (cosine), the rule (meta.spacetime.rule) and the layer family (one
+  // checkpoint row); out-of-range settings are clamped. Returns notes for the status line.
+  fitDepth(st = this.st) {
+    const out = [], cm = this.ctxCos.m, S_ = cm.spacetime;
+    if (st.color !== "depth") return out;
+    if (!S_) { out.push("Through depth is not in this build; showing coherent sets."); st.color = "seba"; st.kind = "set"; return out; }
+    if (st.kern !== "cos") { out.push("Through depth exists for the cosine kernel only; showing cosine."); st.kern = "cos"; }
+    if (st.mode !== S_.rule) { out.push(`Through depth exists for kernel rule "${cm.modes[S_.rule]}" only; showing it.`); st.mode = S_.rule; }
+    if (st.fam !== "layer") { const t = st.b; st.fam = "layer"; st.anchor = t; st.a = 0; st.b = cm.sites.length - 1; st.cmp = null; }
+    st.src = "M0";
+    if (!S_.variants.some(v => v.id === st.dv)) st.dv = "own";
+    if (!(st.dt >= 0 && st.dt < S_.factors.length)) st.dt = S_.factors.indexOf(1) >= 0 ? S_.factors.indexOf(1) : 0;
+    if (st.dm !== "sets" && !(st.dm >= 1 && st.dm <= S_.K)) st.dm = 1;
+    if (!S_.sets.some(s => s.k === st.dk)) st.dk = S_.sets[0].k;
+    if (!(st.dr in S_.readouts)) st.dr = "a";
+    if (st.dsite != null && !(st.dsite >= 0 && st.dsite < cm.sites.length)) st.dsite = null;
+    if (st.focus != null && (st.dm !== "sets" || !(st.focus >= 0 && st.focus < st.dk))) st.focus = null;   // an isolated set must exist
+    return out;
+  }
+  // diffusion wavelets: cosine kernel, one kernel rule, single snapshots (a multi-snapshot block keeps its last snapshot)
+  fitDw(st = this.st) {
+    const out = [], cm = this.ctxCos.m, W = cm.dw;
+    if (st.color !== "dw") return out;
+    if (!W) { out.push("Diffusion wavelets are not in this build; showing eigenvectors."); st.color = "eig"; st.kind = "psi"; return out; }
+    if (st.kern !== "cos") { out.push("Diffusion wavelets exist for the cosine kernel only; showing cosine."); st.kern = "cos"; }
+    if (st.mode !== W.rule) { out.push(`Diffusion wavelets exist for kernel rule "${cm.modes[W.rule]}" only; showing it.`); st.mode = W.rule; }
+    if (st.a !== st.b) { out.push("Diffusion wavelets are per snapshot: showing the block's last snapshot. Click a point to pick another."); st.a = st.b; st.cmp = null; }
+    if (st.dwi != null && !(st.dwi >= 0 && st.dwi < cm.n)) st.dwi = null;
+    st.src = "M0";
+    return out;
   }
   // "Sets from": the colour sources of the baselines study, grouped by kind, with status tags
   buildSources() {
@@ -592,6 +767,50 @@ export class Explorer {
     ks.title = BLOCK_KINDS.has(st.color) ? "" : "Selection shown in the side panel";
     $("ex-at").hidden = !(st.color in DIAG || st.color === "correct");
     $("ex-k-label").hidden = BLOCK_KINDS.has(st.color);
+    this.syncDepth(ctx);
+    this.syncDw(ctx);
+  }
+  syncDw(ctx = this.ctx) {
+    const st = this.st, on = st.color === "dw" && !!ctx.m.dw;
+    $("ex").classList.toggle("dw", on);
+    $("ex-dw-ctl").hidden = !on;
+    $("card-dw").hidden = !on;
+    if (!on) return;
+    $("ex-k").hidden = true; $("ex-k-label").hidden = true;
+    const W = st._dw; if (!W) return;
+    const cell = W.cell, key = `${W.step}_${W.site}`;
+    const sj = $("ex-dwj");
+    if (sj._key !== key) {
+      sj._key = key; sj.replaceChildren();
+      for (const j of dwLevels(cell)) {
+        const L = cell.levels.find(r => r[0] === j), nw = dwGroup(cell, j, 1).length;
+        sj.add(new Option(`scale j = ${j} (M^${2 ** j}): ${L[3].toLocaleString("en")} wavelets${nw < L[3] ? `, ${nw} stored` : ""}`, j));
+      }
+    }
+    sj.value = st.dwj;
+    $("ex-dwk").querySelectorAll("button").forEach(b => { const n = dwGroup(cell, st.dwj, +b.dataset.v).length; b.disabled = !n; b.title = b.title.replace(/ \(none stored at this scale\)$/, "") + (n ? "" : " (none stored at this scale)"); });
+    const sf = $("ex-dwf"), fk = `${key}/${st.dwj}/${st.dwk}`;
+    if (sf._key !== fk) {
+      sf._key = fk; sf.replaceChildren();
+      dwGroup(cell, st.dwj, st.dwk).forEach((f, q) => sf.add(new Option(`${dwName(st, q)}: centre #${cell.fun[f][2]}`, q)));
+    }
+    sf.value = st.dwf;
+  }
+  // through depth: its controls replace the block's selectors; kernel and rule are locked and say so
+  syncDepth(ctx = this.ctx) {
+    const st = this.st, on = st.color === "depth" && !!ctx.m.spacetime;
+    $("ex").classList.toggle("depth", on);
+    $("ex-depth-ctl").hidden = !on;
+    if (on) { $("ex-k").hidden = true; $("ex-k-label").hidden = true; } else $("ex-k").hidden = false;
+    if (this.srcIdx) $("ex-src-ctl").hidden = on;
+    const lock = (e, why) => { if (e.dataset.t1 == null) e.dataset.t1 = e.title || ""; e.disabled = on; e.title = on ? why : e.dataset.t1; };
+    lock($("ex-mode"), "Fixed while colouring through depth: the through-depth data exist for this kernel rule only");
+    $("ex-kern").querySelectorAll("button").forEach(b => lock(b, "Fixed while colouring through depth: cosine kernel only"));
+    if (!on) return;
+    $("ex-dt-wrap").hidden = st.dv === "paper";
+    $("ex-dr").hidden = st.dm !== "sets";
+    $("ex-dm").value = st.dm === "sets" ? "s" + st.dk : String(st.dm);
+    this.syncDepthLabel();
   }
 
   // controls a non-cosine data root does not ship are disabled with the reason; the dot badge shows which root is active
@@ -699,7 +918,7 @@ export class Explorer {
   onMove(e) {
     const hc = this.hitCell(e);
     if (!hc) return;
-    if (this.drag) {
+    if (this.drag && this.st.color !== "depth" && this.st.color !== "dw") {
       const st = this.st, d = this.drag;
       const along = hc.t === d.t || hc.s === d.s;
       if (along && (hc.t !== d.t || hc.s !== d.s)) { d.moved = true; d.end = hc; d.fam = hc.t === d.t ? "layer" : "time"; this.dragPrev = d; this.drawOverlay(); }
@@ -715,7 +934,7 @@ export class Explorer {
     } else { this._tipKey = null; hideTip(); }
     this.canvas.title = "";
     // prefetch the block a click here would select
-    if (!this.drag) { const nb = this.clickTarget(hc, e.shiftKey); if (nb) blockOf(this.ctx, nb).catch(() => {}); }
+    if (!this.drag && this.st.color !== "depth" && this.st.color !== "dw") { const nb = this.clickTarget(hc, e.shiftKey); if (nb) blockOf(this.ctx, nb).catch(() => {}); }
   }
   onDown(e) {
     if (e.button !== 0) return;
@@ -727,6 +946,31 @@ export class Explorer {
     const d = this.drag; this.drag = null;
     if (!d) return;
     const st = this.st;
+    if (st.color === "depth") {      // through depth: a click (or the end of a drag) picks the checkpoint row only
+      const hc = this.hitCell(e) || d.end || d;
+      if (d.pointer !== "mouse" && hc.x != null) {
+        const i = this.nearest(hc.t, hc.s, hc.x, hc.y, this.cellRect(hc.t, hc.s), Math.max(10, this.geom.cell * .12));
+        this.setHover(i, hc.t);
+      }
+      this.dragPrev = null; this.lensCell = [hc.t, hc.s];
+      if (hc.t === st.anchor && st.fam === "layer" && !this.depthPending()) { this.setDepthSite(hc.s); return; }   // same row: show that site's images
+      st.fam = "layer"; st.anchor = hc.t; st.focus = null; st.j = null;
+      hideTip(); this._tipKey = null;      // the tooltip describes the old row
+      this.update();
+      return;
+    }
+    if (st.color === "dw") {      // diffusion wavelets: a click picks that panel's snapshot and the image under the pointer
+      const hc = this.hitCell(e) || d.end || d;
+      if (hc.x != null) {
+        const i = this.nearest(hc.t, hc.s, hc.x, hc.y, this.cellRect(hc.t, hc.s), Math.max(8, this.geom.cell * .1));
+        if (i >= 0) { st.dwi = i; this.setHover(i, hc.t); }
+      }
+      this.dragPrev = null; this.lensCell = [hc.t, hc.s];
+      if (st.fam === "layer") { st.anchor = hc.t; st.a = st.b = hc.s; } else { st.anchor = hc.s; st.a = st.b = hc.t; }
+      hideTip(); this._tipKey = null;
+      this.update();
+      return;
+    }
     if (d.moved && d.end) {
       if (d.fam !== st.fam) { st.fam = d.fam; st.cmp = null; }
       if (st.fam === "layer") { st.anchor = d.t; st.a = Math.min(d.s, d.end.s); st.b = Math.max(d.s, d.end.s); }
@@ -771,8 +1015,29 @@ export class Explorer {
     if (pts.pred) rows.push({ name: `predicted at ${fmtStep(m.steps[tt])}`, value: m.classes[pts.pred[tt * N + i]] });
     if (pts.loss) rows.push({ name: "loss", value: fmt(pts.loss[tt * N + i], 3) });
     const blk = this.blk;
+    if (st.color === "depth" && this.depthPending()) {
+      rows.push({ name: "through depth", value: "loading…" });
+      return h("div", { class: "tt-img" }, this.thumb(i), tipRows(`#${i} · ${m.sites[s]} · step ${m.steps[t].toLocaleString("en")}`, rows));
+    }
+    if (depthReady(st)) {          // through depth: this panel's own slice or set label, on the coloured row only
+      const head = `#${i} · ${m.sites[s]} · step ${m.steps[t].toLocaleString("en")}`;
+      if (t !== st.anchor) rows.push({ name: "through depth", value: `not coloured (shows step ${m.steps[st.anchor].toLocaleString("en")})` });
+      else if (st.dm !== "sets") {
+        const info = this.col.depth.info[s], v = depthSlice(this.ctx, st, s); let mx = 0; for (const x of v) mx = Math.max(mx, Math.abs(x));
+        rows.push({ name: `mode ${st.dm}, slice at ${m.sites[s]} (scaled to ±1)`, value: info.low ? "grey: under 1% of the mode" : fmt(v[i] / (mx || 1)) });
+        rows.push({ name: "share of the mode at this site", value: share(info.w) });
+      } else {
+        const l = depthLabels(this.ctx, st, s)[i];
+        rows.push({ name: `sets, k = ${st.dk}, ${this.ctx.m.spacetime.readouts[st.dr]}`, value: l < 0 ? "no label" : `set ${l + 1}`, color: l < 0 ? this.ctx.pal.unassigned : this.col.cols[l] });
+      }
+      return h("div", { class: "tt-img" }, this.thumb(i), tipRows(head, rows));
+    }
     if (blk) {
-      if (st.kind === "set" && st._S) {
+      if (st.color === "dw" && this.col?.dw) {
+        const w = this.col.dw;
+        rows.push({ name: `${dwName(st, st.dwf)} (scaled to ±1)`, value: fmt(w.v[i] / (w.mx || 1)) });
+        if (i === w.row[2]) rows.push({ name: "centre", value: "this image" });
+      } else if (st.kind === "set" && st._S) {
         const S = st._S, l = S.lab[i];
         rows.push({ name: `${SR.SRC[S.id].label}${S.classes ? "" : ` (r = ${st.r})`}`, value: l < 0 ? "unassigned" : S.names[l], color: l < 0 ? this.ctx.pal.unassigned : S.classes ? this.ctx.pal.classes[l] : this.ctx.pal.set(l) });
         const l0 = blk.lab[m.seba_r.indexOf(st.r) * N + i];
@@ -798,6 +1063,8 @@ export class Explorer {
   // choice). The state is fitted on a copy and copied back at the commit. A failed load reverts the switch.
   async update() {
     const st = this.st, token = this._tok = (this._tok || 0) + 1;
+    const depthNotes = this.fitDepth(st).concat(this.fitDw(st), this._depthNotes || []);   // before any kernel switch: depth and wavelets are cosine only
+    this._depthNotes = null;
     let ctx = this.ctx;
     const revert = (e, what) => {
       console.error(e);
@@ -815,16 +1082,27 @@ export class Explorer {
       if (token !== this._tok) return;
     }
     const switching = ctx !== this.ctx, nst = switching ? { ...st } : st;
-    const notes = this.fitState(ctx, nst).concat(this.fitCoarse(ctx, nst));
+    const notes = depthNotes.concat(this.fitState(ctx, nst), this.fitCoarse(ctx, nst));
     if (switching) this.segs.forEach(s => s._sync());
     else { this.syncControls(ctx); this.writeHash(); if (notes.length) this._sticky = { msg: notes.join(" "), hash: this.lastHash }; }
     $("ex-status").textContent = switching ? `loading the ${nst.kern} kernel…` : "loading…";
     $("ex-side").style.opacity = .55;
-    let blk, km = null;
+    let blk, km = null, dep = null, dw = null;
     try {
-      [blk] = await Promise.all([blockOf(ctx, nst), this.loadCoords(ctx, this.layIndex(ctx, nst.lay))]);
+      const step = ctx.m.steps[nst.anchor], depth = nst.color === "depth" && ctx.m.spacetime;
+      let U, Sm;
+      if (depth) $("ex-status").textContent = `loading through-depth data for step ${step.toLocaleString("en")}…`;
+      [blk, , U, Sm] = await Promise.all([blockOf(ctx, nst), this.loadCoords(ctx, this.layIndex(ctx, nst.lay)),
+        depth ? D.depthUnit(ctx.m, step, nst.dv) : null, depth ? D.depthSummary(step) : null]);
+      if (depth) dep = { U, Sm, step, set: Object.fromEntries(["anchor", "dv", "dt", "dm", "dk", "dr"].map(k => [k, nst[k]])) };   // what was loaded
       const pi = pairOf(ctx, nst), cell = nst.a === nst.b;
       if (nst.kind === "psi" && nst.k > ctx.m.n_vecs && !blk.ext) blk.ext = await D.ext(ctx.m, dkey(nst), nst.anchor, nst.mode, pi, cell);
+      if (nst.color === "dw") {
+        const [step_, site_] = dwStepSite(ctx.m, nst), cell = await D.dwCell(ctx.m, step_, site_);
+        const sel = { dwj: nst.dwj, dwk: nst.dwk, dwf: nst.dwf, dwi: nst.dwi };    // fitted on a copy: committed below only if still current
+        fitDwFun(sel, cell, ctx.N);
+        dw = { cell, step: step_, site: site_, sel };
+      }
       if (nst.color === "km") {
         const L = await D.kmLabels(ctx.m, ctx.m.steps[nst.anchor], nst.mode, pi, cell), qi = ctx.m.coarse.km.ks.indexOf(nst.kmk);
         const side = cell ? "start" : nst.kms;
@@ -850,7 +1128,8 @@ export class Explorer {
     }
     if (token !== this._tok) return;
     if (switching) for (const k of ["mode", "lay", "src", "op", "focus", "k", "color", "kind"]) st[k] = nst[k];
-    this.ctx = ctx; this.blk = blk; st._S = S; st._km = km;    // context, block and layout change together: no cosine block under a dot label
+    if (dw) Object.assign(st, dw.sel);
+    this.ctx = ctx; this.blk = blk; st._S = S; st._km = km; st._dep = dep; st._dw = dw;    // context, block and layout change together: no cosine block under a dot label
     $("ex-side").style.opacity = 1;
     this.col = colouring(ctx, st, blk);
     this.syncControls();
@@ -866,8 +1145,15 @@ export class Explorer {
   }
   renderAll() {
     if (!this.col || !this.geom || this.blk?.root !== this.ctx.root) return;
+    if (this.col.depth) {        // through depth: block-only cards are hidden (CSS .ex.depth), the depth card replaces them
+      if (this.depthPending()) return;     // a load for other settings is under way: update() redraws when it commits
+      this.draw(); this.drawOverlay(); this.decorate(); this.syncDepthLabel();
+      this.renderDepthCard(); this.renderLegend(); this.renderDepthImages(); this.renderCaption();
+      return;
+    }
     this.draw(); this.drawOverlay(); this.decorate();
     this.renderBlockCard(); this.renderLegend(); this.renderImages(); this.renderRetention(); this.renderStats(); this.renderCaption(); this.renderCoarse();
+    if (this.col.dw) this.renderDw();
   }
   prefetch() {
     const st = this.st, ctx = this.ctx, lim = st.fam === "layer" ? ctx.S : ctx.T;
@@ -884,7 +1170,14 @@ export class Explorer {
     if (st.lay) p.set("lay", st.lay);
     if (isProd(st)) p.set("op", st.op);
     if (st.src && st.src !== "M0") p.set("src", st.src);
+    if (st.color === "dw") { if (st.dwj != null) p.set("dwj", st.dwj); p.set("dwk", st.dwk); if (st.dwi != null) p.set("dwi", st.dwi); else p.set("dwf", st.dwf); }
     if (st.color === "km") { p.set("km", st.kmk); if (st.a !== st.b && st.kms === "end") p.set("kms", "end"); }
+    if (st.color === "depth") {      // through depth: variant, coupling (not for paper), mode or sets (k, readout), site of the images card
+      p.set("dv", st.dv); if (st.dv !== "paper") p.set("dt", st.dt);
+      if (st.dm === "sets") { p.set("dm", "sets"); p.set("dk", st.dk); p.set("dr", st.dr); if (st.focus != null) p.set("j", st.focus); }
+      else p.set("dm", st.dm);
+      if (st.dsite != null) p.set("ds", st.dsite);
+    }
     if (this.ctx.kernel !== "cos") p.set("kern", this.ctx.kernel);   // the kernel on screen, not a pending switch
     let hsh = "#explorer?" + p.toString();
     if (this.tour) {
@@ -925,6 +1218,25 @@ export class Explorer {
     if (m.coarse) { st.kmk = int("km", 2, 16) ?? st.kmk; st.kms = p.get("kms") === "end" ? "end" : "start"; }
     st.lay = int("lay", 0, m.layouts.length - 1) ?? 0;      // update() moves the points (showLayout)
     st.kern = p.get("kern") === "dot" && this.ctxCos.kernels.dot ? "dot" : "cos";
+    if (p.get("c") === "depth" && !m.spacetime) this._depthNotes = ["Through depth is not in this build."];
+    if (st.color === "depth") {      // dv, dt, dm, dk, dr, ds; fitDepth clamps them and fixes kernel, rule and family
+      // also read: dv=rel|native, dc (coupling) and dm=s5|s10 (the form some experiment-page links use)
+      st.dv = ({ rel: "own", native: "none", nat: "none" })[p.get("dv")] || p.get("dv") || "own";
+      st.dt = int("dt", 0, 99) ?? int("dc", 0, 99) ?? (m.spacetime.factors.indexOf(1) >= 0 ? m.spacetime.factors.indexOf(1) : 0);
+      const dm = p.get("dm");
+      if (/^s\d+$/.test(dm || "")) { st.dm = "sets"; st.dk = +dm.slice(1); st.dr = p.get("dr") || "a"; st.focus = int("j", 0, 15); }
+      else if (dm === "sets") { st.dm = "sets"; st.dk = int("dk", 1, 99) ?? 5; st.dr = p.get("dr") || "a"; st.focus = int("j", 0, 15); }
+      else { st.dm = int("dm", 1, 999) ?? 1; st.focus = null; }
+      st.dsite = int("ds", 0, S - 1);
+      if (p.get("dm") != null && st.dm !== "sets" && st.dm > m.spacetime.K) this._depthNotes = [`Mode ${st.dm}: only modes 1 to ${m.spacetime.K} are stored; showing mode 1.`];
+      st.j = null;
+      this._depthNotes = (this._depthNotes || []).concat(this.fitDepth(st));
+    }
+    if (st.color === "dw") {      // dwj, dwk, dwi | dwf; fitDwFun clamps them once the snapshot is loaded
+      st.dwj = int("dwj", 0, 99); st.dwk = int("dwk", 0, 1) ?? 1; st.dwi = int("dwi", 0, m.n - 1);
+      st.dwf = st.dwi == null ? int("dwf", 0, 9999) ?? 0 : 0;
+      this._depthNotes = (this._depthNotes || []).concat(this.fitDw(st));
+    }
     if (!this.dev && this.needsDev()) this.setDev(true, false);   // a link into an extra option opens the extras
     this.update();
   }
@@ -959,12 +1271,21 @@ export class Explorer {
     }
   }
   decorate() {
-    const st = this.st, { T, S } = this.ctx, g = this.geom;
-    this.cellbg.forEach((e, i) => e.classList.toggle("inb", inBlock(st, Math.floor(i / S), i % S)));
-    this.colh.forEach((e, s) => e.classList.toggle("inb", st.fam === "layer" ? (s >= st.a && s <= st.b) : s === st.anchor));
-    this.rowh.forEach((e, t) => e.classList.toggle("inb", st.fam === "layer" ? t === st.anchor : (t >= st.a && t <= st.b)));
+    const st = this.st, { T, S } = this.ctx, g = this.geom, dep = this.col?.depth;
+    // through depth: the whole checkpoint row is outlined; grey panels carry a short note; the images card's site is ringed
+    const inSel = dep ? (t => t === dep.t) : null, dsite = dep ? this.depthSite() : -1;
+    this.cellbg.forEach((e, i) => {
+      const t = Math.floor(i / S), s = i % S, info = dep && t === dep.t ? dep.info[s] : null, low = !!info?.low;
+      e.classList.toggle("inb", dep ? inSel(t) : inBlock(st, t, s));
+      e.classList.toggle("lowwt", low);
+      e.classList.toggle("dsite", !!dep && t === dep.t && s === dsite);
+      if (low) e.dataset.note = st.dm === "sets" ? "no labels" : "< 1% of mode"; else delete e.dataset.note;
+    });
+    this.colh.forEach((e, s) => e.classList.toggle("inb", dep ? true : st.fam === "layer" ? (s >= st.a && s <= st.b) : s === st.anchor));
+    this.rowh.forEach((e, t) => e.classList.toggle("inb", dep ? inSel(t) : st.fam === "layer" ? t === st.anchor : (t >= st.a && t <= st.b)));
     let t0, t1, s0, s1;
-    if (st.fam === "layer") { t0 = t1 = st.anchor; s0 = st.a; s1 = st.b; } else { s0 = s1 = st.anchor; t0 = st.a; t1 = st.b; }
+    if (dep) { t0 = t1 = dep.t; s0 = 0; s1 = S - 1; }
+    else if (st.fam === "layer") { t0 = t1 = st.anchor; s0 = st.a; s1 = st.b; } else { s0 = s1 = st.anchor; t0 = st.a; t1 = st.b; }
     Object.assign(this.blockbox.style, {
       left: g.rowW + s0 * (g.cell + g.gap) - 3 + "px", top: g.colH + t0 * (g.cell + g.gap) - 3 + "px",
       width: (s1 - s0 + 1) * (g.cell + g.gap) - g.gap + 6 + "px", height: (t1 - t0 + 1) * (g.cell + g.gap) - g.gap + 6 + "px",
@@ -1028,9 +1349,11 @@ export class Explorer {
   }
 
   renderLegend() {
+    if (this.col?.depth) return this.renderDepthLegend();
     const st = this.st, { m, pal, labels, N } = this.ctx, col = this.col, body = $("leg-body");
     body.replaceChildren(); $("leg-jac").replaceChildren();
     const titles = { seba: `${st.r} groups of images (coherent sets)`, nodal: `Sign of eigenvector ${st.k}`, eig: `Eigenvector ${st.k}`, km: `k-means on the eigenvectors, ${st.kmk} groups${st.a === st.b ? "" : ` (at the ${st.kms === "end" ? "last" : "first"} site)`}`, class: "CIFAR class (for checking only)",
+      dw: `Diffusion ${st.dwk ? "wavelet" : "scaling function"} ${dwName(st, st.dwf)}${st._dw ? ` of ${this.ctx.m.sites[st._dw.site]}, step ${st._dw.step.toLocaleString("en")}` : ""}`,
       correct: "Correct / wrong", loss: "Loss", jac: "Sensitivity to the input (Jacobian norm)", gcos: "Gradient agrees with the average gradient", gdot: "Gradient alignment (dot product)" };
     const pxk = isPx(st.color) ? st.color.slice(3) : null, pxLab = pxk && (this.ctx.imgstats?.labels[pxk] || IMGSTATS[pxk]?.label || pxk);
     $("leg-title").textContent = pxk ? `Image statistic: ${pxLab}` : titles[st.color];
@@ -1070,6 +1393,7 @@ export class Explorer {
       body.append(h("div", { class: "cbar-ticks" }, h("span", { text: (c.kind === "div" && !c.log ? "≤ " : "≤ ") + tick(c.lo) }), h("span", { text: c.kind === "div" ? "0" : "" }), h("span", { text: "≥ " + tick(c.hi) })));
       const notes = {
         eig: `Diverging colour of ψ${st.k} scaled by max|ψ${st.k}|; grey = near zero. Signs are arbitrary (fixed so the largest entry is positive).`,
+        dw: `Diverging colour of one diffusion ${st.dwk ? "wavelet" : "scaling function"} of the outlined snapshot, scaled by its max |value|; grey = near zero. Sign fixed so the largest entry is positive. The same function is painted on every panel.`,
         loss: `Log colour scale, fixed across rows (1st to 99th percentile over all checkpoints). At ${st.at === "final" ? "the final checkpoint for every row" : "each row's own checkpoint"}.`,
         jac: `Frobenius norm of d logits / d input (log scale, fixed across rows). At ${st.at === "final" ? "the final checkpoint" : "each row's own checkpoint"}.`,
         gcos: `Cosine between the image's loss gradient (all parameters) and the mean gradient over the 2,000 probe images. At ${st.at === "final" ? "the final checkpoint" : "each row's own checkpoint"}. Uses labels through the loss.`,
@@ -1135,6 +1459,42 @@ export class Explorer {
   // The first side-panel card, visible without clicking: for the selected sets, one row per set (swatch, size, class
   // make-up bar, strip of its highest-membership images) plus the unassigned images; for psi_k, its two ends.
   // Images come from the build-time representatives (D.reps); class labels only describe the sets.
+  // diffusion wavelets: the images card shows the function's ends; the wavelet card its scale table and definition
+  renderDwImages(body, strip) {
+    const st = this.st, { pal, N } = this.ctx, w = this.col.dw, v = w.v, name = dwName(st, st.dwf);
+    $("img-title").textContent = `Images at the two ends of ${name}`;
+    const idx = Array.from({ length: N }, (_, i) => i);
+    const pos = idx.filter(i => v[i] > 0).sort((a, b) => v[b] - v[a] || a - b), neg = idx.filter(i => v[i] < 0).sort((a, b) => v[a] - v[b] || a - b);
+    const row = (ids, label, col, rows, minor) => body.append(h("div", { class: "set-row" + (minor ? " minor" : "") },
+      h("div", { class: "set-head" }, h("span", { class: "sw", style: { background: col } }), h("span", { class: "set-name", text: label })), strip(ids, rows)));
+    const picked = st.dwi != null && st.dwi !== w.row[2];
+    row([w.row[2]], `centre: image #${w.row[2]}${picked ? ` (you picked #${st.dwi}${Math.abs(w.v[st.dwi]) < w.mx / 254 ? ", which no stored function at this scale carries above 8-bit resolution" : ""})` : ""}`, pal.p.diverging.mid, 1, true);
+    row(pos, `most positive ${name}`, pal.p.diverging.pos, 2);
+    if (neg.length && -v[neg[0]] > .05 * w.mx) row(neg, `most negative ${name}`, pal.p.diverging.neg, 2);
+    body.append(h("div", { class: "card-note", text: "Ranked in the browser from the shipped 8-bit function (ties by image index). Hover an image to ring it in every panel." }));
+  }
+  renderDw() {
+    const st = this.st, { m, pal } = this.ctx, W = st._dw, cell = W.cell, w = this.col.dw, r = w.row, L = cell.levels;
+    const lev = L.find(x => x[0] === st.dwj), nStored = dwGroup(cell, st.dwj, st.dwk).length;
+    $("dw-sub").textContent = `${m.sites[W.site]} · step ${W.step.toLocaleString("en")} · ${m.modes[m.dw.rule]} · cosine kernel`;
+    xyChart($("dw-chart"), {
+      series: [
+        { name: "scaling functions n_j", pts: L.map(x => [x[0], x[1]]), color: pal.set(0), dots: 2.5 },
+        { name: "wavelets at scale j", pts: L.map(x => [x[0], x[3]]), color: pal.set(1), dots: 2.5 },
+        { name: "#{λ^(2^j) > ε}", pts: L.map((x, a) => [x[0], cell.spec[a]]), color: "#8a8984", dash: "3 3" },
+      ],
+      ylog: true, xname: "scale j", xticks: L.map(x => x[0]), height: 170, hl: st.dwj,
+      onclick: x => { if (dwLevels(cell).includes(x) && x !== st.dwj) { st.dwj = x; if (st.dwi == null) st.dwf = 0; this.update(); } },
+    });
+    const body = $("dw-body"); body.replaceChildren();
+    const kind = st.dwk ? "wavelet" : "scaling function";
+    body.append(h("p", { class: "card-note" },
+      h("b", { text: `${dwName(st, st.dwf)}` }), `: ${kind} ${st.dwf + 1} of ${nStored}${st.dwk && lev[3] > nStored ? ` stored (of ${lev[3].toLocaleString("en")} at this scale)` : ""} in pivot order, at scale j = ${st.dwj} (the walk run for ${(2 ** st.dwj).toLocaleString("en")} steps). `,
+      `Centre: image #${r[2]}, the delta it descends from through the pivots. Participation ratio 1/Σf⁴ = ${r[4].toFixed(1)} images`,
+      st.dwk && lev[4] != null ? ` (median over all ${lev[3].toLocaleString("en")} wavelets at this scale: ${lev[4].toFixed(1)}).` : "."));
+    body.append(h("p", { class: "card-note", text: `Coifman–Maggioni diffusion wavelets of this snapshot's lazy walk M. Level j holds M^(2^j) on an orthonormal basis Φ_j (Φ_0: one delta per image). A QR with column pivoting of that matrix keeps the columns with |R_kk| > ε = ${m.dw.eps} and orthonormalizes them in pivot order, giving Φ_{j+1}, the functions M^(2^(j+1)) still resolves; the wavelets Ψ_j are an orthonormal basis of what Φ_j has and Φ_{j+1} lacks (again by pivoted QR, which orders them by residual norm in the scaling coordinates; that is not a localization ranking). The wavelets of all scales and the last scaling function (the constant) form an orthonormal basis of the ${m.n.toLocaleString("en")} images. Every step is a QR of a power of M: nothing is fitted. The dashed line counts eigenvalues of M with λ^(2^j) > ε; n_j follows it with some lag, since the QR threshold is on |R_kk|, not on eigenvalues.` }));
+    body.append(h("p", { class: "card-note", text: `Stored: the first ${m.dw.cap} wavelets of each scale in pivot order (a subset, not the most localized ones), the scaling functions of scales with at most ${m.dw.cap} of them, 8 bits each. Click the chart to change scale.` }));
+  }
   renderImages() {
     const st = this.st, { m, pal, labels, N } = this.ctx, blk = this.blk, body = $("img-body"), tg = this.target();
     body.replaceChildren();
@@ -1159,6 +1519,7 @@ export class Explorer {
       return bar;
     };
     $("img-sub").textContent = `${blockKind(st)}: ${blockLabel(this.ctx, st)} · ${m.modes[st.mode]}`;
+    if (this.col?.dw) return this.renderDwImages(body, strip);
     if (tg.kind === "psi") {
       $("img-title").textContent = `Images at the two ends of eigenvector ${tg.k}`;
       for (const [b, name, col] of [[1, `most negative ψ${tg.k}`, pal.p.diverging.neg], [0, `most positive ψ${tg.k}`, pal.p.diverging.pos], [2, `ψ${tg.k} nearest zero`, pal.p.diverging.mid]]) {
@@ -1392,6 +1753,188 @@ export class Explorer {
     $("cg-cell-note").innerHTML = `A group <b>leaks</b> when a walk step starting inside it lands outside it; the leak of group A is the chance of that, φ(A). Solid lines: the leaks summed over all groups; dashed: the leakiest group. Each is divided by the smallest value the eigenvalues allow (the Ky Fan bound Σ<sub>i&lt;k</sub>(1 − λ<sub>i</sub>) for the sum, the higher-order Cheeger bound (1 − λ<sub>k−1</sub>)/2 for the leakiest group), so 1 means as tight as possible and larger means leakier. Colours as above; hollow diamonds: the true classes (sum).`;
   }
 
+  // ---------------------------------------------------------------- through depth (SPEC_SPACETIME.md sections 4 and 6)
+  // the site whose images the first card shows: chosen (st.dsite) or the one holding most of the mode (sets: of the space)
+  depthSite() {
+    const st = this.st;
+    if (st.dsite != null) return st.dsite;
+    const { R, c, w } = depthView(this.ctx, st), y = w || R.occupancy[c];
+    return y.reduce((b, v, i) => v > y[b] ? i : b, 0);
+  }
+  // true while the depth data on screen belong to other settings than st (a load is pending): depth redraws, site
+  // picks, legend clicks and tooltips wait for the commit in update()
+  depthPending() {
+    const st = this.st, d = st._dep, c = this.col?.depth;
+    return !d || !c || ["anchor", "dv", "dt", "dm", "dk", "dr"].some(k => d.set[k] !== st[k]);
+  }
+  setDepthSite(s) {
+    if (!depthReady(this.st) || this.depthPending()) return;
+    this.st.dsite = s;
+    this.decorate(); this.renderDepthImages(); this.renderDepthCard(); this.renderLegend(); this.writeHash();
+  }
+  depthSetting() {
+    const st = this.st, m = this.ctx.m, S_ = m.spacetime, V = S_.variants.find(v => v.id === st.dv), R = st._dep.Sm.variants[st.dv];
+    const coupling = st.dv === "paper" ? "no adjustable coupling (the paper's matrix as is)" : `t = ${(+R.t[st.dt].toPrecision(3))} (t/t* = ${fracLabel(S_.factors[st.dt])})`;
+    return { V, coupling, step: m.steps[st.anchor].toLocaleString("en") };
+  }
+  renderDepthCard() {
+    const st = this.st, ctx = this.ctx, { m, pal, S } = ctx, S_ = m.spacetime, { R, c, k, w } = depthView(ctx, st);
+    const names = m.sites, info = this.col.depth.info, dsite = this.depthSite(), pick = s => this.setDepthSite(s), { V, coupling, step } = this.depthSetting();
+    $("dp-sub").textContent = `${V.label} · ${coupling} · step ${step} · ${m.modes[S_.rule]}`;
+    const siteFmt = x => Number.isInteger(x) ? names[x] : `${names[Math.floor(x)]} → ${names[Math.ceil(x)]}`;
+    const xt = [...Array(S).keys()].filter(i => (S - 1 - i) % 2 === 0);     // every other site, ending at the last
+    const lo01 = arr => Math.max(-1, Math.min(.8, Math.floor((Math.min(...arr.filter(Number.isFinite), 1) - .02) * 10) / 10));   // as the retention card
+    if (k != null) {
+      $("dp-title").textContent = `Mode ${st.dm} through depth`;
+      $("dp-a-title").textContent = "Depth weight: the share of the mode at each site" + (st.dv === "paper" ? " (B-weighted, b_l |f_l|²)" : "");
+      const sw = st.dm === 1 && R.scalar_weight ? R.scalar_weight[c] : null;
+      barChart($("dp-a"), {
+        names, y: w, color: pal.ord(.7), low: info.map(x => x.low), sel: dsite, onclick: pick, yfmt: v => (100 * v).toFixed(0) + "%",
+        barName: `share of mode ${st.dm}`, overlay: sw ? { name: "what the gaps alone would give (scalar control)", y: sw } : null,
+        tip: s => [{ name: `share of mode ${st.dm}`, value: share(w[s]) }, ...(sw ? [{ name: "scalar control", value: share(sw[s]) }] : []),
+          ...(info[s].low ? [{ name: "slice", value: "under 1%: drawn grey" }] : []), { name: "click", value: "show this site's images" }],
+      });
+      $("dp-b-title").textContent = "Each slice at its own site and against the next site's";
+      const ok = s => !info[s].low, at = (arr, x) => arr.map((v, l) => [l + x, ok(l) && (x === 0 || ok(l + 1)) ? v : null]);   // null: omitted, the line breaks
+      const series = [
+        { name: "cosine with the next site's slice", pts: at(R.adj_cos[c][k], .5), color: pal.set(0), dots: 2.4, width: 1.6, breaks: true },
+        { name: "retention at its own site", pts: at(R.retention[c][k], 0), color: pal.set(1), dots: 2.4, width: 1.6, breaks: true },
+        { name: "share in the site's own first 8 directions", pts: at(R.own_share[c][k], 0), color: pal.set(2), dots: 2.4, width: 1.6, breaks: true },
+      ];
+      const lo = lo01(series.flatMap(x => x.pts.map(p => p[1])));
+      if (series.some(x => x.pts.some(p => Number.isFinite(p[1])))) xyChart($("dp-b"), { series, yrange: [lo, 1.0], xrange: [-.4, S - .6], xticks: xt, xfmt: siteFmt, height: 165, ml: 36, xname: "site", yfmt: v => v.toFixed(1) });
+      else $("dp-b").replaceChildren(h("div", { class: "card-note", text: "Every slice holds under 1% of the mode." }));
+      $("dp-note").innerHTML = `<b>Mode numbers are local to this setting</b>: they are not matched across the coupling slider or across checkpoints, so mode ${st.dm} here need not be the same function as mode ${st.dm} at another coupling or step. `
+        + (st.dv === "paper" ? "" : `<b>Mode 1's depth weight mostly follows the sites' gaps</b>: for mode 1 the dashed line is the profile the gaps alone would give if every site's cheapest direction were one shared image function. `)
+        + `Retention: u<sub>l</sub><sup>T</sup>M<sub>l</sub>u<sub>l</sub>, how much of the slice survives one step of its own site's walk. Own share: the part of u<sub>l</sub> inside the span of that site's own first 8 eigenvectors. Sites holding under 1% of the mode (grey bars) are left out of the lower chart. Click a bar for that site's images.`;
+    } else {
+      const p = depthPlane(m, st), Q = R.sets[p], lab = `k = ${st.dk}, ${S_.readouts[st.dr]}`;
+      $("dp-title").textContent = `Sets through depth (${lab})`;
+      $("dp-a-title").textContent = "Number of sets present at each site";
+      const g = Q.groups[c];
+      barChart($("dp-a"), {
+        names, y: g, color: pal.ord(.7), low: info.map(x => x.low), sel: dsite, onclick: pick, yfmt: v => String(Math.round(v)), yhi: st.dk, barName: "non-empty sets",
+        tip: s => [{ name: "non-empty sets", value: info[s].low ? "none (no labels here)" : String(g[s]) }, { name: "click", value: "show this site's sets" }],
+      });
+      $("dp-b-title").textContent = "Between neighbouring sites";
+      const at = arr => (arr || []).map((v, l) => [l + .5, Number.isFinite(v) ? v : null]);
+      const series = [{ name: "share of images changing set", pts: at(Q.churn[c]), color: pal.set(0), dots: 2.4, width: 1.6, breaks: true }];
+      if (st.dr === "a") series.push({ name: "alignment strength (σmin / σmax of the rotation's cross matrix)", pts: at(R.link[c]), color: "#16161a", dash: true, dots: 2, width: 1.2, breaks: true });
+      if (series.some(x => x.pts.some(p => Number.isFinite(p[1])))) xyChart($("dp-b"), { series, yrange: [0, 1], xrange: [-.4, S - .6], xticks: xt, xfmt: siteFmt, height: 150, ml: 36, xname: "site", yfmt: v => v.toFixed(1) });
+      else $("dp-b").replaceChildren(h("div", { class: "card-note", text: "No two neighbouring sites both carry labels." }));
+      $("dp-note").innerHTML = `<b>A post-hoc readout, not part of the construction</b> (k-means is a fit): one k-means with centroids shared across the ${S} sites on the rows of the first 8 modes' slices, each site's block scaled to unit size`
+        + (st.dr === "a" ? `, every site first rotated onto the previous one (orthogonal Procrustes; an alignment strength near 0 means that link's rotation is poorly determined)` : ", rows as they are")
+        + `. Sites holding almost none of the space get no labels (grey). Set numbers go by size and, like mode numbers, are local to this setting: they are not matched across the coupling slider or checkpoints. Click a set in the legend to isolate it in every panel; click a bar for that site's sets.`;
+    }
+    $("dp-occ-title").textContent = `Where the low space lives: occupancy per site${st.dv === "paper" ? ", B-weighted" : ""} (the ${S} values sum to ${S_.K})`;
+    barChart($("dp-occ"), { names, y: R.occupancy[c], color: "#9a9993", sel: dsite, onclick: pick, yfmt: v => (+v.toFixed(1)).toString(), barName: "occupancy", height: 110,
+      tip: s => [{ name: `occupancy (of ${S_.K})`, value: R.occupancy[c][s].toFixed(2) }] });
+    const vals = R.vals[c], cur = k != null ? k + 1 : null;
+    xyChart($("dp-vals"), {
+      series: [{ name: "mode", pts: vals.map((v, i) => [i + 1, v]).filter(p => p[0] !== cur), color: "#9a9993", dots: 3, noline: true },
+        ...(cur ? [{ name: `mode ${cur} (shown)`, pts: [[cur, vals[cur - 1]]], color: m.palette.accent, dots: 5, noline: true }] : [])],
+      legend: false, height: 130, ml: 50, xrange: [.5, S_.K + .5], xticks: [1, 4, 8, 12, 16].filter(x => x <= S_.K), xname: "mode",
+      ytitle: st.dv === "paper" ? "eigenvalue of B⁻¹A" : "eigenvalue of L_t", yfmt: v => (+v.toPrecision(3)).toString(),
+      tipExtra: () => [{ name: "click", value: "colour the row by this mode" }],
+      onclick: x => { st.dm = x; st.focus = null; st.dsite = null; this.update(); },
+    });
+  }
+  renderDepthImages() {
+    const st = this.st, ctx = this.ctx, { m, pal, labels, N } = ctx, body = $("img-body"), s = this.depthSite(), info = this.col.depth.info[s];
+    body.replaceChildren();
+    const W = body.clientWidth || 300, TH = W >= 560 ? 44 : 40, per = Math.max(5, Math.floor((W + 3) / (TH + 3)));
+    const strip = (ids, rows = 1) => {
+      const g = h("div", { class: "imgs imgs-strip", style: { gridTemplateColumns: `repeat(${per}, minmax(0, 1fr))` } });
+      ids.slice(0, per * rows).forEach(i => {
+        const c = this.thumb(i);
+        c.addEventListener("pointerenter", () => this.setHover(i, st.anchor));
+        c.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, this.pointTip(i, st.anchor, s)));
+        c.addEventListener("pointerleave", () => { this.setHover(-1); hideTip(); });
+        g.append(c);
+      });
+      return g;
+    };
+    const sel = h("select", { class: "dp-site", "aria-label": "Site whose images are shown" });
+    m.sites.forEach((nm, j) => sel.add(new Option(nm, j))); sel.value = String(s);
+    sel.addEventListener("change", () => this.setDepthSite(+sel.value));
+    const { V, step } = this.depthSetting();
+    $("img-sub").replaceChildren(`Step ${step} · ${V.label} · at site`, sel);
+    if (st.dm !== "sets") {
+      $("img-title").textContent = `Images at the two ends of mode ${st.dm}, at ${m.sites[s]}`;
+      if (info.low) { body.append(h("div", { class: "card-note", text: `The slice at ${m.sites[s]} holds ${share(info.w)} of the mode: under 1%, so it is a normalised numerical tail, not a direction, and is drawn grey. Pick a site with a taller bar in the depth-weight chart.` })); return; }
+      const v = depthSlice(ctx, st, s), idx = Array.from({ length: N }, (_, i) => i), P = 2 * per;
+      const ends = [[1, `most negative at ${m.sites[s]}`, pal.p.diverging.neg, (a, b) => v[a] - v[b]], [0, `most positive at ${m.sites[s]}`, pal.p.diverging.pos, (a, b) => v[b] - v[a]],
+        [2, "nearest zero", pal.p.diverging.mid, (a, b) => Math.abs(v[a]) - Math.abs(v[b])]];
+      for (const [b, name, col, cmp] of ends)
+        body.append(h("div", { class: "set-row" + (b === 2 ? " minor" : "") }, h("div", { class: "set-head" }, h("span", { class: "sw", style: { background: col } }), h("span", { class: "set-name", text: name })),
+          strip(idx.slice().sort((x, y) => cmp(x, y) || x - y).slice(0, P), b === 2 ? 1 : 2)));
+      body.append(h("div", { class: "card-note", text: `Images with the largest and smallest entries of this site's slice of mode ${st.dm}, ranked in the browser from the 8-bit slice (ties by image index). The sign is one choice for the whole mode. Click a panel in the coloured row, or a bar, to change the site; hover an image to ring it in every panel.` }));
+      return;
+    }
+    const k = st.dk, lab = depthLabels(ctx, st, s), cols = this.col.cols;
+    $("img-title").textContent = `Sets at ${m.sites[s]} and their class make-up`;
+    if (info.low) { body.append(h("div", { class: "card-note", text: `No labels at ${m.sites[s]}: this site holds almost none of the low space. Pick a site with a taller occupancy bar.` })); return; }
+    const cnt = [...Array(k + 1)].map(() => new Array(10).fill(0)), size = new Array(k + 1).fill(0);
+    for (let i = 0; i < N; i++) { const g = lab[i] < 0 ? k : lab[i]; size[g]++; cnt[g][labels[i]]++; }
+    const compBar = (cn, total) => {
+      const bar = h("span", { class: "comp comp-lg" });
+      cn.forEach((c, q) => { if (c) bar.append(h("i", { style: { width: (100 * c / total) + "%", background: pal.classes[q] } })); });
+      bar.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(`class make-up (${total.toLocaleString("en")} images; validation only)`,
+        cn.map((c, q) => ({ name: m.classes[q], value: `${c} (${(100 * c / total).toFixed(0)}%)`, color: pal.classes[q], c })).filter(r => r.c).sort((x, y) => y.c - x.c))));
+      bar.addEventListener("pointerleave", hideTip);
+      return bar;
+    };
+    for (let j = 0; j <= k; j++) {
+      if (!size[j]) continue;
+      const un = j === k, on = st.focus === j, dim = st.focus != null && !on;
+      const head = h("div", un ? { class: "set-head" } : { class: "set-head", role: "button", tabindex: 0, title: "Click to isolate this set in every panel of the row" },
+        h("span", { class: "sw", style: { background: un ? pal.unassigned : cols[j] } }), h("span", { class: "set-name", text: un ? "no label" : `set ${j + 1}` }),
+        h("span", { class: "n", text: size[j].toLocaleString("en") }), compBar(cnt[j], size[j]));
+      if (!un) {
+        const toggle = () => this.depthFocus(j);
+        head.addEventListener("click", toggle);
+        head.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+      }
+      const row = h("div", { class: "set-row" + (on ? " on" : "") + (dim ? " dim" : "") }, head);
+      if (!un) row.append(strip(SR.shuffledMembers(lab, j, 2024 + 31 * j), on ? 2 : 1));
+      body.append(row);
+    }
+    const key = h("div", { class: "class-key" });
+    m.classes.forEach((c, q) => key.append(h("span", {}, h("i", { style: { background: pal.classes[q] } }), c)));
+    body.append(key, h("div", { class: "card-note", text: `Sizes, CIFAR class make-up (validation only: labels play no part in the sets) and members in a fixed pseudo-random order, at ${m.sites[s]}. The same set number is the same shared centroid at every site.` }));
+  }
+  depthFocus(j) {
+    const st = this.st;
+    if (this.depthPending()) return;
+    st.focus = st.focus === j ? null : j;
+    this.col = colouring(this.ctx, st, this.blk); this.renderAll(); this.writeHash();
+  }
+  renderDepthLegend() {
+    const st = this.st, { m, pal } = this.ctx, col = this.col, body = $("leg-body"), S_ = m.spacetime;
+    body.replaceChildren(); $("leg-jac").replaceChildren();
+    const step = m.steps[st.anchor].toLocaleString("en");
+    if (st.dm !== "sets") {
+      $("leg-title").textContent = `Colour: mode ${st.dm} through depth, step ${step}`;
+      body.append(h("div", { class: "cbar", style: { background: pal.divGradient() } }),
+        h("div", { class: "cbar-ticks" }, h("span", { text: "−max" }), h("span", { text: "0" }), h("span", { text: "+max" })));
+      body.append(h("div", { class: "leg-note", text: `Each panel in the outlined row shows its own site's slice u_l = f_l / |f_l| of mode ${st.dm}, scaled so its largest entry is ±1; largest |u_l| on top. The sign is one choice for the whole mode, so neighbouring panels can be compared (flipping every sign gives the same mode). A uniformly grey panel holds under ${100 * S_.low_weight}% of the mode${st.dv === "paper" ? " (B-weighted norm, b_l |f_l|²)" : ""}: a normalised numerical tail, not a direction. Other rows are not coloured.` }));
+      return;
+    }
+    $("leg-title").textContent = `Colour: sets through depth, k = ${st.dk}, ${S_.readouts[st.dr]}, step ${step}`;
+    const s = this.depthSite(), lab = depthLabels(this.ctx, st, s), cnt = new Array(st.dk).fill(0), tot = new Array(st.dk).fill(0);
+    for (const l of lab) if (l >= 0) cnt[l]++;
+    for (let q = 0; q < m.sites.length; q++) for (const l of depthLabels(this.ctx, st, q)) if (l >= 0) tot[l]++;
+    for (let j = 0; j < st.dk; j++) {
+      if (!tot[j]) continue;
+      const row = h("div", { class: "leg-row" + (st.focus === j ? " on" : "") + (st.focus != null && st.focus !== j ? " dim" : ""), role: "button", tabindex: 0, title: "Click to isolate in every panel of the row" },
+        h("span", { class: "sw", style: { background: col.cols[j] } }), h("span", { text: `set ${j + 1}` }), h("span", { class: "n", text: String(cnt[j]), title: `images in set ${j + 1} at ${m.sites[s]}` }));
+      row.addEventListener("click", () => this.depthFocus(j));
+      row.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.depthFocus(j); } });
+      body.append(row);
+    }
+    body.append(h("div", { class: "leg-note", text: `One colour per shared centroid, the same at every site; grey = no label (the site holds almost none of the low space). Counts at ${m.sites[s]}, the site of the first card. Other rows are not coloured.` }));
+  }
+
   renderStats() {
     const st = this.st, { m, T, S, N } = this.ctx, blk = this.blk, tg = this.target(), body = $("stats-body");
     const ri = tg.kind === "set" ? tg.ri : 0, j = tg.kind === "set" ? (tg.j ?? 0) : 0;
@@ -1416,6 +1959,19 @@ export class Explorer {
   renderKey() {
     const st = this.st, { m, pal } = this.ctx, col = this.col, box = $("ex-key");
     box.replaceChildren();
+    const sw = (c, name) => h("span", { class: "kk" }, h("i", { style: { background: c, boxShadow: "inset 0 0 0 1px rgba(0,0,0,.08)" } }), name);
+    if (col.depth) {      // through depth: one row, each site its own slice (or the shared sets); grey meanings spelled out
+      box.append(h("span", { class: "kt", text: `step ${m.steps[col.depth.t].toLocaleString("en")} only:` }));
+      if (col.sets) {
+        for (let j = 0; j < col.sets.k; j++) box.append(sw(col.cols[j], col.sets.names[j]));
+        box.append(sw(pal.unassigned, "no label"));
+      } else {
+        box.append(h("span", { class: "kt", text: `mode ${st.dm}, each site its own slice` }), h("span", { class: "kt", text: "−max" }),
+          h("span", { class: "kbar", style: { background: pal.divGradient() } }), h("span", { class: "kt", text: "+max" }), sw(DEPTH_LOW, "under 1% of the mode"));
+      }
+      box.append(sw(DIM, "other rows: not coloured"));
+      return;
+    }
     if (col.groups) {
       const g = col.groups;
       for (let j = 0; j < g.n; j++) {
@@ -1432,6 +1988,47 @@ export class Explorer {
   renderCaption() {
     this.renderKey();
     $("ex-caption").replaceChildren(...captionParts(this.ctx, this.st, this.col));
+  }
+}
+
+// Bars per site (the through-depth card): thin bars with a rounded top on a zero baseline, hairline grid, an optional
+// dashed overlay (a control) on the same y scale, per-bar hover and click. o: names, y, color, low (bars drawn light
+// grey), sel (outlined bar), yfmt, yhi, barName, overlay {name, y}, tip(i) -> rows, onclick(i), height.
+function barChart(box, o) {
+  box.replaceChildren();
+  const wrap = h("div", { class: "chart-wrap" }); box.append(wrap);
+  const W = Math.max(220, box.clientWidth || 320), H = o.height || 130, mg = { l: 36, r: 8, t: 8, b: 20 }, n = o.y.length;
+  const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.barName || "bars per site" }, wrap);
+  const all = o.y.concat(o.overlay ? o.overlay.y : []).filter(Number.isFinite);
+  const yhi = o.yhi ?? Math.max(1e-12, ...all) * 1.06, Y = scale("linear", 0, yhi, H - mg.b, mg.t);
+  const bw = (W - mg.l - mg.r) / n, X = i => mg.l + (i + .5) * bw, yfmt = o.yfmt || (v => (+v.toPrecision(2)).toString());
+  const g = el("g", { class: "grid" }, svg);
+  for (const v of niceTicks(0, yhi, 3)) { el("line", { x1: mg.l, x2: W - mg.r, y1: Y(v), y2: Y(v) }, g); const t = el("text", { x: mg.l - 5, y: Y(v) + 3.5, "text-anchor": "end" }, svg); t.textContent = yfmt(v); }
+  el("line", { x1: mg.l, x2: W - mg.r, y1: H - mg.b + .5, y2: H - mg.b + .5 }, el("g", { class: "axis" }, svg));
+  const every = bw < 30 ? 2 : 1;
+  o.names.forEach((nm, i) => { if ((n - 1 - i) % every) return; const t = el("text", { x: X(i), y: H - mg.b + 13, "text-anchor": "middle" }, svg); t.textContent = nm; });
+  for (let i = 0; i < n; i++) {
+    const v = o.y[i]; if (!Number.isFinite(v)) continue;
+    const x0 = X(i) - bw / 2 + 1.5, x1 = X(i) + bw / 2 - 1.5, y0 = Y(0), y = Math.min(y0 - .5, Y(Math.min(v, yhi))), r = Math.min(3, (x1 - x0) / 2, y0 - y);
+    el("path", { d: `M${x0},${y0}L${x0},${y + r}Q${x0},${y} ${x0 + r},${y}L${x1 - r},${y}Q${x1},${y} ${x1},${y + r}L${x1},${y0}Z`, fill: o.low?.[i] ? "#dddcd6" : o.color,
+      ...(i === o.sel ? { stroke: "#16161a", "stroke-width": 1.5 } : {}) }, svg);
+  }
+  if (o.overlay) {
+    const P = o.overlay.y.map((v, i) => [X(i), Y(Math.min(v, yhi))]);
+    el("path", { d: P.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(""), fill: "none", stroke: "#16161a", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, svg);
+    P.forEach(p => el("circle", { cx: p[0], cy: p[1], r: 2.4, fill: "#16161a", stroke: "#fff", "stroke-width": 1 }, svg));
+  }
+  for (let i = 0; i < n; i++) {      // hit targets: the whole column, bigger than the bar
+    const r = el("rect", { x: X(i) - bw / 2, y: 0, width: bw, height: H - mg.b + 14, fill: "transparent", style: o.onclick ? "cursor:pointer" : "" }, svg);
+    r.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, tipRows(o.names[i], o.tip ? o.tip(i) : [{ name: o.barName || "value", value: yfmt(o.y[i]) }])));
+    r.addEventListener("pointerleave", hideTip);
+    if (o.onclick) r.addEventListener("click", () => { hideTip(); o.onclick(i); });
+  }
+  if (o.overlay) {
+    const lg = h("div", { class: "chart-legend" });
+    lg.append(h("span", { class: "k" }, h("i", { style: { "--sw": o.color, height: "8px", borderRadius: "2px" } }), o.barName || "value"),
+      h("span", { class: "k" }, h("i", { style: { background: "repeating-linear-gradient(90deg, #16161a 0 4px, transparent 4px 7px)" } }), o.overlay.name));
+    wrap.append(lg);
   }
 }
 
@@ -1459,6 +2056,7 @@ export function captionParts(ctx, st, col) {
     seba: `coherent sets, r = ${st.r}. Each image's hard label is the largest of the ${st.r} SEBA vectors from ψ0..ψ${st.r - 1} of the block operator ${opM}; grey = unassigned (no positive entry); ${fromBlk}points drawn in order of membership value, largest on top.`,
     eig: `ψ${st.k} / max|ψ${st.k}|${st.k > m.n_vecs ? " (ψ9..ψ32: from the 8-bit add-on)" : ""}, where ψ${st.k} is ${isProd(st) ? `the ${st.op === "start" ? "right" : "left"} singular vector of the ordered product Q for σ${st.k}, singular values in decreasing order from σ0 = 1 (the constant)` : `the eigenfunction of the block operator M̄ for λ${st.k}, eigenvalues in decreasing order from λ0 = 1 (the constant)`}; diverging scale, sign fixed so the largest-magnitude entry is positive; ${fromBlk}largest |ψ| on top.`,
     nodal: `sign of ψ${st.k} of the block operator ${opM} (ψ${st.k} > 0, < 0, = 0); ${fromBlk}largest |ψ| on top.`,
+    dw: `diffusion ${st.dwk ? "wavelet" : "scaling function"} ${dwName(st, st.dwf)} (Coifman–Maggioni) of the outlined snapshot's lazy walk M at scale j = ${st.dwj} (M run for ${2 ** st.dwj} steps), centred on image #${col?.dw?.row[2] ?? "?"}: a pivoted QR of M^(2^j) on the previous scale's basis, nothing fitted. Painted on every panel so you can follow the same images; click a point to pick a snapshot and the function of this scale carrying that image most.`,
     km: `spectral k-means partition into k = ${st.kmk} blocks: Lloyd's k-means (8 restarts, fixed seed) on the top ${st.kmk - 1} nontrivial spectral coordinates σ_iψ_i of ${st.a === st.b ? "the cell's walk M (one site)" : `the ordered product Q = M_b⋯M_a, ${st.kms === "end" ? "end side (images at the last site, left singular vectors)" : "start side (images at the first site, right singular vectors)"}`}; blocks numbered by decreasing size, colours are display only; ${fromBlk}scored in the side panel's coarse-graining card. The operator switch does not change it (always from the ${st.a === st.b ? "cell's walk" : "ordered product"}).`,
     class: `CIFAR-10 class label (validation only). The block sets only the side panel (${side}).`,
     loss: `per-image cross-entropy loss ${at}, log scale, range fixed across rows (1st to 99th percentile over all checkpoints). The block sets only the side panel (${side}).`,
@@ -1481,6 +2079,21 @@ export function captionParts(ctx, st, col) {
     : L.kind === "spectral" ? `UMAP of each snapshot's diffusion coordinates λ_kψ_k, k = 1..${L.n_coords}, from that snapshot's own walk under the ${m.modes[L.mode]} rule, whatever rule colours the points (AlignedUMAP across sites, Procrustes across checkpoints)`
     : `UMAP of seed ${L.seed ?? st.lay} (a second network; colours from seed 0)`;
   const part = (label, text) => [h("b", { text: label + " " }), text + " "];
+  if (col?.depth && st._dep) {       // through depth (SPEC_SPACETIME.md section 2): its own definitional caption
+    const S_ = m.spacetime, R = st._dep.Sm.variants[st.dv], c = st.dv === "paper" ? 0 : st.dt, K = S_.K;
+    const op = st.dv === "paper"
+      ? `the paper's transition matrix B⁻¹A as is (A links site l to l+1 through the walk M_l, so image i at one site is tied to a random neighbour at the next; B = diag(1, 2, …, 2, 1) ⊗ I), its leading ${K} eigenvectors among functions of mean zero at every site; no adjustable coupling (A itself ties neighbouring sites); depth weights and occupancy use the B-weighted norm b_l |f_l|², as the paper normalises`
+      : `L_t = blockdiag(H_l) + t (D_path ⊗ I) with H_l = (I − M_l)/c_l, ${st.dv === "own" ? "c_l = the mean of site l's first 8 nontrivial 1 − λ (relative site units)" : "c_l = 1 (native walk units)"}, D_path the path Laplacian over the ${S} sites (image i at one site linked to image i at the next), t = ${(+R.t[c].toPrecision(3))} = t* × ${fracLabel(S_.factors[c])}; its ${K} smallest eigenvectors among functions of mean zero at every site`;
+    const colour = st.dm !== "sets"
+      ? `mode ${st.dm} of ${op}. Every panel of the outlined row shows its own site's slice u_l = f_l / |f_l| of the mode, scaled so max|u_l| = 1; diverging scale, one sign for the whole mode (arbitrary), largest |u_l| on top. A panel in uniform grey holds under ${100 * S_.low_weight}% of the mode's ${st.dv === "paper" ? "B-weighted squared norm b_l |f_l|²" : "squared norm"} (a normalised numerical tail, not a direction). Mode numbers are local to this setting (not matched across couplings or checkpoints).`
+      : `post-hoc sets (k-means is a fit), k = ${st.dk}, ${S_.readouts[st.dr]}: one k-means with centroids shared across the ${S} sites on the rows of the first 8 modes' slices of ${op}, each site's block scaled to unit Frobenius norm${st.dr === "a" ? ", each site first rotated onto the previous one by orthogonal Procrustes" : ""}; set numbers by decreasing size over all sites; grey = no label (the site holds almost none of the space).`;
+    return [
+      ...part("Through depth:", `one checkpoint, step ${m.steps[st.anchor].toLocaleString("en")} (outlined row); the other rows are not coloured (light grey). No block is used.`),
+      ...part("Kernel and rule:", `cosine kernel, ${m.modes[S_.rule]} (fixed while this colouring is on: the through-depth data exist for this rule only).`),
+      ...part("Colour:", colour),
+      ...part("Positions:", `${lay}; display only, no number on this page is computed from them. Rows: checkpoints (step, validation accuracy); columns: sites; ${T * S} panels of the same ${m.n.toLocaleString("en")} probe images.`),
+    ];
+  }
   return [
     ...(dot ? part("Kernel:", `${ctx.kernelLabel || "dot"}: half squared Euclidean distance |x_i − x_j|²/2 on the unnormalised activations in place of the cosine distance 1 − cos (data ${m.tag}).`) : []),
     ...part("Block:", `${blockKind(st).toLowerCase()}, ${blk}.`),

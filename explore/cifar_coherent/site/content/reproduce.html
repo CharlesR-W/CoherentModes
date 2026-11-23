@@ -1,0 +1,299 @@
+<p class="lede">Every command that produced the data on this site, in the order they must run, with the files each one
+writes and its approximate Modal cost. Commands run from <code>explore/cifar_coherent/</code> in
+<a href="https://github.com/CharlesR-W/CoherentModes">the repo</a> unless a block says otherwise. The last section
+rebuilds the site from data that already exist; everything before it regenerates that data.</p>
+
+<h2 id="rp-requirements">What you need</h2>
+<ul>
+<li><b>uv</b> on the path. Every command below names its own dependencies with <code>uv run --with ...</code>.</li>
+<li><b>A Modal account</b> for any stage marked Modal. The measurement files are not in git: they live on the Modal
+volume <code>cm-cifar-coherent</code> (public files under <code>/analysis/&lt;tag&gt;/</code>, scratch under
+<code>/work/&lt;tag&gt;/</code>, checkpoints under <code>/runs/&lt;run&gt;/</code>), and each study's
+<code>fetch</code> command copies the public files into <code>data/&lt;tag&gt;/</code>. CIFAR-10 is read from the
+read-only volume <code>crw-modelzoo-train</code>.</li>
+<li><b>The ModelZoo source</b> at <code>~/code/ModelZoo</code>: the training and measurement images copy
+<code>~/code/ModelZoo/src</code> into the container.</li>
+<li><b>Scratch off a small <code>/tmp</code></b>: <code>export TMPDIR=/var/tmp/cm-pipeline; mkdir -p "$TMPDIR"</code>.</li>
+<li><b>Detached launches.</b> Every Modal <code>launch</code> spawns a coordinator that survives the local session and
+writes its call id to <code>runs/</code>. Wait until the matching <code>status</code> command prints a result (not
+<code>running</code>) before starting the next stage: later stages read earlier stages' files from the volume.</li>
+<li><b>Licence.</b> <code>seba.py</code> and <code>test_seba.py</code> are ports of the authors' reference
+implementation (<a href="https://github.com/gfroyland/SEBA">gfroyland/SEBA</a>) and are licensed <code>GPL-3.0-or-later</code>
+accordingly.</li>
+</ul>
+
+<p>The data tags: <code>r20s0</code> legacy measurement of ResNet-20 seed 0 (layouts and probe only are still used);
+<code>r20s0b</code> the <code>schema_v2</code> measurement every chart is built from; <code>r20s1b</code> layouts of seed 1;
+<code>r20s0d</code> the dot (Euclidean) kernel variant; <code>data/kernels/</code> the gradient-side kernel
+comparisons; <code>r20s0c</code> the baselines study; <code>../spectral_align/data</code> the alignment study.</p>
+
+<h2 id="rp-tests">Local tests</h2>
+<p>CPU only, each in seconds. Each prints a final line ending in <code>passed</code>.</p>
+<pre><code>export TMPDIR=/var/tmp/cm-pipeline; mkdir -p "$TMPDIR"
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+uv run --with torch --with numpy python test_seba.py                    # SEBA against the reference implementation
+uv run --with torch --with numpy python test_coherent.py                # planted three-group check of the construction
+uv run --with torch --with numpy python test_product.py                 # product (composition) blocks
+python3 test_provenance.py                                              # stale cache records cannot be reused
+uv run --with torch --with numpy python test_dot.py                     # dot-kernel identities (SPEC_DOT.md section 1)
+uv run --with torch --with numpy --with scipy python test_coarse.py     # coarse-graining identities and bounds
+uv run --with torch --with numpy --with scipy python test_markov.py     # Markov-closure measures
+uv run --with modal --with torch --with numpy python test_kernels.py    # GGN / NTK Gram estimands (imports kernels_modal.py)
+# the full schema-v2 path on a synthetic fixture (not evidence about any network):
+uv run --with torch --with numpy python schema_v2.py fixture data/_fixture
+uv run --with torch --with numpy python schema_v2.py validate data/_fixture</code></pre>
+
+<h2 id="rp-train">Training (Modal, <code>modal_train.py</code>)</h2>
+<p>ModelZoo's <code>resnet20/relu-seed&lt;s&gt;</code> recipe re-run on an <code>L40S</code> with ModelZoo's own training loop
+(a re-run on a different GPU, not a bit-identical copy of the zoo run). App <code>cm-cifar-coherent-train</code>.</p>
+<pre><code>uv run --with modal python modal_train.py deploy
+uv run --with modal python modal_train.py launch              # seed 0
+uv run --with modal python modal_train.py launch --seed 1     # seed 1 (layouts only)
+uv run --with modal python modal_train.py status &lt;launch-id&gt;  # launch id printed by launch, also in runs/</code></pre>
+<p>Writes (volume): <code>/runs/resnet20-relu-seed0/</code> and <code>/runs/resnet20-relu-seed1/</code>
+(<code>checkpoints/step_&lt;step&gt;.pt</code> and <code>manifest.json</code>, the training curve).</p>
+
+<h2 id="rp-legacy">Legacy measurement (Modal, <code>measure.py</code>, tag <code>r20s0</code>)</h2>
+<p>Must run before the <code>schema_v2</code> stages: <code>measure_v2.py launch all</code> copies its probe and the layouts of seed 0.
+App <code>cm-cifar-coherent-measure</code>.</p>
+<pre><code>uv run --with modal python measure.py deploy
+uv run --with modal python measure.py launch resnet20-relu-seed0 r20s0 0,64,256,1024,2560,6400,25600,64000
+uv run --with modal python measure.py status r20s0
+uv run --with modal python measure.py fetch r20s0</code></pre>
+<p>Writes <code>data/r20s0/</code>: <code>probe.npz</code> (the {{fact:n_images}} probe images, indices and labels),
+<code>umap_&lt;step&gt;.npy</code> (layouts of seed 0), <code>stats_&lt;step&gt;.json</code>, <code>kappa.json</code>,
+<code>spec_&lt;step&gt;.npz</code> (legacy operator; not used by the site).</p>
+
+<h2 id="rp-v2">The main measurement (Modal, <code>measure_v2.py</code>, tags <code>r20s0b</code>, <code>r20s1b</code>)</h2>
+<p>App <code>cm-cifar-coherent-v2</code>. The stage <code>all</code> runs <code>extract</code>, <code>spectra</code>,
+<code>comparisons</code> and <code>decod</code> in turn; each can also be launched alone. The third argument is the
+tag (default <code>r20s0b</code>).</p>
+<pre><code>uv run --with modal python measure_v2.py deploy
+uv run --with modal python measure_v2.py launch all            # wait: measure_v2.py status all
+uv run --with modal python measure_v2.py launch derivatives    # wait: measure_v2.py status derivatives
+uv run --with modal python measure_v2.py launch validate       # wait: measure_v2.py status validate
+uv run --with modal python measure_v2.py launch sweep          # 19 candidate rules x 15 snapshots
+uv run --with modal python measure_v2.py launch prodspectra    # product (composition) blocks
+uv run --with modal python measure_v2.py launch specembed      # spectral layout (diffusion coordinates)
+uv run --with modal python measure_v2.py launch layouts        # seed 1, after its training has completed
+uv run --with modal python measure_v2.py launch audit          # cache provenance audit (runs/provenance-final.json)
+uv run --with modal python measure_v2.py fetch r20s0b
+uv run --with modal python measure_v2.py fetch r20s1b
+uv run --with torch --with numpy python schema_v2.py validate data/r20s0b</code></pre>
+<p>Writes <code>data/r20s0b/</code> (file by file in <a href="#reproduce/rp-files">the table below</a>) and
+<code>data/r20s1b/</code> (<code>umap_&lt;step&gt;.npy</code>, <code>meta.json</code>). Scratch on the volume
+under <code>/work/r20s0b/</code> includes the operators <code>operators_&lt;step&gt;_&lt;site&gt;.npy</code> and the
+centred Grams <code>gram_&lt;step&gt;_&lt;site&gt;.npy</code> that the coarse-graining, baselines and kernel stages read.</p>
+
+<h2 id="rp-coarse">Coarse-graining and Markov closure (Modal, <code>coarse_modal.py</code>)</h2>
+<p>Specification in <code>SPEC_COARSE.md</code>. App <code>cm-cifar-coherent-coarse</code>. Reads the
+<code>r20s0b</code> operators on the volume, so it runs after <code>measure_v2.py launch all</code>. One unit is one
+(checkpoint, rule); <code>pilot</code> runs the unit at step {{fact:final_step}} with kernel rule
+{{fact:mode_name.rule0}} and <code>launch</code> the others. The Markov stage reads the coarse files, so it runs after the coarse launch has completed.</p>
+<pre><code>uv run --with modal python coarse_modal.py deploy
+uv run --with modal python coarse_modal.py pilot
+uv run --with modal python coarse_modal.py status pilot
+uv run --with modal python coarse_modal.py launch
+uv run --with modal python coarse_modal.py status              # the launch
+uv run --with modal python coarse_modal.py fetch               # -&gt; data/r20s0b/coarse/
+uv run --with modal python coarse_modal.py markov-pilot
+uv run --with modal python coarse_modal.py markov-launch
+uv run --with modal python coarse_modal.py status markov-launch  # the Markov launch
+uv run --with modal python coarse_modal.py fetch-markov        # -&gt; data/r20s0b/coarse/markov_*.npz
+uv run --with numpy python coarse_summary.py                   # first: rewrites coarse_facts.json
+uv run --with numpy python markov_summary.py                   # second: merges its facts into coarse_facts.json</code></pre>
+<p>The last command of the check prints the coordinator's result when it has finished and raises
+<code>TimeoutError</code> while it is still running. The two summaries must run in this order:
+<code>coarse_summary.py</code> rewrites <code>coarse_facts.json</code> and <code>markov_summary.py</code> adds the
+<code>mk.*</code> facts to it.</p>
+
+<h2 id="rp-dot">Dot kernel and gradient-side kernels (Modal, <code>measure_v2.py</code> tag <code>r20s0d</code>, <code>kernels_modal.py</code>)</h2>
+<p>Specification in <code>SPEC_DOT.md</code>. The tag <code>r20s0d</code> selects the dot kernel inside
+<code>measure_v2.py</code> (<code>construction.KERNEL_OF_TAG</code>). Its <code>extract</code> copies the
+kernel-independent files (probe, curves, decodability, per-image points, gradient Grams) from <code>r20s0b</code>, so
+<code>r20s0b</code>'s <code>all</code> and <code>derivatives</code> stages must have completed. No decodability or
+derivative stage runs for <code>r20s0d</code>; its <code>layouts</code> stage makes dot-PC layouts of seed 0 (no seed 1).</p>
+<pre><code>uv run --with modal python measure_v2.py launch extract r20s0d       # wait: measure_v2.py status extract r20s0d
+uv run --with modal python measure_v2.py launch spectra r20s0d
+uv run --with modal python measure_v2.py launch comparisons r20s0d
+uv run --with modal python measure_v2.py launch prodspectra r20s0d
+uv run --with modal python measure_v2.py launch specembed r20s0d
+uv run --with modal python measure_v2.py launch layouts r20s0d
+uv run --with modal python measure_v2.py launch validate r20s0d
+uv run --with modal python measure_v2.py fetch r20s0d</code></pre>
+<p>Gradient-side Grams (GGN, trace NTK, loss-gradient cosine) and the cosine / dot comparisons: app
+<code>cm-cifar-coherent-kernels</code>. The optional last argument of <code>launch</code> is the stage's budget in
+USD; a stage refuses to fan out if its projection from the pilot exceeds it. Each pilot must finish before its
+stage, which reads the pilot's timing record. Launch records accumulate in <code>runs/kernels-modal.json</code>.</p>
+<pre><code>uv run --with modal python kernels_modal.py deploy
+uv run --with modal python kernels_modal.py launch pilot             # wait: kernels_modal.py status pilot
+uv run --with modal python kernels_modal.py launch kernels 1         # wait: kernels_modal.py status kernels
+uv run --with modal python kernels_modal.py launch analysis-pilot    # wait: kernels_modal.py status analysis-pilot
+uv run --with modal python kernels_modal.py launch analysis 3        # wait: kernels_modal.py status analysis
+uv run --with modal python kernels_modal.py fetch                    # -&gt; data/kernels/compare_{single,blocks,ggn}.json</code></pre>
+
+<h2 id="rp-local">Local analysis of the fetched data</h2>
+<p>CPU, on this machine, after the fetches above.</p>
+<pre><code>uv run --with numpy --with scipy python product_analysis.py r20s0b     # -&gt; data/r20s0b/product_summary.json
+uv run --no-project --with numpy --with torch --with modal \
+    --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+    python site/figdata.py r20s0b        # reads checkpoints from the volume -&gt; site/figdata/r20s0b_kernel.npz
+uv run --with numpy --with matplotlib --with pillow python -I site/make_figures.py r20s0b   # -&gt; site/assets/fig/
+uv run --with numpy --with scipy --with matplotlib python -I site/analysis.py r20s0b        # -&gt; site/assets/questions.json, site/assets/fig/q_*.png</code></pre>
+<p><code>make_figures.py</code> falls back to the committed <code>site/figdata/r20s0_kernel.npz</code> when
+<code>site/figdata/r20s0b_kernel.npz</code> is absent.</p>
+
+<h2 id="sources-files">Baselines study data (<code>explore/cifar_baselines/</code>, tag <code>r20s0c</code>)</h2>
+
+<p>Stored by the baselines study (schema in <code>SCHEMA.md</code>): the sources' labels and their agreement rows on
+every explorer block, the null draws, stability, linear content and ablations of the representative blocks, the
+random-subspace SEBA runs, the planted-benchmark summaries (<code>NOTES_B.md</code>) and the transfer pilot
+(<code>TRANSFER.md</code>). Computed by the site build (<code>site/baselines.py</code>) with the study's own functions:
+the predicted-class agreement rows, the agreement of the stored null draws with the method, the source-by-source
+matrices and the snapshot-by-snapshot set agreement ({{fact:bn.n_perm_site}} permutations each, cached in
+<code>~/.cache/cm-site-bn/</code>). The added data take {{fact:bn.site_mb}} MB.</p>
+
+<p>From <code>explore/cifar_baselines/</code>. <code>measure_b.py</code> reads the <code>r20s0b</code> Grams,
+operators and block files on the volume. Its <code>launch</code> takes a hard cap and a pause threshold in USD; the
+<code>followup</code> stage takes its own cap. Run-by-run notes: <code>NOTES_A.md</code> (measurement),
+<code>NOTES_B.md</code> (planted benchmarks), <code>NOTES_C.md</code> (transfer pilot).</p>
+<pre><code>cd explore/cifar_baselines
+uv run --with modal --with pytest --with torch --with numpy --with scipy --with scikit-learn --with deeptime \
+    pytest -q test_stats.py test_sources.py test_nulls.py test_measure_b.py test_planted.py test_transfer.py
+uv run --with modal python measure_b.py deploy
+uv run --with modal python measure_b.py launch all 8 6        # wait: measure_b.py status all
+uv run --with modal python measure_b.py launch followup 2     # wait: measure_b.py status followup
+uv run --with modal python measure_b.py fetch                 # -&gt; ../cifar_coherent/data/r20s0c/
+uv run --with modal --with numpy python measure_b.py validate              # checks data/r20s0c against SCHEMA.md
+# planted / null benchmarks (CPU fan-out, volume cm-cifar-baselines-bench)
+uv run --with modal python bench_modal.py deploy
+uv run --with modal python bench_modal.py launch full         # prints a run id
+uv run --with modal python bench_modal.py fetch &lt;run_id&gt;     # -&gt; out/bench/parts/&lt;run_id&gt;/
+uv run --with numpy --with torch python bench.py summarise out/bench/parts/&lt;run_id&gt;   # -&gt; out/bench/summary.json
+# transfer-operator pilot (volume crw-cm-transfer-results)
+uv run --with modal --with numpy --with scipy python transfer_modal.py deploy
+uv run --with modal --with numpy --with scipy python transfer_modal.py launch-real
+uv run --with modal --with numpy --with scipy python transfer_modal.py fetch &lt;run_id&gt;   # -&gt; out/transfer/real/</code></pre>
+<p><code>NOTES_B.md</code> records a partition rerun of some benchmarks after the full sweep; repeat it as
+described there before summarising.</p>
+
+<h2 id="rp-alignment">Alignment study data (<code>explore/spectral_align/</code>)</h2>
+<p>Protocol in <code>SPEC.md</code> there; ResNet-32 and ResNet-56 are trained with the ResNet-20 recipe and only the
+number of blocks per stage changed (<code>nets.py</code>). From <code>explore/spectral_align/</code>:</p>
+<pre><code>cd explore/spectral_align
+uv run --with torch --with numpy --with dtw-python --with pytest pytest test_align.py -q
+uv run --with modal python train_modal.py deploy
+uv run --with modal python train_modal.py launch 32 0          # likewise 32 1, 56 0, 56 1; status: train_modal.py status
+uv run --with modal python measure_modal.py deploy
+uv run --with modal python measure_modal.py launch pilot
+# inspect the cost gate it prints; redeploy with SALIGN_TIMEOUT set to its suggested_timeout
+uv run --with modal python measure_modal.py launch all
+uv run --with modal python measure_modal.py status
+uv run --with modal python measure_modal.py fetch              # -&gt; data/
+uv run --with numpy python -I sanity.py                        # tensors and probe indices / labels
+uv run --with numpy --with scipy --with dtw-python \
+    --with torch --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+    python analyze.py data                                     # -&gt; analysis/data/ (read by the site build)</code></pre>
+<p>The site build (<code>site/alignment.py</code>) reruns nothing: when <code>analysis/data/</code> is older than the
+data directory it stops and prints the <code>analyze.py</code> command above. Data used by this build:
+{{fact:al.data_note}} Data shipped to the page: of the all-pairs distance tensors, only the blocks the figures draw
+(each network's site × site matrices at each checkpoint, each site's checkpoint × checkpoint matrix, and the site ×
+site matrices of every pair of networks at each checkpoint and at iso-accuracy), stored as <code>uint16</code>, fetched per distance; the
+eigenfunctions are fetched per snapshot. {{fact:al.site_mb}} MB in all, of which {{fact:al.site_vectors_mb}} MB are
+eigenfunctions. Probe images: {{fact:al.probe_match}}.</p>
+
+<h2 id="rp-experiments">Experiment generators</h2>
+<p>Each experiment in the <a href="#experiments">Experiments</a> tab has a generator
+<code>site/experiments/&lt;id&gt;.py</code> that reads <code>data/r20s0b/</code> (and the other local data above) and
+writes only <code>site/assets/x/&lt;id&gt;.json</code>, <code>site/assets/x/&lt;id&gt;.facts.json</code> and
+<code>site/assets/fig/x_&lt;id&gt;_*.png</code>; the appendix generators <code>app_choices.py</code> (Appendix A)
+and <code>app_measurements.py</code> (Appendix D) write <code>site/assets/x/app-choices.*</code> and
+<code>site/assets/x/app-measurements.*</code>. The ids are listed in <code>site/content/experiments/index.json</code>.
+<code>check_fragment.py</code> validates each experiment's fragment, and with <code>--appendix</code> each appendix,
+without building, against the non-experiment facts of the last full build
+(<code>site/build_inputs/facts_base.json</code> if present, else <code>viewer/site/d/facts.json</code>).</p>
+<pre><code>for id in $(python3 -c 'import json; print(" ".join(e["id"] for e in json.load(open("site/content/experiments/index.json"))))'); do
+  uv run --with numpy --with scipy --with matplotlib python -I site/experiments/$id.py r20s0b || break
+  python3 site/check_fragment.py $id || break
+done
+for app in app_choices app_measurements; do
+  uv run --with numpy --with scipy --with matplotlib python -I site/experiments/$app.py r20s0b || break
+done
+for app in choices baselines method-details measurements reproduce; do
+  python3 site/check_fragment.py --appendix $app || break
+done</code></pre>
+
+<h2 id="rp-release">Release build</h2>
+<p>Needs every local data directory above: <code>data/r20s0b</code>, <code>data/r20s1b</code>,
+<code>data/r20s0c</code>, <code>data/r20s0d</code>, <code>data/kernels</code>, <code>../spectral_align/data</code>
+(with its <code>analysis/data/</code>) and <code>site/assets/questions.json</code>. <code>--release</code> fails on a
+missing experiment fragment, an unknown fact, a missing <code>data-src</code> target or image, or missing alignment
+data; without it the build writes placeholders instead.</p>
+<pre><code>uv run --with numpy --with pillow --with scipy --with scikit-learn python site/build_site.py r20s0b \
+    --layout-tag r20s1b --baselines r20s0c --alignment ../spectral_align/data --dot-tag r20s0d --clean --release
+python3 site/check_browser.py --session release-check                   # renders every live figure, checks aliases
+python3 -m http.server 8765 --bind 127.0.0.1 -d viewer/site             # then open http://127.0.0.1:8765/</code></pre>
+<p>Output: <code>viewer/site/</code> (the deploy root, with <code>.nojekyll</code>; its fact table is
+<code>viewer/site/d/facts.json</code>). To publish, copy <code>viewer/site/</code> into an empty directory, commit it
+as a single orphan commit on the branch <code>gh-pages</code> and force-push; that branch holds only the built site.</p>
+
+<h2 id="rp-files">Which step makes which file</h2>
+<p>Files in <code>data/r20s0b/</code> unless a path is given. "Copied" means the stage copies the file from another
+tag on the volume.</p>
+<div class="table-scroll"><table class="data" id="rp-files-table">
+<thead><tr><th>file</th><th>made by</th></tr></thead>
+<tbody>
+<tr><td><code>meta.json</code>, <code>layer_&lt;step&gt;.npz</code>, <code>time_&lt;site&gt;.npz</code></td><td><code>measure_v2.py launch all</code> (stages <code>extract</code>, <code>spectra</code>)</td></tr>
+<tr><td><code>probe.npz</code>, <code>umap_&lt;step&gt;.npy</code></td><td><code>measure_v2.py launch all</code> (<code>extract</code>, copied from <code>r20s0</code>, made by <code>measure.py launch</code>)</td></tr>
+<tr><td><code>curves.json</code></td><td><code>measure_v2.py launch all</code> (<code>extract</code>, from the training <code>manifest.json</code> of seed 0)</td></tr>
+<tr><td><code>points_&lt;step&gt;.npz</code></td><td><code>measure_v2.py launch all</code> (<code>extract</code>); per-image derivative fields added by <code>launch derivatives</code></td></tr>
+<tr><td><code>gradgram_&lt;step&gt;.npy</code></td><td><code>measure_v2.py launch derivatives</code></td></tr>
+<tr><td><code>avgprod.json</code>, <code>normalisation_compare.json</code></td><td><code>measure_v2.py launch all</code> (<code>comparisons</code>)</td></tr>
+<tr><td><code>decod.json</code></td><td><code>measure_v2.py launch all</code> (<code>decod</code>)</td></tr>
+<tr><td><code>validation.json</code></td><td><code>measure_v2.py launch validate</code></td></tr>
+<tr><td><code>sweep.json</code></td><td><code>measure_v2.py launch sweep</code></td></tr>
+<tr><td><code>layerprodR_&lt;step&gt;.npz</code>, <code>layerprodL_&lt;step&gt;.npz</code>, <code>timeprodR_&lt;site&gt;.npz</code>, <code>timeprodL_&lt;site&gt;.npz</code></td><td><code>measure_v2.py launch prodspectra</code></td></tr>
+<tr><td><code>umapspec_&lt;step&gt;.npy</code></td><td><code>measure_v2.py launch specembed</code></td></tr>
+<tr><td><code>product_summary.json</code></td><td><code>product_analysis.py r20s0b</code> (local)</td></tr>
+<tr><td><code>coarse/coarse_&lt;step&gt;_&lt;rule&gt;.npz</code>, <code>coarse/gaps_&lt;step&gt;_&lt;rule&gt;.json</code></td><td><code>coarse_modal.py pilot</code> and <code>launch</code>, then <code>fetch</code></td></tr>
+<tr><td><code>coarse/markov_&lt;step&gt;_&lt;rule&gt;.npz</code></td><td><code>coarse_modal.py markov-pilot</code> and <code>markov-launch</code>, then <code>fetch-markov</code></td></tr>
+<tr><td><code>coarse_summary.json</code>, <code>coarse_facts.json</code></td><td><code>coarse_summary.py</code> (local); <code>coarse_facts.json</code> then extended by <code>markov_summary.py</code></td></tr>
+<tr><td><code>markov_summary.json</code>, <code>markov_facts.json</code></td><td><code>markov_summary.py</code> (local)</td></tr>
+<tr><td><code>data/r20s1b/umap_&lt;step&gt;.npy</code>, <code>data/r20s1b/meta.json</code></td><td><code>measure_v2.py launch layouts</code> (after <code>modal_train.py launch --seed 1</code>)</td></tr>
+<tr><td><code>data/r20s0d/</code>: <code>meta.json</code>, <code>layer_*</code>, <code>time_*</code>, <code>*prodR_*</code>, <code>*prodL_*</code>, <code>avgprod.json</code>, <code>normalisation_compare.json</code>, <code>umapspec_&lt;step&gt;.npy</code>, <code>umap_&lt;step&gt;.npy</code>, <code>pcs_&lt;step&gt;.npy</code></td><td><code>measure_v2.py launch &lt;stage&gt; r20s0d</code> for <code>extract</code>, <code>spectra</code>, <code>comparisons</code>, <code>prodspectra</code>, <code>specembed</code>, <code>layouts</code></td></tr>
+<tr><td><code>data/r20s0d/</code>: <code>probe.npz</code>, <code>curves.json</code>, <code>decod.json</code>, <code>points_&lt;step&gt;.npz</code>, <code>gradgram_&lt;step&gt;.npy</code></td><td><code>measure_v2.py launch extract r20s0d</code> (copied from <code>r20s0b</code>)</td></tr>
+<tr><td><code>data/kernels/compare_single.json</code>, <code>compare_blocks.json</code>, <code>compare_ggn.json</code></td><td><code>kernels_modal.py launch analysis</code>, then <code>fetch</code></td></tr>
+<tr><td><code>data/r20s0c/</code> (sources, nulls, reps, <code>meta_c.json</code>)</td><td><code>measure_b.py launch all</code> and <code>launch followup</code>, then <code>fetch</code></td></tr>
+<tr><td><code>explore/cifar_baselines/out/bench/summary.json</code></td><td><code>bench_modal.py launch full</code>, <code>fetch</code>, <code>bench.py summarise</code></td></tr>
+<tr><td><code>explore/cifar_baselines/out/transfer/real/</code></td><td><code>transfer_modal.py launch-real</code>, then <code>fetch</code></td></tr>
+<tr><td><code>explore/spectral_align/data/</code></td><td><code>train_modal.py launch</code>, <code>measure_modal.py launch all</code>, then <code>fetch</code></td></tr>
+<tr><td><code>explore/spectral_align/analysis/data/</code></td><td><code>analyze.py data</code> (local)</td></tr>
+<tr><td><code>site/figdata/r20s0b_kernel.npz</code></td><td><code>site/figdata.py r20s0b</code> (local; reads checkpoints from the volume)</td></tr>
+<tr><td><code>site/assets/fig/*.png</code> (Overview and Method figures)</td><td><code>site/make_figures.py r20s0b</code></td></tr>
+<tr><td><code>site/assets/questions.json</code>, <code>site/assets/fig/q_*.png</code></td><td><code>site/analysis.py r20s0b</code></td></tr>
+<tr><td><code>site/assets/x/&lt;id&gt;.*</code>, <code>site/assets/fig/x_&lt;id&gt;_*.png</code></td><td><code>site/experiments/&lt;id&gt;.py r20s0b</code></td></tr>
+<tr><td><code>viewer/site/</code></td><td><code>site/build_site.py</code> (release build above)</td></tr>
+</tbody></table></div>
+
+<h2 id="rp-spend">Modal cost of each stage</h2>
+<p>Values: the study's own estimates from worker timings and the Modal price list, quoted from the file named in the
+last column; they are not invoices. They are documentation, not build-time facts.</p>
+<div class="table-scroll"><table class="data" id="rp-spend-table">
+<thead><tr><th>stage</th><th class="num">approximate cost (USD)</th><th>source</th></tr></thead>
+<tbody>
+<tr><td>legacy run <code>r20s0</code>, incl. training of seed 0</td><td class="num">1–1.5</td><td><code>README.md</code>, Legacy run</td></tr>
+<tr><td><code>measure_v2.py</code> seed 0: extraction, sweep, derivatives, validation, spectra, comparisons</td><td class="num">2.673</td><td><code>README.md</code>, Spend; <code>runs/spend-summary.json</code></td></tr>
+<tr><td><code>measure_v2.py launch layouts</code> (seed 1)</td><td class="num">0.102</td><td>same</td></tr>
+<tr><td><code>modal_train.py launch --seed 1</code> (GPU only; budgeted 0.50)</td><td class="num">0.434</td><td>same</td></tr>
+<tr><td>allowance for cancelled and failed attempts, start-up and coordinators (the <code>measure_v2.py</code> extension)</td><td class="num">2</td><td>same</td></tr>
+<tr><td><code>measure_v2.py launch prodspectra</code></td><td class="num">1.10</td><td><code>README.md</code>, Product blocks</td></tr>
+<tr><td><code>measure_v2.py launch specembed</code></td><td class="num">0.07</td><td><code>README.md</code>, Spectral layout</td></tr>
+<tr><td><code>coarse_modal.py</code> pilot and launch</td><td class="num">6.3</td><td><code>README.md</code>, Coarse-graining certificates</td></tr>
+<tr><td><code>coarse_modal.py</code> markov-pilot and markov-launch</td><td class="num">1.9</td><td>same</td></tr>
+<tr><td>dot kernel (<code>r20s0d</code> stages) and <code>kernels_modal.py</code></td><td class="num">4.5</td><td><code>README.md</code>, Dot (Euclidean) kernel</td></tr>
+<tr><td>baselines measurement (<code>measure_b.py</code> all and followup)</td><td class="num">3.155</td><td><code>explore/cifar_baselines/NOTES_A.md</code></td></tr>
+<tr><td>planted benchmarks (<code>bench_modal.py</code>, incl. the partition rerun)</td><td class="num">1.83</td><td><code>explore/cifar_baselines/NOTES_B.md</code></td></tr>
+<tr><td>transfer pilot (<code>transfer_modal.py</code>)</td><td class="num">0.6</td><td><code>explore/cifar_baselines/NOTES_C.md</code></td></tr>
+<tr><td>alignment study: training ResNet-32 and ResNet-56</td><td class="num">3.1</td><td><code>explore/spectral_align/README.md</code></td></tr>
+<tr><td>alignment study: measurement</td><td class="num">3.25</td><td>same</td></tr>
+</tbody></table></div>

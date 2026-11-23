@@ -1,9 +1,10 @@
 <p class="lede">The construction behind <b>Neural Coherent Sets</b>, my procedure for finding the groups of inputs a
 neural network treats alike across layers and training, in the order the pipeline runs: what each object is, the
 choices that matter (above all the kernel), and how to read the explorer. The
-<a href="#overview/procedure">Overview</a> gives the same procedure in five steps. The kernel sweep, the layout
-algorithm, per-image diagnostics, the definitions of every comparison statistic and the commands to rebuild everything
-are in <a href="#method-details">Appendix C</a>.</p>
+<a href="#overview/procedure">Overview</a> gives the same procedure in five steps. The kernel sweep and the layout
+algorithm are in <a href="#choices">Appendix A</a>; per-image diagnostics and the definitions of every comparison
+statistic are in <a href="#method-details">Appendix C</a>; the commands to rebuild everything are in
+<a href="#reproduce">Appendix E</a>.</p>
 
 <h2 id="glossary">Glossary</h2>
 
@@ -19,7 +20,7 @@ images at that site and checkpoint. In the explorer grid each snapshot is drawn 
 <li id="glossary-activation-cell"><b>Activation cell.</b> A region of a layer's activation space on which the rest of
 the network computes nearly the same thing (after an observation by Stefan Heimersheim and collaborators); on
 this site "cell" means only this.</li>
-<li id="glossary-block"><b>Block.</b> A run of consecutive snapshots whose operators are averaged (or, with the explorer's Operator switch, composed in order: <a href="#method-details/product-blocks">product blocks</a>). A <b>layer block</b> is
+<li id="glossary-block"><b>Block.</b> A run of consecutive snapshots whose operators are averaged (or, with the explorer's Operator switch, composed in order: <a href="#choices/product-blocks">product blocks</a>). A <b>layer block</b> is
 sites $a..b$ at one checkpoint; a <b>time block</b> is checkpoints $c..d$ at one site.</li>
 <li id="glossary-single-snapshot-block"><b>Single-snapshot block.</b> A block of one snapshot ($a = b$ or $c = d$). Its
 eigenfunctions are ordinary spectral clustering (diffusion maps) of that snapshot alone.</li>
@@ -185,7 +186,7 @@ bisection so that $\mathrm{median}_i \sum_{j \in \mathrm{NN}_k(i)} K_{ij} \big/ 
 for rules 3 and 4; the median $\kappa_i$ (with 10th and 90th percentiles) for rules 1 and 2; nothing for rule 0; and
 the achieved median 15-NN share of kernel mass for every rule. The half-mass rule calibrates what an earlier version's
 two-distance heuristic, $\kappa = \log(N/k)/(d_\text{pair} - d_k)$, aimed at; the heuristic appears only in the
-$\kappa$ figure of <a href="#method-details/sweep">Appendix C</a>.</p>
+$\kappa$ figure of <a href="#choices/sweep">Appendix A</a>.</p>
 
 <div class="table-scroll"><table class="data">
 <tr><th>site</th><th class="num">kNN graph, k = 15</th><th class="num">per-point perplexity 100</th><th class="num">per-point perplexity 300</th><th class="num">kNN scale</th><th class="num">half-mass, calibrated</th></tr>
@@ -205,7 +206,7 @@ $\kappa$ figure of <a href="#method-details/sweep">Appendix C</a>.</p>
 <p class="byline">Each entry: $\kappa$ (median $\kappa_i$ for the perplexity rules; none for the kNN graph) / median
 15-NN share of kernel mass, step {{fact:final_step}}; source <code>data/r20s0b/meta.json</code>.</p>
 
-<p>How these five were chosen from 19 candidates (global $\kappa$, mass targets, perplexities, kNN graphs), with label-free diagnostics, is in <a href="#method-details/sweep">Appendix C: the kernel sweep</a>.</p>
+<p>How these five were chosen from 19 candidates (global $\kappa$, mass targets, perplexities, kNN graphs), with label-free diagnostics, is in <a href="#choices/sweep">Appendix A: the kernel sweep</a>.</p>
 
 <h2 id="blocks">Blocks and retention</h2>
 
@@ -275,12 +276,70 @@ the kernel rule, and equal weights within a block.</li>
 
 <h2 id="avgprod-short">Average or product</h2>
 
-<p>The explorer averages a block's walks ($\bar M$). The theory's object is their ordered product $Q = M_b \cdots M_a$ (Froyland's coherent pairs), which the explorer's <b>Operator</b> switch also offers. To first order in the step size the two share leading vectors; on this network they agree closely for short blocks and drift apart for long ones. Derivation, measurements and the product's start and end functions: <a href="#method-details/avgprod">Appendix C</a>.</p>
+<p>The explorer averages a block's walks ($\bar M$). The theory's object is their ordered product $Q = M_b \cdots M_a$ (Froyland's coherent pairs), which the explorer's <b>Operator</b> switch also offers. To first order in the step size the two share leading vectors; on this network they agree closely for short blocks and drift apart for long ones. Derivation, measurements and the product's start and end functions: <a href="#choices/avgprod">Appendix A</a>.</p>
+
+<h2 id="through-depth">One operator through depth</h2>
+
+<p>The <a href="#experiments/x-through-depth">through-depth experiment</a> and the
+<a href="https://charlesr-w.github.io/DepthEmbedding/">Depth embedding viewer</a> (a separate site) use one operator for all of a network's sites at once, instead of one
+block at a time. Its functions $f = (f_0, \dots, f_{L-1})$ have one slice per site, each a function on the probe
+images, and its energy charges for roughness within each site and for change between neighbouring sites:</p>
+<div class="eq" id="eq-m-supra" data-num="3">$$ E_t(f) \;=\; \sum_{l} \frac{f_l^\top (I - M_l)\, f_l}{c_l}
+\;+\; t \sum_{l} \lVert f_{l+1} - f_l \rVert^2 . $$</div>
+<p>This is the supra-Laplacian of <a href="https://arxiv.org/abs/2409.11984" target="_blank" rel="noopener">Froyland,
+Kalia and Koltai</a>, with the identity as the link between sites: image $i$ at one site <i>is</i> image $i$ at the
+next. Its low modes give each image a row of $K$ numbers at every site, all in one $K$-dimensional space. That row is
+what the Depth embedding viewer plots. There are three variants.</p>
+<ul>
+<li><b>Relative site units</b> (the default): $c_l$ is the mean of site $l$'s first eight nontrivial values of
+$1 - \lambda$, the least mean roughness any eight orthonormal mean-zero functions can have at that site.</li>
+<li><b>Native walk units</b>: $c_l = 1$.</li>
+<li><b>Paper transition</b>: the matrix of <a href="https://doi.org/10.1063/5.0228419" target="_blank"
+rel="noopener">Trower, Djurdjevac Conrad and Klus</a>, used as is.</li>
+</ul>
+
+<h3 id="through-depth-why-relative">Why relative units are the default rather than the paper's matrix</h3>
+<p><b>Against the paper's matrix.</b> For these symmetric walks its eigenproblem has an exact energy
+(<code>SPEC_SPACETIME.md</code>, S2): $1 - \lambda = \sum_l \sum_{i,j} (M_l)_{ij}\,(f_l(i) - f_{l+1}(j))^2$. Image $i$ at
+one site is linked to a <i>random neighbour</i> $j$ at the next. Roughness within a site and change between sites are
+therefore paid through the same walk step, and nothing sets their relative price. Three consequences follow.</p>
+<ul>
+<li>Its graph is not the identity link, so "the same image, followed through depth" is not what it encodes.</li>
+<li>Site $l$'s walk is used for both slices $l$ and $l+1$, and the last site's walk never enters.</li>
+<li>Its spectrum mixes in slice-constant ("temporal") modes that say nothing about the images. The paper filters them
+by inspection, so the number of groups cannot be read from a gap.</li>
+</ul>
+<p>The additive operator above keeps the two charges separate, with an explicit rate $t$. The slice-constant modes form
+an exactly invariant sector and are removed (S1). Its two limits are objects the rest of the site already uses: as
+$t \to 0$, the separate sites; as $t \to \infty$, a block average over all sites (S3). As $t$ grows, the trade between
+roughness and change is exact and monotone (S6). The paper's matrix is still shown alongside, with the same readings,
+as a comparison.</p>
+<p><b>Against native units.</b> With $c_l = 1$ the price of roughness at a site is set by that site's walk. Here the
+late walks are much smoother: smooth functions are about {{fact:x.through-depth.scale_ratio}} times cheaper at logits
+than in the middle blocks. So the cheapest modes pile onto the last sites. At the final checkpoint, b9, pool and
+logits hold {{fact:x.through-depth.nat.f0.occ_tail}} of the 16-mode space at $t^*/64$ and
+{{fact:x.through-depth.nat.fstar.occ_tail}} at $t^*$. That pile-up is mostly the gap landscape, not image geometry: a
+scalar control that sees only each site's gap approximately reproduces mode $1$'s depth profile (S5; see the experiment for where it does not). Relative units divide out
+that one number per site, so each site's cheapest eight-frame costs the same, and leave everything else. The space
+then spreads over all sites: at $t^*$, each site holds between {{fact:x.through-depth.rel.fstar.occ_min}} and
+{{fact:x.through-depth.rel.fstar.occ_max}}, against an even share of {{fact:x.through-depth.even_share}}. For
+comparison, the paper's matrix puts {{fact:x.through-depth.paper.occ_tail}} on b9 to logits.</p>
+<p><b>What relative units do not do.</b> They do not equalise spectral gaps or best cuts, and the eight-mode
+reference is a convention. The default is a choice about what counts as "equally rough at every site", not a
+result. The coupling $t$ is also a free rate. The six stops are multiples of the balance coupling $t^*$, which is a
+ruler, not an optimum.</p>
+
+<h3 id="through-depth-viewer">The Depth embedding viewer</h3>
+<p>The viewer that animates these rows through depth, for this network and six others, is now
+<a href="https://charlesr-w.github.io/DepthEmbedding/">its own site</a>. Its <a href="https://charlesr-w.github.io/DepthEmbedding/#method">Method page</a> covers what is specific to it: SEBA run on
+the stacked low space (<a href="https://charlesr-w.github.io/DepthEmbedding/#method/through-depth-seba">SEBA sets through depth</a>), and the post-hoc depth
+matching, Procrustes rotation and per-site PCA and UMAP baselines used to compare networks
+(<a href="https://charlesr-w.github.io/DepthEmbedding/#method/through-depth-compare">Comparing networks, and the baselines</a>).</p>
 
 <h2 id="reading">Reading the layouts and colourings</h2>
 
 <p>The explorer grid has one row per checkpoint and one column per site; each panel is a 2-d layout of the $N$ probe
-images in one snapshot (<a href="#method-details/umap">UMAP</a>), and each image is one dot in every panel. The layouts are for
+images in one snapshot (<a href="#choices/umap">UMAP</a>), and each image is one dot in every panel. The layouts are for
 display only: nothing is computed from them, and a set that looks scattered in a layout can be compact in the
 operator, or the reverse.</p>
 
@@ -318,7 +377,7 @@ and the 12 nearest zero. For a set, its members by decreasing SEBA value ("highe
 the smallest lead of their own SEBA value over the largest of the other $r - 1$ ("boundary members").</li>
 </ul>
 
-<p class="byline">Definitions of every comparison statistic, of the baselines and nulls, the kernel sweep, the average-versus-product comparison and the commands to reproduce the site are in <a href="#method-details">Appendix C: Method details</a>.</p>
+<p class="byline">Definitions of every comparison statistic and of the baselines and nulls are in <a href="#method-details">Appendix C: Definitions and statistics</a>; the kernel sweep and the average-versus-product comparison are in <a href="#choices">Appendix A: Construction choices</a>; the commands to reproduce the site are in <a href="#reproduce">Appendix E: Reproduce</a>.</p>
 
 <h2 id="refs">References</h2>
 

@@ -182,6 +182,28 @@ export function coarseUnit(step, mode) {
   return once(`c:d/coarse/${step}_${mode}`, async () => JSON.parse(new TextDecoder().decode(await gunzip(`d/coarse/${step}_${mode}.json.gz`))));
 }
 
+// ------------------------------------------------------------------ through-depth add-on (build_site.py spacetime())
+// meta.spacetime (cosine root, kernel rule meta.spacetime.rule only). Fetched on first use, per checkpoint and variant.
+// One (step, variant): {C, K, L, vecs: Int8Array (C, K, L, N) unit slices scaled to max |u| = 127,
+// lab: Int8Array (4, C, L, N) set labels (-1 = no label), planes in the order of meta.spacetime.sets}
+export function depthUnit(m, step, variant) {
+  return once(`st:d/st/${step}_${variant}`, async () => {
+    const S = m.spacetime, V = S.variants.find(v => v.id === variant);
+    if (!V) throw new Error(`through depth: no variant "${variant}"`);
+    const { K, L } = S, C = V.C, N = m.n, half = (N + 1) >> 1, nv = C * K * L * N, nl = S.sets.length * C * L;
+    const b = await gunzip(`d/st/${step}_${variant}.bin.gz`);
+    if (b.byteLength !== nv + nl * half) throw new Error(`d/st/${step}_${variant}: ${b.byteLength} bytes, expected ${nv + nl * half}`);
+    const u8 = new Uint8Array(b, nv, nl * half), lab = new Int8Array(nl * N);
+    for (let p = 0; p < nl; p++) for (let i = 0; i < N; i++) { const byte = u8[p * half + (i >> 1)]; lab[p * N + i] = ((i & 1) ? byte >> 4 : byte & 15) - 1; }
+    return { C, K, L, vecs: new Int8Array(b, 0, nv), lab };
+  });
+}
+// per-step readings of every variant: {step, rule, tstar: {own, none}, variants: {own|none|paper: {t, vals, weight,
+// adj_cos, retention, own_share, occupancy, scalar_weight, sets: [{groups, churn}], link}}}
+export function depthSummary(step) {
+  return once(`sts:d/st/${step}`, async () => JSON.parse(new TextDecoder().decode(await gunzip(`d/st/${step}.json.gz`))));
+}
+
 // SEBA vectors for rank index ri, recomputed as SPEC section 2 (clipped at 0, reliability order); (r arrays of N)
 export function sebaVectors(m, blk, ri) {
   if (blk._seba[ri]) return blk._seba[ri];
@@ -271,5 +293,26 @@ export async function srcRep(id) {
     for (let ri = 0; ri < R; ri++) lab.set(unpackNibbles(new Uint8Array(b, (di * R + ri) * half, half), N), ri * N);
     out[k] = lab;
   });
+  return out;
+}
+
+// ------------------------------------------------------------------ diffusion wavelets (build_site.py wavelets())
+// meta.dw (cosine root only; kernel rule meta.dw.rule; single snapshots). One file per snapshot: u32 H, H bytes of JSON
+// {levels: [[j, n_j, n_{j+1}, wavelets, median PR]], fun: [[j, kind 0 scaling | 1 wavelet, centre, rank, PR]], spec},
+// then f32 scale[F], i8 vecs[F, N] (round(127 f / max|f|)) and u8 win[G, N] (per (level, kind) group in head.groups: the
+// group index of the function with the largest |f(i)| / max|f| at full precision).
+export function dwCell(m, step, site) {
+  return once(`dw:d/dw/${step}_${site}`, async () => {
+    const b = await gunzip(`d/dw/${step}_${site}.bin.gz`);
+    const H = new DataView(b).getUint32(0, true), head = JSON.parse(new TextDecoder().decode(new Uint8Array(b, 4, H)));
+    const F = head.fun.length, G = head.groups.length, off = 4 + H, want = off + 4 * F + F * m.n + G * m.n;
+    if (b.byteLength !== want) throw new Error(`d/dw/${step}_${site}: ${b.byteLength} bytes, expected ${want}`);
+    return { ...head, F, scale: new Float32Array(b, off, F), vecs: new Int8Array(b, off + 4 * F, F * m.n), win: new Uint8Array(b, off + 4 * F + F * m.n, G * m.n) };
+  });
+}
+// function f of a snapshot (index into cell.fun) as a Float64Array
+export function dwFun(m, cell, f) {
+  const N = m.n, out = new Float64Array(N), sc = cell.scale[f] / 127, o = f * N;
+  for (let i = 0; i < N; i++) out[i] = cell.vecs[o + i] * sc;
   return out;
 }

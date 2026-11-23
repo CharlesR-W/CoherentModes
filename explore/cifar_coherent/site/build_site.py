@@ -7,11 +7,14 @@
     ... build_site.py r20s0b --layout-tag r20s1b --dot-tag r20s0d   # + viewer/site/d_dot/ (dot kernel, SPEC_DOT.md section 5)
     ... build_site.py r20s0b --dot-tag r20s0d --dot-only              # rebuild d_dot/ + kernels.json only (d/ untouched)
     uv run --with numpy --with pillow python site/build_site.py <tag> --facts      # list {{fact:NAME}} values
+    ... (full command) --release [--manifest x7-only]   # release build: fails on anything missing (see check_release)
     python3 -m http.server 8765 --bind 127.0.0.1 -d viewer/site                    # then open http://127.0.0.1:8765/
 
 Reads data/<tag>/ (and optionally data/<layout-tag>/umap_*.npy, a second network's layouts) and site/ sources;
-writes viewer/site/ (deploy root, .nojekyll). Content fragments site/content/{overview,findings,measurements,method}.html
-are inlined when present (placeholders otherwise); site/content/tours.json (explorer tours) and site/content/header.json
+writes viewer/site/ (deploy root, .nojekyll). Content fragments site/content/<name>.html are inlined when present
+(placeholders otherwise); the Experiments tab is assembled from site/content/experiments/ (index.json manifest,
+_lede.html, one <id>.html per experiment; see experiments()) and assets/x/<id>.facts.json join the facts as
+x.<id>.<name>; site/content/tours.json (explorer tours) and site/content/header.json
 are read when present; site/assets/ is copied verbatim, and assets/questions.json["facts"] joins the fact table as q.<name>.
 
 Data written to viewer/site/d/ (all little-endian; see DATA_LAYOUT below and js/data.js):
@@ -57,7 +60,12 @@ SIZE_CAP = 800e6               # whole site; above it the dot root ships rules 0
 COARSE_FORMAT = "coarse-v1"    # bump when d/ext, d/km or d/coarse change layout (SPEC_COARSE.md sections 3 and 5)
 EXT_CAP = 300e6                # psi_9..psi_32 add-on; above it: all rules for single cells, the default rule for chains
 EXT_FAMS = {"layer": "avg", "layerprodR": "prodR", "layerprodL": "prodL"}   # explorer data key -> coarse npz prefix
-KEEP_D = ("blk", "meta.json", "ext", "km", "coarse")   # incremental (stamped) parts of d/ kept between builds
+ST_FORMAT = "st-v1"            # bump when d/st changes layout (through-depth add-on, SPEC_SPACETIME.md section 6)
+DW_FORMAT = "dw-v2"            # d/dw layout (wavelets()); bump on change
+DW_RULE = 0                    # diffusion wavelets ship kernel rule 0 (kNN graph), single snapshots, cosine only
+ST_RULE = 0                    # the through-depth add-on ships kernel rule 0 (kNN graph) only
+ST_LOW = 0.01                  # slices holding less of their mode's squared norm are drawn grey (not a direction)
+KEEP_D = ("blk", "meta.json", "ext", "km", "coarse", "st", "dw")   # incremental (stamped) parts of d/ kept between builds
 
 
 def log(*a):
@@ -129,6 +137,68 @@ def write(path: Path, data: bytes):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
 
+# ------------------------------------------------------------------ through-depth export helpers (spacetime())
+ST_SETS = [{"k": k, "readout": r} for k in (5, 10) for r in ("a", "s")]      # order of the label planes
+
+
+def st_q8(v):      # int16 -> int8 as in coarse(): a non-zero entry never rounds to 0 (signs stay exact)
+    q = np.round(v.astype(np.float64) * 127.0 / 32767.0)
+    return np.clip(np.where((q == 0) & (v != 0), np.sign(v), q), -127, 127).astype(np.int8)
+
+
+def st_by_size(lab):   # (L, N) labels with -1; renumber sets by decreasing size over all sites (ties: first seen)
+    flat = lab.ravel()
+    ok = flat >= 0
+    if not ok.any():
+        return lab.copy()
+    u, first_i, cnt = np.unique(flat[ok], return_index=True, return_counts=True)
+    order = u[np.lexsort((first_i, -cnt))]
+    m_ = np.full(int(flat.max()) + 1, -1, np.int16); m_[order] = np.arange(len(order))
+    out = np.where(lab >= 0, m_[np.clip(lab, 0, None)], -1)
+    return out.astype(np.int8)
+
+
+def st_export_step(z, step, root, variants, sizes, rule=None, fsel=None):
+    """One checkpoint's spacetime_stage npz -> <root>/<step>_<variant>.bin.gz for each requested variant (own | none |
+    paper) and <root>/<step>.json.gz (see Builder.spacetime for the layout). Adds gzip sizes to `sizes`; returns files.
+    fsel: coupling indices to keep (own / none only; None = all)."""
+    rule = ST_RULE if rule is None else rule
+    g4 = lambda x: None if x is None or not np.isfinite(x) else float(f"{float(x):.4g}")
+    L4 = lambda a: g4(a) if np.ndim(a) == 0 else [L4(x) for x in a]
+    K = z["vecs"].shape[2]
+    summary = {"step": step, "rule": rule, "tstar": {"own": g4(z["tstar_own"]), "none": g4(z["tstar_none"])}, "variants": {}}
+    n_files = 0
+    for v, si in (("own", 0), ("none", 1), ("paper", None)):
+        if v not in variants:
+            continue
+        p = "" if si is not None else "paper_"
+        cs = slice(None) if fsel is None else list(fsel)
+        pick = (lambda a: np.asarray(a[si])[cs]) if si is not None else (lambda a: a[None])     # leading coupling axis
+        vecs = pick(z[p + "vecs"])                                               # (C', K, L, N) int16
+        labs = np.stack([np.stack([st_by_size(x) for x in pick(z[f"{p}labels_{s['readout']}{(5, 10).index(s['k'])}"])])
+                         for s in ST_SETS])                                      # (4, C', L, N)
+        assert labs.max() < 15, "set labels outside 0..14"
+        blob = st_q8(vecs).tobytes() + pack_nibbles(labs).tobytes()
+        gz = gzip.compress(blob, compresslevel=6, mtime=0)
+        write(root / f"{step}_{v}.bin.gz", gz)
+        sizes[v] = sizes.get(v, 0) + len(gz); n_files += 1
+        summary["variants"][v] = {
+            "t": L4(np.asarray(z["t"][si])[cs]) if si is not None else None,
+            "vals": L4(pick(z[p + "vals"])[..., :K]),
+            "weight": L4(pick(z[p + "weight"])), "adj_cos": L4(pick(z[p + "adj_cos"])),
+            "retention": L4(pick(z[p + "retention"])), "own_share": L4(pick(z[p + "own_share"])),
+            "occupancy": L4(pick(z[p + "occupancy"])),
+            "scalar_weight": L4(np.asarray(z["scalar_weight"][si])[cs]) if si is not None else None,
+            "sets": [{"groups": L4(pick(z[f"{p}set_{s['readout']}{(5, 10).index(s['k'])}_groups"])),
+                      "churn": L4(pick(z[f"{p}set_{s['readout']}{(5, 10).index(s['k'])}_churn"]))} for s in ST_SETS],
+            "link": L4(pick(z[p + "link"])),
+        }
+    gz = gzip.compress(json.dumps(summary, separators=(",", ":"), allow_nan=False).encode(), compresslevel=9, mtime=0)
+    write(root / f"{step}.json.gz", gz)
+    sizes["summary"] = sizes.get("summary", 0) + len(gz)
+    return n_files + 1
+
+
 
 def f32(a):
     return np.ascontiguousarray(a, dtype="<f4")
@@ -157,6 +227,8 @@ class Builder:
         self.ref0 = None            # seed-0 layout: Procrustes target (DotBuilder: the cosine seed-0 layout); None = chain only
         self.extra_meta: dict = {}  # extra keys for meta.json (DotBuilder)
         self.coarse_meta = None     # d/ext, d/km, d/coarse description (cosine root only; see coarse())
+        self.st_meta = None         # d/st description (through-depth add-on, cosine root only; see spacetime())
+        self.dw_meta = None         # d/dw description (diffusion wavelets, cosine root only; see wavelets())
 
     # -- layout of one block chunk (byte offsets); X = number of cells along the retention axis
     def block_layout(self, X: int, product: bool = False):
@@ -195,6 +267,8 @@ class Builder:
         if not self.skip_blocks:
             self.blocks()
         self.coarse()
+        self.spacetime()
+        self.wavelets()
         self.small_json()
         self.write_meta()
         if self.baselines:       # site/baselines.py: d/src/ (explorer "Sets from") and d/bn/ (Baselines and nulls tab)
@@ -215,6 +289,9 @@ class Builder:
         for name in ["css", "js", "vendor", "assets"]:
             if (HERE / name).exists():
                 shutil.copytree(HERE / name, OUT / name, dirs_exist_ok=True)
+        for name in ["embedding.html"]:      # standalone pages (no templating); embedding.html: redirect to the Depth embedding site (its own repo since 2026-11-21)
+            if (HERE / name).exists():
+                shutil.copy2(HERE / name, OUT / name)
         pal = json.loads((HERE / "palette.json").read_text())
         self.palette = pal
         lines = [":root {"]
@@ -566,6 +643,133 @@ class Builder:
         log(f"coarse add-ons ({time.time() - t0:.0f} s): ext {ext_shipped / 1e6:.1f} MB gz shipped (all rules {ext_all / 1e6:.1f} MB; "
             f"chain rules {chain_rules}), k-means labels {km_shipped / 1e6:.1f} MB, summaries {sizes['coarse'] / 1e6:.1f} MB")
 
+    # ------------------------------------------------------------------ diffusion wavelets (wavelets_modal.py)
+    def wavelets(self):
+        """Cosine root only, kernel rule DW_RULE, single snapshots. From data/<tag>/wavelets/dw_<step>_<site>.npz
+        (wavelets_modal.py; Coifman-Maggioni diffusion wavelets of the snapshot's lazy walk M) write, per snapshot,
+          dw/<step>_<site>.bin.gz   u32 H, H bytes of JSON {levels: [[j, n_j, n_{j+1}, wavelets, median PR]],
+                                    fun: [[j, kind 0 phi | 1 psi, centre image, rank in pivot order, PR]],
+                                    spec: [#{lambda^(2^j) > eps}] per level, groups: [[j, kind]]}, zero padding to 4
+                                    bytes, f32 scale[F], i8 vecs[F, N] = round(127 f / max|f|) (plain rounding: tails do
+                                    go to 0), then u8 win[G, N]: per stored (level, kind) group, the index within the
+                                    group of the function with the largest |f(i)| / max|f| at full precision (the
+                                    explorer's click rule; computed here because 8-bit values tie)
+        The snapshot's eigenvalues must match the stored single-cell block's (same operator, same probe order)."""
+        wdir, root = self.src / "wavelets", self.d / "dw"
+        files = {(t, si): wdir / f"dw_{s}_{si}.npz" for t, s in enumerate(self.steps) for si in range(self.S)}
+        if not all(f.exists() for f in files.values()):
+            shutil.rmtree(root, ignore_errors=True)
+            log("wavelets: no data/<tag>/wavelets/dw_<step>_<site>.npz for every snapshot: diffusion wavelets not built")
+            return
+        stamp = f"{DW_FORMAT}|" + "|".join(f"{f.stat().st_mtime_ns}|{f.stat().st_size}" for f in files.values())
+        index = root / "index.json"
+        if index.exists():
+            old = json.loads(index.read_text())
+            if old.get("stamp") == stamp:
+                self.dw_meta = old["meta"]
+                log(f"wavelets: unchanged, kept ({self.dw_meta['gz_bytes'] / 1e6:.1f} MB)")
+                return
+        t0 = time.time()
+        shutil.rmtree(root, ignore_errors=True)
+        pairs = [tuple(p) for p in self.meta["layer_pairs"]]
+        total, eps, cap, nlev = 0, None, None, 0
+        for (t, si), f in files.items():
+            z = np.load(f)
+            eps, cap = float(z["eps"]), int(z["cap"])
+            with np.load(self.src / f"layer_{self.steps[t]}.npz") as lz:
+                ref = lz["vals"][DW_RULE, pairs.index((si, si))]
+            lam = z["lam"]
+            if np.abs(lam[:len(ref)] - ref).max() > 1e-5:
+                sys.exit(f"{f}: eigenvalues {lam[:5]} differ from the stored block's {ref[:5]}: wrong operator or probe order")
+            F, fun, lev = z["F"], z["fun"], z["levels"]
+            assert F.shape == (self.n, len(fun)), f"{f}: F {F.shape} vs {len(fun)} functions"
+            sc = np.abs(F).max(0).clip(1e-300)
+            q = np.round(127 * F / sc).astype(np.int8).T
+            groups = sorted({(int(r[0]), int(r[1])) for r in fun})
+            win = np.zeros((len(groups), self.n), np.uint8)
+            for g, (j, k) in enumerate(groups):
+                cols = np.flatnonzero((fun[:, 0] == j) & (fun[:, 1] == k))
+                assert len(cols) <= 255 and np.array_equal(fun[cols, 3], np.arange(len(cols))), f"{f}: group ({j}, {k}) not in pivot order"
+                win[g] = np.argmax(np.abs(F[:, cols]) / sc[cols], axis=1)
+            head = {"levels": [[int(r[0]), int(r[1]), int(r[2]), int(r[3]), (None if not np.isfinite(r[4]) else round(float(r[4]), 1))] for r in lev],
+                    "fun": [[int(r[0]), int(r[1]), int(r[2]), int(r[3]), round(float(r[4]), 1)] for r in fun],
+                    "spec": [int((np.clip(lam, 0, None) ** (2 ** int(r[0])) > eps).sum()) for r in lev],
+                    "groups": [list(g) for g in groups]}
+            hb = json.dumps(head, separators=(",", ":")).encode()
+            hb += b" " * ((-len(hb)) % 4)
+            raw = np.uint32(len(hb)).tobytes() + hb + f32(sc).tobytes() + q.tobytes() + win.tobytes()
+            gz = gzip.compress(raw, 6)
+            write(root / f"{self.steps[t]}_{si}.bin.gz", gz)
+            total += len(gz); nlev = max(nlev, len(lev))
+        self.dw_meta = {"format": DW_FORMAT, "rule": DW_RULE, "rule_name": self.modes[DW_RULE], "kernel": "cos",
+                        "eps": eps, "cap": cap, "max_levels": nlev, "gz_bytes": total,
+                        "quant": "int8 round(127 f / max|f|); f = vecs * scale / 127"}
+        write(index, json.dumps({"stamp": stamp, "meta": self.dw_meta}).encode())
+        log(f"wavelets ({time.time() - t0:.0f} s): {total / 1e6:.1f} MB gzipped in {len(files)} files")
+
+    # ------------------------------------------------------------------ through-depth add-on (SPEC_SPACETIME.md 6)
+    def spacetime(self):
+        """Cosine root only, kernel rule ST_RULE. From data/<tag>/spacetime/st_<step>_<rule>.npz (spacetime_stage.py)
+        write the explorer's "through depth" colouring, fetched lazily per checkpoint and variant:
+          st/<step>_<variant>.bin.gz   variant own (relative site units) | none (native walk units) | paper (the
+                                       paper's transition matrix). i8 vecs (C, K, L, N): each site's signed unit slice
+                                       of each mode, round(127 u / max|u|) with a non-zero floor (C = 6 couplings, 1
+                                       for paper); then u4 labels (4, C, L, ceil(N/2)) of the post-hoc set readouts in
+                                       the order of meta.spacetime.sets, value + 1 (0 = no label), low nibble = even
+                                       image; set numbers renumbered by decreasing size over all sites (display only)
+          st/<step>.json.gz            per variant: t, values, depth weight, neighbour cosines, retention, own share,
+                                       occupancy, scalar control, and per-site set scores (4 significant digits)
+        The probe order is verified against probe.npz (the build fails on a mismatch)."""
+        sdir, root = self.src / "spacetime", self.d / "st"
+        files = {t: sdir / f"st_{s}_{ST_RULE}.npz" for t, s in enumerate(self.steps)}
+        if not all(f.exists() for f in files.values()):
+            shutil.rmtree(root, ignore_errors=True)
+            log(f"spacetime: no data/<tag>/spacetime/st_<step>_{ST_RULE}.npz for every checkpoint: through-depth colouring not built")
+            return
+        probe_idx = np.load(self.src / "probe.npz")["idx"]
+        for f in files.values():          # every unit must use the site's probe images in the site's order
+            with np.load(f) as z:
+                if not np.array_equal(z["probe_idx"], probe_idx):
+                    sys.exit(f"{f}: probe_idx differs from {self.src / 'probe.npz'} (idx); the through-depth data do not "
+                             f"match the site's probe order")
+        stamp = f"{ST_FORMAT}|{ST_LOW}|{(self.src / 'probe.npz').stat().st_mtime_ns}|" + "|".join(
+            f"{f.stat().st_mtime_ns}|{f.stat().st_size}" for f in files.values())
+        index = root / "index.json"
+        if index.exists():
+            old = json.loads(index.read_text())
+            if old.get("stamp") == stamp:
+                self.st_meta = old["meta"]
+                log(f"spacetime add-on: unchanged, kept ({self.st_meta['gz_bytes'] / 1e6:.1f} MB)")
+                return
+        t0 = time.time()
+        shutil.rmtree(root, ignore_errors=True)
+        sets = ST_SETS
+        sizes, n_files, K = {"own": 0, "none": 0, "paper": 0, "summary": 0}, 0, None
+        for t, f in files.items():
+            step = self.steps[t]
+            z = np.load(f)
+            C, K, L, n = z["vecs"].shape[1:]
+            assert (L, n) == (self.S, self.n), f"{f}: vecs {z['vecs'].shape} do not match {self.S} sites x {self.n} images"
+            assert C == len(z["factors"]) and z["vecs"].shape[0] == 2, f"{f}: unexpected vecs shape {z['vecs'].shape}"
+            n_files += st_export_step(z, step, root, ("own", "none", "paper"), sizes)
+            log(f"  spacetime {step}: {time.time() - t0:.0f} s")
+        total = sum(sizes.values())
+        self.st_meta = {
+            "format": ST_FORMAT, "rule": ST_RULE, "rule_name": self.modes[ST_RULE], "kernel": "cos", "steps": self.steps,
+            "K": int(K), "L": self.S, "factors": [float(x) for x in z["factors"]], "low_weight": ST_LOW,
+            "variants": [{"id": "own", "label": "relative site units", "C": int(C)},
+                         {"id": "none", "label": "native walk units", "C": int(C)},
+                         {"id": "paper", "label": "paper transition", "C": 1}],
+            "sets": sets, "readouts": {"a": "shape-aligned", "s": "shared coordinates"},
+            "quant": "int8 round(127 u / max|u|), non-zero floor; u = the unit slice f_l / |f_l| of each mode at each site",
+            "gz_bytes": total, "gz_bytes_by_part": sizes,
+        }
+        write(index, json.dumps({"stamp": stamp, "meta": self.st_meta}).encode())
+        log(f"spacetime add-on ({time.time() - t0:.0f} s): {total / 1e6:.1f} MB gzipped in {n_files} files "
+            f"(own {sizes['own'] / 1e6:.1f}, none {sizes['none'] / 1e6:.1f}, paper {sizes['paper'] / 1e6:.1f}, "
+            f"summaries {sizes['summary'] / 1e6:.2f} MB)")
+
+
     # ------------------------------------------------------------------ JSON copies + derived
     def small_json(self):
         for name in ["decod.json", "curves.json", "avgprod.json", "normalisation_compare.json", "sweep.json", "product_summary.json"]:
@@ -597,6 +801,8 @@ class Builder:
             "points_fields": self.points_fields, "layouts": self.layout_info, "kernel": m.get("kernel", "cosine"),
             "shared_fingerprint": shared_fingerprint(self.src, m), **self.extra_meta,
             **({"coarse": self.coarse_meta} if self.coarse_meta else {}),
+            **({"spacetime": self.st_meta} if self.st_meta else {}),
+            **({"dw": self.dw_meta} if self.dw_meta else {}),
             "val_acc": self.val_acc, "sprite_cols": self.sprite_cols, "palette": self.palette,
             "source_meta": {k: v for k, v in m.items() if k not in ("kappa", "kappa_q10", "kappa_q90", "self_weight", "nn_mass", "layer_pairs", "time_pairs", "steps", "sites", "modes", "classes")},
         }
@@ -655,6 +861,21 @@ class Builder:
         if cp.exists():
             for k, v in json.loads(cp.read_text()).items():
                 self.facts[f"c.{k}"] = v if isinstance(v, str) else f"{v:,}" if isinstance(v, int) else f"{v:.3g}"
+        # Experiment facts (site/experiments/<id>.py -> assets/x/<id>.facts.json), quoted as {{fact:x.<id>.<name>}}.
+        for k in [k for k in self.facts if k.startswith("x.")]:
+            del self.facts[k]
+        for fp in sorted((HERE / "assets" / "x").glob("*.facts.json")):
+            xid = fp.name[: -len(".facts.json")]
+            xf = json.loads(fp.read_text())
+            if not isinstance(xf, dict):
+                sys.exit(f"{fp}: expected a flat {{name: value}} object")
+            for k, v in xf.items():
+                if isinstance(v, bool) or not isinstance(v, (str, int, float)):
+                    sys.exit(f"{fp}: fact '{k}': expected a string or number, got {type(v).__name__}")
+                name = f"x.{xid}.{k}"
+                if name in self.facts:
+                    sys.exit(f"{fp}: duplicate fact name '{name}'")
+                self.facts[name] = v if isinstance(v, str) else f"{v:,}" if isinstance(v, int) else f"{v:.3g}"
         (self.d / "facts.json").write_text(json.dumps(self.facts, indent=1))
 
     # ------------------------------------------------------------------ HTML
@@ -671,6 +892,86 @@ class Builder:
         text = self.sub_facts(p.read_text() if p.exists() else placeholder, p.name)
         # prose images load lazily so the first paint of a tab does not wait for every figure
         return re.sub(r"<img(?![^>]*\bloading=)", '<img loading="lazy" decoding="async"', text)
+
+    def experiments(self) -> str:
+        """{{CONTENT_EXPERIMENTS}}: content/experiments/_lede.html + a contents list generated from the manifest +
+        content/experiments/<id>.html for each manifest entry, in order. The manifest is
+        content/experiments/index.json (ordered [{"id", "title"}]) or, with --manifest NAME,
+        content/experiments/index.NAME.json (a scoped list, e.g. x7-only for the Phase 0 smoke test). A missing
+        fragment is a placeholder in development builds and an error with --release."""
+        xdir = HERE / "content" / "experiments"
+        mname = getattr(self, "manifest", None)
+        mp = xdir / (f"index.{mname}.json" if mname else "index.json")
+        if not mp.exists():
+            sys.exit(f"experiments manifest {mp} not found")
+        entries = json.loads(mp.read_text())
+        bad = lambda msg: sys.exit(f"{mp.name}: {msg}")
+        if not isinstance(entries, list) or not entries:
+            bad("expected a non-empty list of {\"id\", \"title\"}")
+        seen = set()
+        for e in entries:
+            if not isinstance(e, dict) or not all(isinstance(e.get(k), str) and e[k] for k in ("id", "title")):
+                bad(f"entry {e!r}: needs non-empty string fields id, title")
+            if not re.fullmatch(r"[a-z][a-z0-9-]*", e["id"]) or e["id"] in seen:
+                bad(f"id '{e['id']}' must be a unique lower-case slug")
+            seen.add(e["id"])
+        if mname:   # a scoped manifest is a sub-list of the full one (same ids and titles)
+            full = {e["id"]: e["title"] for e in json.loads((xdir / "index.json").read_text())}
+            for e in entries:
+                if full.get(e["id"]) != e["title"]:
+                    bad(f"entry '{e['id']}' is not in index.json with the same title")
+        lede = xdir / "_lede.html"
+        parts = [self.sub_facts(lede.read_text(), "experiments/_lede.html") if lede.exists() else ""]
+        toc = "".join(f'<li><a href="#experiments/x-{e["id"]}">{html.escape(e["title"])}</a></li>' for e in entries)
+        parts.append(f'<nav class="x-toc" aria-label="Experiments"><ol>{toc}</ol></nav>')
+        missing = []
+        for e in entries:
+            p = xdir / f"{e['id']}.html"
+            if not p.exists():
+                missing.append(p.name)
+                parts.append(f'<section class="experiment" id="x-{e["id"]}"><h2>{html.escape(e["title"])}</h2>'
+                             f'<div class="placeholder">Not written yet: <code>site/content/experiments/{p.name}</code>'
+                             f' (template: <code>_template.html</code>).</div></section>')
+                continue
+            text = p.read_text()
+            if not re.search(rf'<section class="experiment" id="x-{re.escape(e["id"])}">', text):
+                sys.exit(f"experiments/{p.name}: must start with <section class=\"experiment\" id=\"x-{e['id']}\">")
+            parts.append(self.sub_facts(text, f"experiments/{p.name}"))
+        if missing:
+            if getattr(self, "release", False):
+                sys.exit(f"--release: experiment fragments missing from {mp.name}: {', '.join(missing)}")
+            log(f"note: {len(missing)} experiment fragment(s) not written yet (placeholders): {', '.join(missing)}")
+        text = "\n".join(parts)
+        return re.sub(r"<img(?![^>]*\bloading=)", '<img loading="lazy" decoding="async"', text)
+
+    def check_release(self, page: str):
+        """--release: every data-src / data-ceiling-src target (file and JSON path), every <img src> and the
+        alignment data must exist in the built site."""
+        errs, cache = [], {}
+        for attr, ref in re.findall(r'\b(data-src|data-ceiling-src|src)="([^"]+)"', page):
+            if attr == "src" and (ref.startswith(("data:", "http:", "https:", "js/", "vendor/")) or "{{" in ref):
+                continue
+            url, _, path = html.unescape(ref).partition("#")
+            url = url.split("?")[0]
+            f = OUT / url
+            if not f.exists():
+                errs.append(f"{attr}={ref}: {url} not in the built site")
+                continue
+            if path:
+                if url not in cache:
+                    cache[url] = json.loads(f.read_text())
+                o = cache[url]
+                for k in path.split("."):
+                    o = o.get(k) if isinstance(o, dict) else (o[int(k)] if isinstance(o, list) and k.isdigit() and int(k) < len(o) else None)
+                    if o is None:
+                        break
+                if o is None:
+                    errs.append(f"{attr}={ref}: JSON path '{path}' not found in {url}")
+        if not (OUT / "d" / "al" / "index.json").exists():
+            errs.append("alignment data missing (d/al/index.json): build with --alignment")
+        if errs:
+            sys.exit("--release failed:\n  " + "\n  ".join(errs))
+        log(f"release checks passed ({len(re.findall(r'data-src=', page))} data-src, {len(re.findall(r'<img', page))} images)")
 
     def tours(self) -> str:
         """content/tours.json = [{"id", "label", "hash": "#explorer?...", "note": html}], validated and inlined
@@ -722,16 +1023,14 @@ class Builder:
             "{{FIXTURE_NOTE}}": " (SYNTHETIC FIXTURE: pictures carry no meaning)" if self.meta.get("fixture") else "",
             "{{EXPLORER}}": (HERE / "explorer.html").read_text(),
             "{{CONTENT_OVERVIEW}}": self.fragment("overview", ph("Overview")),
-            "{{CONTENT_FINDINGS}}": self.fragment("findings", ph("Findings")),
+            "{{CONTENT_EXPERIMENTS}}": self.experiments(),
             "{{CONTENT_MEASUREMENTS}}": self.fragment("measurements", ph("Measurements", q_extra)),
             "{{CONTENT_METHOD}}": self.fragment("method", ph("Method")),
             "{{CONTENT_METHOD_DETAILS}}": self.fragment("method_details", ph("Method details")),
             "{{CONTENT_BASELINES}}": self.fragment("baselines", ph("Baselines")),
+            "{{CONTENT_CHOICES}}": self.fragment("choices", ph("Choices")),
+            "{{CONTENT_REPRODUCE}}": self.fragment("reproduce", ph("Reproduce")),
             "{{CONTENT_PRIMER}}": self.fragment("primer", ph("Primer")),
-            # Alignment tab: shown only when d/al/ was built (--alignment); otherwise hidden, with a placeholder
-            "{{CONTENT_ALIGNMENT}}": self.fragment("alignment", "") if (OUT / "d" / "al" / "index.json").exists() else
-                '<div class="placeholder"><b>Alignment</b> is built with <code>build_site.py ... --alignment &lt;data dir&gt;</code>.</div>',
-            "{{ALIGNMENT_TAB_HIDDEN}}": "" if (OUT / "d" / "al" / "index.json").exists() else " hidden",
             "{{TOURS_JSON}}": self.tours(),
         }
         page = (HERE / "index.html").read_text()
@@ -739,6 +1038,8 @@ class Builder:
             page = page.replace(k, v)
         left = re.findall(r"\{\{[A-Z_]+\}\}", page)
         assert not left, left
+        if getattr(self, "release", False):
+            self.check_release(page)
         (OUT / "index.html").write_text(self.cache_bust(page))
 
     def cache_bust(self, page):
@@ -916,7 +1217,10 @@ def main():
     ap.add_argument("--alignment", default=None, help="spectral-alignment data directory (e.g. ../spectral_align/data): the Alignment tab")
     ap.add_argument("--dot-tag", default=None, help=f"data tag of the dot-kernel measurement (e.g. r20s0d): second data root {DOT_ROOT}/, the explorer's Kernel switch")
     ap.add_argument("--dot-rules", default="auto", help="dot root: 'auto' (all rules unless the site would pass 800 MB, then 0-1), 'all', or a number of leading rules")
+    ap.add_argument("--release", action="store_true", help="fail on a missing experiment fragment, unknown fact, missing data-src target or image, or missing alignment data (development builds use placeholders)")
+    ap.add_argument("--manifest", default=None, help="experiments manifest: content/experiments/index.NAME.json instead of index.json (e.g. x7-only, a scoped smoke test)")
     ap.add_argument("--dot-only", action="store_true", help=f"rebuild only {DOT_ROOT}/ (needs a previous build of <tag>, the cosine root); touches nothing else")
+    ap.add_argument("--wavelets-only", action="store_true", help="rebuild only d/dw/ and the 'dw' key of d/meta.json (needs a previous build of <tag>)")
     a = ap.parse_args()
     if a.facts:
         p = OUT / "d" / "facts.json"
@@ -931,6 +1235,24 @@ def main():
     b.baselines = a.baselines
     b.alignment = a.alignment
     b.dot_tag, b.dot_rules = a.dot_tag, a.dot_rules
+    b.release, b.manifest = a.release, a.manifest
+    if a.release and (a.html_only or a.skip_blocks or a.only or a.allow_missing or a.dot_only or a.wavelets_only):
+        sys.exit("--release is a full build: it cannot be combined with --html-only, --skip-blocks, --only, --allow-missing, --dot-only or --wavelets-only")
+    if a.wavelets_only:
+        mp = OUT / "d" / "meta.json"
+        if not mp.exists() or json.loads(mp.read_text()).get("tag") != a.tag:
+            sys.exit(f"--wavelets-only needs a previous build of {a.tag}")
+        t0 = time.time()
+        b.wavelets()
+        meta = json.loads(mp.read_text())
+        meta.pop("dw", None)
+        if b.dw_meta:
+            meta["dw"] = b.dw_meta
+        write(mp, json.dumps(meta, separators=(",", ":"), allow_nan=False).encode())
+        report_size(t0)
+        return
+    if a.release and not a.alignment:
+        sys.exit("--release needs --alignment (the experiments use the alignment data)")
     if a.dot_only:
         if not a.dot_tag or not (OUT / "d" / "meta.json").exists():
             sys.exit("--dot-only needs --dot-tag and a previous build of the cosine root")

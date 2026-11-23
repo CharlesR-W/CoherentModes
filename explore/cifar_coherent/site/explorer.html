@@ -19,6 +19,10 @@
           <option value="seba">groups of images (coherent sets)</option>
           <option value="eig">one eigenvector (pick which)</option>
           <option value="km" id="ex-color-km">k-means groups on the eigenvectors</option>
+          <option value="dw" id="ex-color-dw">diffusion wavelets (one snapshot; click an image)</option>
+        </optgroup>
+        <optgroup label="Through depth (one checkpoint row)" id="ex-color-depth-grp">
+          <option value="depth" id="ex-color-depth">through depth: each site its own slice</option>
         </optgroup>
         <optgroup label="Labels (for checking only)">
           <option value="class">CIFAR class</option>
@@ -41,6 +45,29 @@
         <button type="button" data-v="own" title="Each row shows the diagnostic at that row's checkpoint">each row's checkpoint</button>
         <button type="button" data-v="final" title="Every row shows the diagnostic at the final checkpoint">final</button>
       </div>
+    </div>
+    <div class="ctl ctl-dw" id="ex-dw-ctl" hidden>
+      <select id="ex-dwj" aria-label="Diffusion wavelets: scale" title="Level j represents the walk run for 2^j steps, M^(2^j); its wavelets are what M^(2^j) resolves and M^(2^(j+1)) no longer does"></select>
+      <div class="seg" id="ex-dwk" role="radiogroup" aria-label="Wavelets or scaling functions">
+        <button type="button" data-v="1" title="Wavelets ψ: the detail lost between M^(2^j) and M^(2^(j+1))">wavelet ψ</button>
+        <button type="button" data-v="0" title="Scaling functions φ: an orthonormal basis of what M^(2^j) still resolves (stored when a level has at most 64)">scaling φ</button>
+      </div>
+      <select id="ex-dwf" aria-label="Which function of this scale" title="Stored functions of this scale, in pivot order (the first 64 wavelets: a subset, not a localization ranking). Clicking an image picks the stored function carrying that image most, relative to its own peak"></select>
+    </div>
+    <div class="ctl ctl-depth" id="ex-depth-ctl" hidden>
+      <div class="seg" id="ex-dv" role="radiogroup" aria-label="Through depth: which operator">
+        <button type="button" data-v="own" title="Identity link between sites; each site's roughness divided by the mean of its first 8 nontrivial 1 − λ (default)">relative site units</button>
+        <button type="button" data-v="none" title="Identity link between sites; each site's roughness as it is (1 − λ of its lazy walk)">native walk units</button>
+        <button type="button" data-v="paper" title="The paper's matrix B⁻¹A as is: image i at one site is linked to a random neighbour at the next. No coupling slider">paper transition</button>
+      </div>
+      <label class="ctl-sub ex-dt" id="ex-dt-wrap" title="Coupling t between neighbouring sites, as a multiple of t* (the coupling at which the first depth-only eigenvalue meets the first eigenvalue of functions with mean zero at every site)">coupling
+        <input type="range" id="ex-dt" min="0" max="5" step="1" value="3" aria-describedby="ex-dt-val"> <span class="ex-dt-val" id="ex-dt-val"></span></label>
+      <select id="ex-dm" aria-label="Mode or sets through depth"></select>
+      <div class="seg" id="ex-dr" role="radiogroup" aria-label="Set readout" hidden>
+        <button type="button" data-v="a" title="Each site's rows first rotated onto the previous site's (orthogonal Procrustes), then one k-means with centroids shared across sites: did the cloud change shape, rigid motion aside?">shape-aligned</button>
+        <button type="button" data-v="s" title="Rows as they are, one k-means with centroids shared across sites: did each image change its joint spectral coordinates?">shared coordinates</button>
+      </div>
+      <span class="lock-badge" id="ex-depth-lock" title="The through-depth data exist for the cosine kernel and this kernel rule only, so both are fixed while this colouring is on"></span>
     </div>
     <div class="ctl" id="ex-src-ctl">
       <label class="ctl-label" for="ex-src">Sets from</label>
@@ -103,7 +130,9 @@
       </details>
       <div class="ex-head">
         <ol class="ex-steps" id="ex-hint">
-          <li><b>Pick a block.</b> <span class="mouse-only">Drag along a row (sites at one checkpoint) or a column (checkpoints at one site). Click a panel to move the block's end there, shift-click to move its start.</span><span class="touch-only">Tap a panel to set the block's
+          <li class="depth-hint"><b>Pick a checkpoint.</b> <span class="mouse-only">Click</span><span class="touch-only">Tap</span> any panel: its row is coloured, each site by its own slice; other rows stay grey.</li>
+          <li class="dw-hint"><b>Pick a snapshot and an image.</b> <span class="mouse-only">Click</span><span class="touch-only">Tap</span> a point: that panel's snapshot is used, and the wavelet of the chosen scale that carries that image most is painted on every panel.</li>
+          <li class="blk-hint"><b>Pick a block.</b> <span class="mouse-only">Drag along a row (sites at one checkpoint) or a column (checkpoints at one site). Click a panel to move the block's end there, shift-click to move its start.</span><span class="touch-only">Tap a panel to set the block's
             <span class="seg" id="ex-tap" role="radiogroup" aria-label="What a tap sets"><button type="button" data-v="end">end</button><button type="button" data-v="start">start</button></span></span></li>
           <li><b>Hover a point.</b> <span class="mouse-only">The same image is ringed in every panel.</span><span class="touch-only">Tap a point: the same image is ringed in every panel.</span></li>
           <li><b>Read the side panel.</b> Groups and their images, eigenvalues, retention.</li>
@@ -121,6 +150,27 @@
         <h3 class="card-title" id="img-title">Representative images</h3>
         <div class="card-sub" id="img-sub"></div>
         <div id="img-body"></div>
+      </section>
+      <section class="card" id="card-dw" hidden>
+        <h3 class="card-title">Diffusion wavelets of this snapshot</h3>
+        <div class="card-sub" id="dw-sub"></div>
+        <div id="dw-chart" class="chart"></div>
+        <div id="dw-body"></div>
+      </section>
+      <section class="card" id="card-depth">
+        <h3 class="card-title" id="dp-title">Through depth</h3>
+        <div class="card-sub" id="dp-sub"></div>
+        <div class="sub-h" id="dp-a-title"></div>
+        <div id="dp-a" class="chart"></div>
+        <div class="sub-h" id="dp-b-title"></div>
+        <div id="dp-b" class="chart"></div>
+        <div class="sub-h" id="dp-occ-title">Where the low space lives: occupancy per site</div>
+        <div id="dp-occ" class="chart"></div>
+        <details class="card-more" id="dp-vals-wrap">
+          <summary>Values of the 16 modes (click one to show it)</summary>
+          <div id="dp-vals" class="chart"></div>
+        </details>
+        <div class="card-note" id="dp-note"></div>
       </section>
       <section class="card" id="card-block">
         <h3 class="card-title" id="blk-title">Block</h3>

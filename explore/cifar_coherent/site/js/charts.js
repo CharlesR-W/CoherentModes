@@ -80,7 +80,8 @@ export function tipRows(head, rows) {
 }
 
 // ---------- line chart
-// opts: x (array), series [{name, y, color, dash, width, band:[lo[],hi[]]}], xscale, yrange, xlabel, ylabel,
+// opts: x (array), series [{name, y, color, dash (true = dashed, "dot" = dotted), width, dots (marker radius),
+//       noline (markers only), band:[lo[],hi[]]}], xscale, yrange, xlabel, ylabel,
 //       height, xfmt, yfmt, xticks, refline {y,label}, shade [x0,x1], legend (bool), title,
 //       band [lo[],hi[]] (one band for the whole chart, grey), bandMode, bandLabel.
 // bandMode for per-series bands: "each" (each in its series colour), "shared" (draw the first once, grey),
@@ -161,8 +162,8 @@ export function lineChart(container, o) {
       if (!Number.isFinite(v) || (xk === "log" && xv <= 0)) { pen = false; return; }
       d += (pen ? "L" : "M") + X(xv).toFixed(1) + "," + Y(v).toFixed(1); pen = true;
     });
-    const p = el("path", { d, fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, gg);
-    if (s.dash) p.setAttribute("stroke-dasharray", "5 4");
+    const p = el("path", { d, fill: "none", stroke: s.noline ? "none" : s.color, "stroke-width": s.width || 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, gg);
+    if (s.dash) p.setAttribute("stroke-dasharray", s.dash === "dot" ? "1.5 3.5" : "5 4");
     if (s.dots) xs.forEach((xv, i) => { if (Number.isFinite(s.y[i])) el("circle", { cx: X(xv), cy: Y(s.y[i]), r: s.dots, fill: s.color, stroke: "#fff", "stroke-width": 1.5 }, gg); });
     paths.push(gg);
   });
@@ -191,7 +192,8 @@ export function lineChart(container, o) {
     const lg = h("div", { class: "chart-legend" });
     o.series.forEach((s, si) => {
       const key = h("i", { style: { "--sw": s.color } });
-      if (s.dash) key.style.background = `repeating-linear-gradient(90deg, ${s.color} 0 4px, transparent 4px 7px)`;
+      if (s.dash) key.style.background = s.dash === "dot" ? `repeating-linear-gradient(90deg, ${s.color} 0 2px, transparent 2px 5px)` : `repeating-linear-gradient(90deg, ${s.color} 0 4px, transparent 4px 7px)`;
+      if (s.noline && s.dots) Object.assign(key.style, { width: "8px", height: "8px", borderRadius: "50%", background: s.color });
       const k = h("span", { class: "k" }, key, s.name);
       k.addEventListener("pointerenter", () => { paths.forEach((p, j) => p.setAttribute("opacity", j === si ? 1 : .15)); bandEls[si]?.setAttribute("opacity", .22); });
       k.addEventListener("pointerleave", () => { paths.forEach(p => p.setAttribute("opacity", 1)); bandEls[si]?.setAttribute("opacity", 0); });
@@ -270,7 +272,8 @@ export function heatmap(container, o) {
 }
 
 // ---------- xy chart: every series has its own x positions; log or linear y; point markers; vertical rules
-// o: series [{name, pts: [[x, y], ...], color, dash, width, dots, noline, marker: "diamond"|"triangle" (markers only, no line), hollow}],
+// o: series [{name, pts: [[x, y], ...], color, dash, width, dots, noline, marker: "diamond"|"triangle" (markers only, no line), hollow,
+//             breaks (a non-finite y breaks the line instead of joining over it)}],
 //    ylog, yrange, xrange, xticks, xfmt, yfmt, height, ml, xname, ytitle, vlines [{x, label, dash, color}],
 //    hl (x to emphasise), onclick(x), tipExtra(x) -> rows, legend (bool)
 export function xyChart(container, o) {
@@ -314,7 +317,10 @@ export function xyChart(container, o) {
   const groups = o.series.map(s => {
     const gg = el("g", {}, svg), P = s.pts.filter(ok);
     if (!s.marker && !s.noline && P.length > 1) {
-      const d = P.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(Math.max(ylo, Math.min(yhi, p[1]))).toFixed(1)).join("");
+      // s.breaks: a non-finite point in s.pts (e.g. [x, null]) ends the line there instead of being joined over
+      const Q = s.breaks ? s.pts.filter(p => Number.isFinite(p[0])) : P;
+      let pen = false;
+      const d = Q.map(p => { if (!ok(p)) { pen = false; return ""; } const c = (pen ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(Math.max(ylo, Math.min(yhi, p[1]))).toFixed(1); pen = true; return c; }).join("");
       const path = el("path", { d, fill: "none", stroke: s.color, "stroke-width": s.width || 1.8, "stroke-linejoin": "round", "stroke-linecap": "round" }, gg);
       if (s.dash) path.setAttribute("stroke-dasharray", "5 4");
     }

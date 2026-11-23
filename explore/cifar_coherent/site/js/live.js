@@ -106,7 +106,7 @@ async function lines(body, ds) {
   const lab = o.xticklabels;
   const draw = () => {
     const W = box.clientWidth || 600, every = lab ? Math.max(1, Math.ceil(lab.length * 64 / Math.max(200, W - 80))) : 1;
-    const series = o.series.map((s, i) => ({ name: s.name, y: s.y, color: color(s, i), dash: s.dash, band: s.band, width: s.width || 2 }));
+    const series = o.series.map((s, i) => ({ name: s.name, y: s.y, color: color(s, i), dash: s.dash, band: s.band, width: s.width || 2, dots: s.dots, noline: s.noline }));
     if (ceilSeries) series.push(ceilSeries);
     lineChart(box, { x: o.x, xscale: o.xscale || "linear",
       xfmt: lab ? (v => lab[o.x.indexOf(v)] ?? String(v)) : (o.xscale && o.xscale !== "linear" ? fmtStep : (v => (+(+v).toPrecision(4)).toString())),

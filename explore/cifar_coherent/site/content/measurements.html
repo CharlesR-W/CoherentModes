@@ -1,407 +1,692 @@
-<p class="lede">Systematic charts of the comparison statistics defined in
-<a href="#method-details/questions">Appendix C</a>, computed on the {{fact:n_images}} probe images at {{fact:n_checkpoints}}
-checkpoints (steps {{fact:steps}}) and {{fact:n_sites}} sites. Captions state what is plotted; readings of these charts
-are argued in <a href="#findings">Findings</a>. Each section shows one or two headline charts; the other
-views of the same quantity are collapsed under them. CIFAR class labels, losses, gradients and probe pixels enter only as
-comparisons; none of them enters a walk, a block operator or a SEBA rotation.</p>
+<!-- Appendix D (EXPERIMENTS_PLAN.md section 3). Every experiment's `app4` panels (assets/x/<id>.json#app4.<key>, in
+     the order of content/experiments/index.json), the live alignment figures X3 and X8 hand over (js/alignment.js),
+     and the general reference charts (training curves, decodability, class make-up tables from assets/questions.json).
+     Facts not provided by an experiment or the base build: site/experiments/app_measurements.py ->
+     assets/x/app-measurements.facts.json. Definitions of every statistic: content/method_details.html. -->
+<p class="lede">Charts that support the experiments but are not needed to read their answers, grouped by experiment
+in the order of the Experiments tab, followed by general reference charts about the trained network. Captions say
+only what is plotted; definitions are in <a href="#method-details">Appendix C</a>, and the questions and answers are
+in the experiments each group links back to.</p>
 
-<p>Defaults unless a caption says otherwise: kernel rule {{fact:default_mode}}; single-snapshot blocks; $r = 4$ SEBA
-sets, i.e. SEBA applied to $\psi_0..\psi_3$ of the block operator $\bar M$; hard sets by largest SEBA value, with
-<a href="#method/glossary-unassigned">unassigned</a> images in no set. "Final" is step {{fact:final_step}}.</p>
+<p>Unless a caption says otherwise: ResNet-20, seed 0, the {{fact:n_images}}-image probe, single-snapshot blocks,
+kernel rule {{fact:default_mode}}; "final" is step {{fact:final_step}}. Class labels, losses and gradients enter only
+as comparisons (<a href="#method-details/defaults">defaults</a>).</p>
 
 <nav class="callout" id="measurements-toc"><p class="callout-title">Contents</p><ol>
-<li><a href="#measurements/when">Agreement with the final checkpoint's sets, and with the classes</a></li>
-<li><a href="#measurements/carry">Agreement between sites at one checkpoint</a></li>
-<li><a href="#measurements/classmix">Class make-up of coherent sets</a></li>
-<li><a href="#measurements/va">The $r = 2$ sets against the vehicle/animal partition</a></li>
-<li><a href="#measurements/imgstats">Image statistics against eigenfunctions and SEBA vectors</a></li>
-<li><a href="#measurements/gradients">Per-image loss gradients within and between sets</a></li>
-<li><a href="#measurements/decodability">Linear and nearest-neighbour decodability of class</a></li>
+<li><a href="#measurements/ref-groups">What groups of images does the last stage treat alike?</a></li>
+<li><a href="#measurements/ref-when">When does each layer's grouping take its final form?</a></li>
+<li><a href="#measurements/ref-depth">Where along depth is the grouping redrawn?</a></li>
+<li><a href="#measurements/ref-blocks">Which layer's structure does a whole-path block reflect?</a></li>
+<li><a href="#measurements/ref-training-signal">Activation groups and loss gradients</a></li>
+<li><a href="#measurements/ref-coarse">How much of each walk can k groups keep?</a></li>
+<li><a href="#measurements/ref-markov">Is the constructed walk approximately Markov?</a></li>
+<li><a href="#measurements/ref-across-nets">Seeds and depths compared</a></li>
+<li><a href="#measurements/ref-image-stats">Eigenfunctions and pixel statistics</a></li>
+<li><a href="#measurements/ref-general">Training curves, decodability and class make-up</a></li>
 </ol></nav>
 
-<aside class="callout">
-<p class="callout-title">Matched Jaccard</p>
-<p>For two hard labelings $A$ ($r_A$ sets) and $B$ ($r_B$ sets), with unassigned images in no set: $J_{ij} = |A_i \cap
-B_j| / |A_i \cup B_j|$; a Hungarian matching of $\min(r_A, r_B)$ pairs maximises the total $J$; the score is the mean
-matched $J$, in $[0, 1]$. <b>Null:</b> the label vector of $A$, unassigned entries included, is permuted uniformly (set
-sizes and unassigned count kept); 200 permutations from one seeded bank; bands are the 2.5 to 97.5 percentiles, $\mu_0$
-is the null mean. <b>Size ceiling</b> (against a fixed reference labeling): the largest score any sets of $A$'s sizes
-could reach. <b>Normalised excess</b> $= (\text{score} - \mu_0) / (\text{ceiling} - \mu_0)$. Full definitions:
-<a href="#method-details/stat-jaccard">Appendix C</a>.</p>
-</aside>
+<!-- ============================================================================================ X1 groups -->
+<h2 id="ref-groups">What groups of images does the last stage of the network treat alike at the end of training?</h2>
+<p>These charts show how strongly each set of layer block b7..pool is kept by every single site, and how the sets at
+different ranks $r$ nest. <a class="explore-link" href="#experiments/x-groups">Back to the experiment</a></p>
 
-<h2 id="when">Agreement with the final checkpoint's sets, and with the classes</h2>
-
-<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
-<p>Each chart compares the <b>$r = 4$ sets of one single-snapshot block</b> (one site, one checkpoint) with the same site's sets at the final checkpoint, or with the classes. The screenshot shows one such block, <b>site b9 at step {{fact:final_step}}</b>; its sets are painted on every panel, so the rows above show where these images sat earlier.</p>
-<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
-  <a href="#explorer?fam=layer&t=7&a=9&b=9&m=0&c=seba&r=4"><img style="width: 100%; height: auto" src="assets/fig/view_b9-final-r4.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
-  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
-  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
-</figure></div>
-
-
-<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_when.0_4.lines_vs_final">
-  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site: matched Jaccard between the SEBA sets of the
-  single-snapshot block (checkpoint, site) and those of the same site at the final checkpoint (ordinal colour, stem light to logits dark); band: permutation null of each site, 2.5 to 97.5 percentiles.
-  Default kernel rule, $r = 4$. <b>Values:</b> first checkpoint with matched Jaccard above 0.5 and above the null's
-  97.5th percentile: stem {{fact:q.when.r4.stem.first_step}}, b1 {{fact:q.when.r4.b1.first_step}}, b2 {{fact:q.when.r4.b2.first_step}}, b3 {{fact:q.when.r4.b3.first_step}}, b4 {{fact:q.when.r4.b4.first_step}}, b5 {{fact:q.when.r4.b5.first_step}}, b6 {{fact:q.when.r4.b6.first_step}}, b7 {{fact:q.when.r4.b7.first_step}}, b8 {{fact:q.when.r4.b8.first_step}}, b9 {{fact:q.when.r4.b9.first_step}}, pool {{fact:q.when.r4.pool.first_step}}, logits {{fact:q.when.r4.logits.first_step}} (pool: at every later checkpoint from {{fact:q.when.r4.pool.settled_step}});
-  step 0: {{fact:q.when.r4.step0.vs_final_min}} to {{fact:q.when.r4.step0.vs_final_max}}; null 97.5th percentile
-  at most {{fact:q.when.r4.vs_final_null_hi_max}} before the last checkpoint.</figcaption>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/groups.json#app4.retention_by_site" data-height="300">
+  <figcaption><b>Plotted:</b> retention $f^\top M_c f / f^\top f$ (y) of each SEBA vector $f$ of layer block b7..pool at
+  $r = 4$ (colour: set $1$ to $4$) in the lazy walk $M_c$ of each single snapshot $c$ (x: site), step
+  {{fact:final_step}}, kernel rule {{fact:x.groups.rule}}; the block's snapshots are b7, b8, b9 and pool. Dashed: the
+  mean retention of the same vector over uniform relabellings of the images, exact for a doubly stochastic walk with
+  zero diagonal ($\tfrac12 + (S_1^2 - S_2)/(2(N-1)S_2)$, $S_1 = \sum f$, $S_2 = \sum f^2$).
+  <a href="#experiments/x-groups">&larr; experiment</a></figcaption>
 </figure>
 
-<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_when.0_4.lines_vs_class"
-        data-ceiling-src="assets/questions.json#q_when.0_4.vs_class_ceiling" data-ceiling-label="size ceiling (mean over sites)">
-  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site: matched Jaccard between the $r = 4$ SEBA
-  sets of the single-snapshot block (checkpoint, site) and the 10 CIFAR classes (4 matched pairs, so each set is matched
-  to one class); band: permutation null of each site, 2.5 to 97.5 percentiles; dashed grey: size ceiling against the
-  classes, averaged over sites at each checkpoint. Default kernel rule. <b>Values:</b> last checkpoint: stem
-  {{fact:q.when.r4.final.vs_class.stem}}, b5 {{fact:q.when.r4.final.vs_class.b5}}, b9 {{fact:q.when.r4.final.vs_class.b9}}, pool {{fact:q.when.r4.final.vs_class.pool}}, logits {{fact:q.when.r4.final.vs_class.logits}}; size ceilings
-  {{fact:q.when.r4.final.vs_class_ceiling_min}} to {{fact:q.when.r4.final.vs_class_ceiling_max}}; null 97.5th
-  percentile at most {{fact:q.when.r4.final.vs_class_null_hi_max}}.</figcaption>
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/x/groups.json#app4.rank_entropy_all">
+  <figcaption><b>Plotted:</b> conditional entropy of the stored SEBA labels of layer block b7..pool at rank $r$ (rows)
+  given those at rank $r'$ (columns), divided by the entropy at $r$, for every $r &lt; r'$, over every image
+  (unassigned as its own category); step {{fact:final_step}}, kernel rule {{fact:x.groups.rule}}. Zero: every set at
+  $r'$ lies inside one set at $r$. Blank: not computed ($r \ge r'$).
+  <a href="#experiments/x-groups">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/x/groups.json#app4.rank_entropy_assigned">
+  <figcaption><b>Plotted:</b> as left, over the images assigned at both ranks only.
+  <a href="#experiments/x-groups">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<!-- ============================================================================================ X2 when -->
+<h2 id="ref-when">When in training does each layer's grouping take its final form?</h2>
+<p>These charts give the per-site and per-checkpoint detail behind the experiment's timing: agreement with the final
+sets and with the classes, where each class sits in the $r = 2$ sets, and how far each site's operator is from its
+final one. <a class="explore-link" href="#experiments/x-when">Back to the experiment</a></p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/when.json#app4.vs_final_heat">
+  <figcaption><b>Plotted:</b> matched Jaccard of each site's single-snapshot $r = 4$ SEBA sets (rows) at each
+  checkpoint (columns) with the same site's sets at step {{fact:final_step}}; kernel rule {{fact:x.when.rule}}. The last
+  column is a self-comparison. <a href="#experiments/x-when">&larr; experiment</a></figcaption>
 </figure>
 
-<details class="more"><summary>More views: the same agreement as a site × checkpoint heatmap</summary>
-<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_when.0_4.vs_final">
-  <figcaption><b>Plotted:</b> rows: sites; columns: checkpoints. Colour: matched Jaccard between the SEBA sets of the
-  single-snapshot block (checkpoint, site) and those of the single-snapshot block (final checkpoint, same site); the final
-  column is a self-comparison. Default kernel rule, $r = 4$. The first chart of this section is the same quantity as lines, with a null.
-  <b>Values:</b> step 0: {{fact:q.when.r4.step0.vs_final_min}} to {{fact:q.when.r4.step0.vs_final_max}}.</figcaption>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/when.json#app4.vs_class_lines" data-height="300">
+  <figcaption><b>Plotted:</b> matched Jaccard (y) of each site's $r = 4$ SEBA sets with the CIFAR-10 classes
+  (validation) against training step (x, symmetric-log), one line per site (light: stem, dark: logits); kernel rule
+  {{fact:x.when.rule}}. Dashed: the size ceiling, mean over sites. Shaded: the envelope over sites of the
+  permutation null's $2.5$th to $97.5$th percentiles ({{fact:x.app-measurements.jaccard_n_perm}} permutations).
+  <a href="#experiments/x-when">&larr; experiment</a></figcaption>
 </figure>
-</details>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/when.json#app4.rank511">
+  <figcaption><b>Plotted:</b> for the $r = 2$ SEBA sets of each site (rows) at each checkpoint (columns), the rank of
+  the post-hoc reference bipartition {airplane, automobile, ship, truck} / the other classes among all $2^9 - 1 = 511$
+  two-sided splits of the classes, ordered by matched Jaccard with the sets ($1$ = the reference matches best); colour
+  scale clipped at $12$. Descriptive only: the reference was chosen after seeing the final split, and no
+  selection-adjusted test is made. <a href="#experiments/x-when">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/when.json#app4.class_placement">
+  <figcaption><b>Plotted:</b> for each site (rows) and class (columns), the fraction of the class's images that lie in
+  the $r = 2$ SEBA set matched (Hungarian) to the class's side of the reference bipartition {airplane, automobile,
+  ship, truck} / the other classes; slider: checkpoint. Unassigned images count as not placed.
+  <a href="#experiments/x-when">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/when.json#app4.classmix_b9">
+  <figcaption><b>Plotted:</b> number of probe images of each class (columns) in each $r = 2$ SEBA set of b9's
+  single-snapshot block and among the unassigned images (rows); slider: checkpoint; {{fact:x.groups.per_class}} images
+  per class. <a href="#experiments/x-when">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/when.json#app4.operator_floor_ratio" data-height="300">
+  <figcaption><b>Plotted:</b> projector distance $d_4$ between each site's operator and its final operator, divided by
+  that site's seed floor ($d_4$ between seed 0 and seed 1 at the final checkpoint), against training step (x,
+  symmetric-log), one line per site; reference line at $1$. Sites whose floor cut is unresolved, and points whose
+  cut is unresolved, are omitted. <a href="#experiments/x-when">&larr; experiment</a></figcaption>
+</figure>
+
+<!-- ============================================================================================ X3 depth -->
+<h2 id="ref-depth">Where along depth does the network redraw its grouping?</h2>
+<p>These charts give every pair of sites, every checkpoint, wider layer blocks and the full operator-distance matrix
+behind the experiment's adjacent-site profile. <a class="explore-link" href="#experiments/x-depth">Back to the
+experiment</a></p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/depth.json#app4.matrix">
+  <figcaption><b>Plotted:</b> matched Jaccard between the single-snapshot $r = 4$ SEBA sets of every pair of sites at
+  one checkpoint (slider), kernel rule {{fact:x.depth.rule}}; no null. <a href="#experiments/x-depth">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/depth.json#app4.sets_all_steps" data-height="300">
+  <figcaption><b>Plotted:</b> matched Jaccard (y) between adjacent sites' $r = 4$ SEBA sets (x: pair of sites), one
+  line per checkpoint (light: step {{fact:x.app-measurements.first_step}}, dark: final); kernel rule
+  {{fact:x.depth.rule}}. Grey line: the largest $97.5$th percentile of the permutation null over pairs
+  ({{fact:x.depth.sets.null_hi_max}}). <a href="#experiments/x-depth">&larr; experiment</a></figcaption>
+</figure>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/depth.json#app4.w2" data-height="280">
+  <figcaption><b>Plotted:</b> matched Jaccard (y) between the $r = 4$ SEBA sets of a layer block of two adjacent
+  sites and of the next two sites (x), one line per checkpoint (light: step {{fact:x.app-measurements.first_step}},
+  dark: final); shaded: envelope of the permutation null's $2.5$th to $97.5$th percentiles.
+  <a href="#experiments/x-depth">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/depth.json#app4.w3" data-height="280">
+  <figcaption><b>Plotted:</b> as left, for layer blocks of three adjacent sites and the next three.
+  <a href="#experiments/x-depth">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/depth.json#app4.operators_k4" data-height="300">
+  <figcaption><b>Plotted:</b> projector distance (y) between adjacent sites' operators (x): $d_4$ for seed 0 at the
+  final checkpoint (solid; shaded: the two sites' seed floors, $d_4$ between seed 0 and seed 1, lower to higher) and
+  at step {{fact:x.app-measurements.first_step}} (dashed), and $d_3$ for seed 1 at the final checkpoint (dotted).
+  Unresolved cuts are gaps. <a href="#experiments/x-depth">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/depth.json#app4.cross_seed_sets" data-height="300">
+  <figcaption><b>Plotted:</b> matched Jaccard (y) between the single-snapshot $r = 4$ SEBA sets of seed $0$ and seed
+  $1$ at the same site (x), final checkpoint, kernel rule {{fact:x.depth.rule}}; shaded up to the $97.5$th percentile
+  of a permutation null ($200$ permutations of seed $1$'s labels). <b>Values:</b> {{fact:x.depth.xseed.min}}
+  ({{fact:x.depth.xseed.min_site}}) to {{fact:x.depth.xseed.max}} ({{fact:x.depth.xseed.max_site}}); b2
+  {{fact:x.depth.xseed.b2}}, b3 {{fact:x.depth.xseed.b3}}; null at most {{fact:x.depth.xseed.null_hi_max}}.
+  <a href="#experiments/x-depth">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="al-w1" id="ref-depth-w1">
+  <figcaption><b>Plotted:</b> distance between the operators of site $i$ (row) and site $j$ (column) of one network at
+  one checkpoint; colour from $0$ (light) to the largest shipped value of the chosen distance (dark; $1$ for $d_k$).
+  Lines mark the stage boundaries. Projector distance: hatched cells have an unresolved cut, and the dot beside each
+  site label is filled when that site's own cut $k \mid k+1$ is resolved. Controls: network, checkpoint, distance and
+  its $k$ or $t$, kernel rule. <b>Values</b> (ResNet-20 seed 0, step {{fact:al.final_step}}, kernel rule
+  {{fact:default_mode}}, $d_9$): largest adjacent-site distance {{fact:al.w1.r20s0.rule0.proj_k9.largest_jump_value}}
+  ({{fact:al.w1.r20s0.rule0.proj_k9.largest_jump}}), second {{fact:al.w1.r20s0.rule0.proj_k9.second_jump_value}}
+  ({{fact:al.w1.r20s0.rule0.proj_k9.second_jump}}), median adjacent
+  {{fact:al.w1.r20s0.rule0.proj_k9.adjacent_median}}. <a href="#experiments/x-depth">&larr; experiment</a></figcaption>
+</figure>
+
+<!-- ============================================================================================ X4 blocks -->
+<h2 id="ref-blocks">Which layer's structure does a whole-path block reflect?</h2>
+<p>These charts give the full block-against-site and site-against-site span overlaps for each $k$, and the cut
+diagnostics that decide where those overlaps can be read. <a class="explore-link" href="#experiments/x-blocks">Back
+to the experiment</a></p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/blocks.json#app4.overlap_k">
+  <figcaption><b>Plotted:</b> mean $\cos^2$ of the $k$ principal angles between the leading $k$ nontrivial
+  eigenvectors of the averaged block a&rarr;logits (rows) and of the single site $c$ (columns), $k = 1$ to $4$
+  (slider), final checkpoint, kernel rule {{fact:x.blocks.rule}}. Unresolved cuts are not marked here; they are, by
+  $k$: $k = 1$: none; $k = 2$: b9, pool, logits, b9&rarr;logits, pool&rarr;logits; $k = 3$:
+  {{fact:x.blocks.k3.unresolved_sites}}; $k = 4$: b7&rarr;logits. <a href="#experiments/x-blocks">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/blocks.json#app4.site_site">
+  <figcaption><b>Plotted:</b> mean $\cos^2$ of the $k$ principal angles between the leading $k$ nontrivial
+  eigenvectors of single sites $c$ (rows) and $c'$ (columns), $k = 1$ to $4$ (slider), final checkpoint, kernel rule
+  {{fact:x.blocks.rule}}; the medoid of a block a&rarr;logits is the row, among a to logits, with the largest mean
+  over columns a to logits. <a href="#experiments/x-blocks">&larr; experiment</a></figcaption>
+</figure>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/blocks.json#app4.cuts" data-height="280">
+  <figcaption><b>Plotted:</b> cut reproducibility $\mathrm{span}_k$ (y) of each single site (x): the minimum $\cos^2$
+  principal angle between the leading $k$ spans of two overlapping label-free subsample rebuilds (spectral-alignment
+  measurement), $k = 1$ to $4$, final checkpoint, kernel rule {{fact:x.blocks.rule}}; reference line at $0.5$.
+  <a href="#experiments/x-blocks">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/blocks.json#app4.block_gaps" data-height="280">
+  <figcaption><b>Plotted:</b> eigenvalue gaps $\lambda_k - \lambda_{k+1}$ (y) of the averaged block a&rarr;logits
+  (x: start site a; lazy eigenvalues of the mean of $(I + P_c)/2$), $k = 1$ to $4$, final checkpoint, kernel rule
+  {{fact:x.blocks.rule}}. Reference line: the largest single-site gap whose cut failed $\mathrm{span}_k \ge 0.5$
+  ({{fact:x.blocks.gap_thr}}, {{fact:x.blocks.gap_thr_where}}). <a href="#experiments/x-blocks">&larr;
+  experiment</a></figcaption>
+</figure>
+</div>
+
+<!-- ============================================================================================ X5 training-signal -->
+<h2 id="ref-training-signal">Do the images grouped alike in activations also have similar loss gradients?</h2>
+<p>These charts repeat the gradient comparison at $r = 2$ and for every site's grouping, show the class make-up that
+the class-union reference is built from, and give the label-dependent and dot-kernel variants of the GGN/NTK overlap.
+<a class="explore-link" href="#experiments/x-training-signal">Back to the experiment</a></p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/training-signal.json#app4.r2_over_training" data-height="300">
+  <figcaption><b>Plotted:</b> as the lead figure of the experiment, for the $r = 2$ sets of the time block b9 over all
+  {{fact:n_checkpoints}} checkpoints, kernel rule {{fact:x.training-signal.rule}}: within-minus-between cosine of
+  whole-model per-image loss gradients (y) at each checkpoint (x, symmetric-log), on the
+  {{fact:x.training-signal.r2.n_assigned}} images the sets assign. Solid blue: the sets; solid orange: their
+  class-union grouping on the same images; dashed blue with band: within-class permutation null (mean, $2.5$th to
+  $97.5$th percentile of {{fact:x.training-signal.n_perm}}); dashed grey with band: permutation of the set labels
+  among the assigned images; reference line at zero. <a href="#experiments/x-training-signal">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/training-signal.json#app4.every_site" data-height="300">
+  <figcaption><b>Plotted:</b> for each site (x), the $r = 4$ sets of that site's time block over all
+  {{fact:n_checkpoints}} checkpoints (kernel rule {{fact:x.training-signal.rule}}) and the within-minus-between cosine
+  (y) of the same per-image loss gradients (all parameters) at step {{fact:final_step}}. The gradients are identical in
+  every column; only the grouping changes. Blue: the sets; orange: their class-union grouping on the same assigned
+  images; dashed blue with band: within-class permutation null ({{fact:x.app-measurements.grad_sites_n_perm}} draws,
+  $2.5$th to $97.5$th percentile); dashed grey: $97.5$th percentile of the permutation of set labels among assigned
+  images. <a href="#experiments/x-training-signal">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/training-signal.json#app4.setalign" data-height="280">
+  <figcaption><b>Plotted:</b> for each $r = 4$ set of the time block b9 over all {{fact:n_checkpoints}} checkpoints
+  (kernel rule {{fact:x.training-signal.rule}}), the mean over its members of the cosine between the image's loss
+  gradient (all parameters) and the mean loss gradient of the probe (y), at each checkpoint (x, symmetric-log);
+  dashed: the mean over all probe images. <a href="#experiments/x-training-signal">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/training-signal.json#app4.class_counts">
+  <figcaption><b>Plotted:</b> number of probe images of each class (columns) in each $r = 4$ set (rows) of the time
+  block b9 over all {{fact:n_checkpoints}} checkpoints, kernel rule {{fact:x.training-signal.rule}}; unassigned images
+  are not counted; colour from $0$ to {{fact:x.groups.per_class}}, the number of probe images per class. The
+  class-union grouping gives each class (column) to the row with its largest count.
+  <a href="#experiments/x-training-signal">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/training-signal.json#app4.lossgrad_overlap" data-height="280">
+  <figcaption><b>Plotted:</b> label-dependent reference. Overlap (mean squared cosine of principal angles; y) of each
+  site's (x) leading $r$ modes (single snapshot, step {{fact:final_step}}, kernel rule
+  {{fact:x.training-signal.rule}}, cosine site kernel) with the leading $r$ modes of the loss-gradient-cosine sample
+  kernel through the same rule (the loss uses the labels), $r = 4$ and $r = 10$. Dotted: $r/N$, the expected overlap
+  of random spans (scale reference, not a control). <a href="#experiments/x-training-signal">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/training-signal.json#app4.ggn_r10" data-height="280">
+  <figcaption><b>Plotted:</b> as the GGN/NTK figure of the experiment, at $r = 10$: overlap (y) of each site's (x)
+  leading modes (single snapshot, step {{fact:final_step}}, kernel rule {{fact:x.training-signal.rule}}, cosine site
+  kernel) with the leading modes of the GGN-cos and NTK-cos sample kernels (label-free) through the same rule. Dotted:
+  $r/N$ (scale reference). <a href="#experiments/x-training-signal">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/training-signal.json#app4.ggn_dotsite" data-height="280">
+  <figcaption><b>Plotted:</b> overlap (y) of each site's (x) leading $r = 4$ modes with the leading $r = 4$ modes of
+  the GGN-cos and NTK-cos sample kernels (label-free), step {{fact:final_step}}, kernel rule
+  {{fact:x.training-signal.rule}}; solid: the site kernel in its default cosine form; dashed: the dot (Euclidean) site
+  kernel of <a href="#choices">Appendix A</a>. <a href="#experiments/x-training-signal">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/training-signal.json#app4.ggn_over_training" data-height="280">
+  <figcaption><b>Plotted:</b> overlap (y) of b9's leading $r = 4$ modes (single snapshot at each checkpoint, kernel
+  rule {{fact:x.training-signal.rule}}, cosine site kernel) with the leading $r = 4$ modes of the GGN-cos and NTK-cos
+  sample kernels at the same checkpoint (lines, label-free) and of the loss-gradient-cosine kernel (dots,
+  label-dependent), against training step (x, symmetric-log). Dotted: $r/N$ (scale reference).
+  <a href="#experiments/x-training-signal">&larr; experiment</a></figcaption>
+</figure>
+
+<!-- ============================================================================================ X6 coarse -->
+<h2 id="ref-coarse">How much of each layer's walk can k groups keep, and does the spectrum prefer a k?</h2>
+<p>These charts give the retained information against $k$, per site, per chain, over training and per kernel rule,
+together with the tightness of the partitions against their ceilings. <a class="explore-link"
+href="#experiments/x-coarse">Back to the experiment</a></p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#app4.eta_vs_k_cell" data-height="280">
+  <figcaption><b>Plotted:</b> tightness (y): retained $\chi^2$ information divided by the ceiling $F$ at the
+  partition's number of nonempty groups, against $k$ (x); single snapshot b9, one-sided; final checkpoint, kernel rule
+  {{fact:x.coarse.rule}}. Lines: spectral $k$-means and PCA $k$-means (baseline); dashed: random balanced partitions.
+  Markers: SEBA at its ranks, classes and predictions (validation) at their number of nonempty groups.
+  <a href="#experiments/x-coarse">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#app4.eta_vs_k_chain" data-height="280">
+  <figcaption><b>Plotted:</b> as left, for the chain b9&rarr;logits, two-sided.
+  <a href="#experiments/x-coarse">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#app4.chain_one_sided" data-height="280">
+  <figcaption><b>Plotted:</b> one-sided (start side, end side) and two-sided retained $\chi^2$ information as % of the
+  total (y) against $k$ (x), chain b9&rarr;logits, spectral $k$-means and random partitions (start side), final
+  checkpoint, kernel rule {{fact:x.coarse.rule}}; dotted: ceiling $F_k$. <a href="#experiments/x-coarse">&larr;
+  experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#app4.cell_P" data-height="280">
+  <figcaption><b>Plotted:</b> the same partitions of the b9 snapshot scored on $P = 2M - I$ (no stay-put half):
+  one-sided retained $\chi^2$ information as % of the total under $P$ (y), against $k$ (x); final checkpoint, kernel
+  rule {{fact:x.coarse.rule}}; dotted: ceiling from the singular values of $P$ (ordered by magnitude); dashed: random
+  balanced partitions. <a href="#experiments/x-coarse">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/coarse.json#app4.cells_by_site" data-height="280">
+  <figcaption><b>Plotted:</b> one-sided retained $\chi^2$ information $I(c(X); Y)$ at $k = 10$ as % of the snapshot's
+  total $I(X;Y)$ (y), per site (x), final checkpoint, kernel rule {{fact:x.coarse.rule}}: spectral $k$-means, PCA
+  $k$-means (baseline), classes (validation); dotted: ceiling $F_{10}$; dashed: random balanced partitions.
+  <a href="#experiments/x-coarse">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/coarse.json#app4.chains_two_sided">
+  <figcaption><b>Plotted:</b> for every chain a&rarr;b (rows: start site a; columns: end site b) at the final
+  checkpoint, kernel rule {{fact:x.coarse.rule}}, $k = 10$: the two-sided retained $\chi^2$ information of spectral
+  $k$-means (first slider position) and the ceiling $F_{10}$ (second position), each as a share of the chain's total
+  $I(X;Y)$. <a href="#experiments/x-coarse">&larr; experiment</a></figcaption>
+</figure>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#app4.over_training_cell" data-height="280">
+  <figcaption><b>Plotted:</b> retained $\chi^2$ information at $k = 10$ as % of the total (y), single snapshot b9,
+  one-sided, against training step (x, symmetric-log), kernel rule {{fact:x.coarse.rule}}: spectral $k$-means,
+  classes (validation), random balanced partitions (dashed), ceiling $F_{10}$ (dotted). Predictions are omitted: at
+  the first checkpoint they occupy fewer than $10$ classes. <a href="#experiments/x-coarse">&larr;
+  experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#app4.over_training_chain" data-height="280">
+  <figcaption><b>Plotted:</b> as left, for the chain b9&rarr;logits, two-sided.
+  <a href="#experiments/x-coarse">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/x/coarse.json#app4.chains10_by_rule">
+  <figcaption><b>Plotted:</b> number of the {{fact:x.coarse.gap.chains_n}} chains a&rarr;b ($a &lt; b$) whose
+  spectrum has a clear gap after $10$ groups (largest $\sigma_k/\sigma_{k+1} \ge 1.15$ and $&gt; 1.1\times$ the
+  runner-up), per kernel rule (rows) and checkpoint (columns). <a href="#experiments/x-coarse">&larr;
+  experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#app4.ncut_kyfan" data-height="280">
+  <figcaption><b>Plotted:</b> summed leakage $\sum_j \phi(A_j)$ of spectral $k$-means at $k = 10$ divided by its Ky
+  Fan lower bound $\sum_{i \le k}(1 - \lambda_i)$ (y), per site (x), final checkpoint, one line per kernel rule ($1$ =
+  the bound is attained). <a href="#experiments/x-coarse">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<!-- ============================================================================================ X7 markov -->
+<h2 id="ref-markov">Is the constructed walk through the layers approximately Markov under the tested partitions?</h2>
+<p>These charts give the defect and memory fractions against the number of blocks $k$ and over training, with the
+PCA $k$-means and random partitions the experiment does not show. <a class="explore-link"
+href="#experiments/x-markov">Back to the experiment</a></p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/markov.json#app4.defect_by_k" data-height="280">
+  <figcaption><b>Plotted:</b> median over the {{fact:x.markov.n_pairs}} adjacent pairs of the one-step defect
+  fraction (y) against the number of blocks $k$ (x), final checkpoint, kernel rule {{fact:x.markov.rule}}, for each
+  site's own spectral $k$-means partition, PCA $k$-means per site, b9's partition at every site and independent random
+  partitions. Solid: constructed walk; dashed: lazy uniform walk with the same partitions (control). The controls for
+  b9's and the random partitions are omitted (b9's is exactly zero; random's equals its real value to two decimals).
+  <a href="#experiments/x-markov">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/markov.json#app4.mem_by_k" data-height="280">
+  <figcaption><b>Plotted:</b> median over the {{fact:x.app-measurements.markov_n_triples}} adjacent triples $(s, s+1,
+  s+2)$ of $I(C_{s+2}; C_s \mid C_{s+1}) / H(C_{s+2} \mid C_{s+1})$ (y) against $k$ (x), final checkpoint, kernel
+  rule {{fact:x.markov.rule}}, for the same partitions as left; dashed: lazy uniform walk with each site's own
+  partition. <a href="#experiments/x-markov">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/markov.json#app4.defect_over_training" data-height="280">
+  <figcaption><b>Plotted:</b> defect fraction (median over adjacent pairs; y) at $k = 10$ against training step (x,
+  symmetric-log), kernel rule {{fact:x.markov.rule}}: each site's own partition, b9's partition at every site (b9's
+  own spectral $k$-means at each checkpoint) and the classes at every site (validation); dashed: lazy uniform walk
+  with each site's own partition. <a href="#experiments/x-markov">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/markov.json#app4.mem_over_training" data-height="280">
+  <figcaption><b>Plotted:</b> as left, the memory fraction (median over triples).
+  <a href="#experiments/x-markov">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<!-- ============================================================================================ X8 across-nets -->
+<h2 id="ref-across-nets">In the tested ResNets, do different seeds and depths go through matching sequences of operators?</h2>
+<p>These charts give the depth pairs and distances the experiment does not show, the seed floors themselves, and the
+interactive alignment views: the summary for every distance, the distance along the matched path, the comparison
+over training and which modes two matched sites share. <a class="explore-link"
+href="#experiments/x-across-nets">Back to the experiment</a></p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.cost_20_32_k3" data-height="280">
+  <figcaption><b>Plotted:</b> normalised DTW cost (y) against training step (x, symmetric-log) for ResNet-20 against
+  ResNet-32, projector distance $d_3$, kernel rule {{fact:x.across-nets.rule}}. Solid: the different-seed pairings,
+  each with its block-permutation null (band, $5$th to $95$th percentile, {{fact:al.n_perm}} permutations). Dashed:
+  the seed floors (DTW cost between the two seeds of one depth at the same checkpoint).
+  <a href="#experiments/x-across-nets">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.cost_20_32_k9" data-height="280">
+  <figcaption><b>Plotted:</b> as left, projector distance $d_9$. <a href="#experiments/x-across-nets">&larr;
+  experiment</a></figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.cost_32_56_k3" data-height="280">
+  <figcaption><b>Plotted:</b> as above, ResNet-32 against ResNet-56, projector distance $d_3$.
+  <a href="#experiments/x-across-nets">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.cost_32_56_k9" data-height="280">
+  <figcaption><b>Plotted:</b> as left, projector distance $d_9$. <a href="#experiments/x-across-nets">&larr;
+  experiment</a></figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.unres_20_32" data-height="260">
+  <figcaption><b>Plotted:</b> share of the DTW path whose cut is unresolved in either snapshot (y) against training
+  step (x, symmetric-log), ResNet-20 against ResNet-32, different-seed pairings; solid $k = 3$, dashed $k = 9$; kernel
+  rule {{fact:x.across-nets.rule}}. <a href="#experiments/x-across-nets">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.unres_32_56" data-height="260">
+  <figcaption><b>Plotted:</b> as left, ResNet-32 against ResNet-56. <a href="#experiments/x-across-nets">&larr;
+  experiment</a></figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.seed_pairs_k3" data-height="280">
+  <figcaption><b>Plotted:</b> normalised DTW cost (y) between the two seeds of each depth against training step (x,
+  symmetric-log), projector distance $d_3$, kernel rule {{fact:x.across-nets.rule}}; bands: each pair's
+  block-permutation null, $5$th to $95$th percentile. These costs are the seed floors of the depth comparisons.
+  <a href="#experiments/x-across-nets">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.same_seed_20_56_k3" data-height="280">
+  <figcaption><b>Plotted:</b> as the lead figure of the experiment (ResNet-20 against ResNet-56, $d_3$, kernel rule
+  {{fact:x.across-nets.rule}}) for the two same-seed pairings, whose networks draw the initial weights of the stem and
+  first blocks identically; not used in any summary. <a href="#experiments/x-across-nets">&larr;
+  experiment</a></figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.cost_20_56_heat_t16" data-height="280">
+  <figcaption><b>Plotted:</b> as the lead figure of the experiment (ResNet-20 against ResNet-56, different-seed
+  pairings, null bands, seed floors dashed) with the diffusion-kernel distance $h_{16}$ (no cut), kernel rule
+  {{fact:x.across-nets.rule}}. <a href="#experiments/x-across-nets">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#app4.cost_20_56_cka" data-height="280">
+  <figcaption><b>Plotted:</b> as left with the CKA distance on the centred-cosine Grams (baseline, not an output of the
+  method). <a href="#experiments/x-across-nets">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/across-nets.json#app4.by_k_final" data-height="300">
+  <figcaption><b>Plotted:</b> at the final checkpoint (step {{fact:final_step}}), kernel rule
+  {{fact:x.across-nets.rule}}, against the cut $k$ of the projector distance (x, log): the median over the
+  {{fact:x.across-nets.n_cross_diff}} cross-depth different-seed pairings of the normalised DTW cost (solid blue), of
+  the null's $5$th percentile (dashed blue), of the larger of the two seed floors (dashed grey) and of the share of
+  the path whose cut is unresolved (orange); dotted: the chance value of $d_k$ for two independent random spans,
+  $1 - k/(N-1)$. <a href="#experiments/x-across-nets">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/across-nets.json#app4.seed_sets_r20" data-height="280">
+  <figcaption><b>Plotted:</b> ResNet-20, final checkpoint, kernel rule {{fact:x.across-nets.rule}}: matched Jaccard
+  (y) between the SEBA sets of seed 0 and of seed 1 at each site's single-snapshot block (x), at $r = 3$ and $r = 4$
+  (solid), with the $95$th percentile of its size-preserving permutation null
+  ({{fact:x.app-measurements.seed_sets_n_perm}} permutations; dashed). <a href="#experiments/x-across-nets">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<h3 id="ref-across-nets-live">Interactive alignment views</h3>
+<p>The four figures below are drawn in the browser from the spectral-alignment exports, with their own controls
+(depth pair, checkpoint, distance, kernel rule). Every cross-depth summary they print uses the different-seed
+pairings; same-seed pairings are labelled "shared initial draws". Definitions: <a
+href="#method-details/operator-distances">operator distances</a>, <a href="#method-details/dtw">DTW</a>, <a
+href="#method-details/nulls">nulls</a>, <a href="#method-details/floors">seed floors</a>.</p>
+
+<figure class="fig wide live" data-live="al-c2" id="ref-across-nets-c2">
+  <figcaption><b>Plotted:</b> one row per distance; in each cell, one value per seed pairing, in the order given above
+  the table: different-seed pairings on the first line, same-seed pairings (shared initial draws) on a second, grey
+  line. Gap: mean relative-depth gap between the DTW path and the architectural reference. Stage ends: how many of the
+  stage ends the path passes through. Cost: normalised DTW cost. Seed floor: DTW cost between the two seeds of the
+  depth of $A$, and of $B$. Null: $5$th percentile of the permutation null, and the fraction of null draws with a cost
+  at or below the observed one. Constant: the constant-matrix reference. Inversions: inversion fraction of the row
+  argmins. Unresolved: share of the DTW path whose cut is unresolved (projector distance only). Controls: depth pair,
+  checkpoint, kernel rule, rows. <b>Values</b> (ResNet-20 against ResNet-56, step {{fact:al.final_step}}, kernel rule
+  {{fact:default_mode}}, $d_9$, different-seed pairings {{fact:al.c2.20-56.final.rule0.proj_k9.pairings}}): gap
+  {{fact:al.c2.20-56.final.rule0.proj_k9.gap}}; cost {{fact:al.c2.20-56.final.rule0.proj_k9.cost}}; null $5$th
+  percentile {{fact:al.c2.20-56.final.rule0.proj_k9.null05}}; seed floors
+  {{fact:al.c2.20-56.final.rule0.proj_k9.floor_a}} (ResNet-20) and {{fact:al.c2.20-56.final.rule0.proj_k9.floor_b}}
+  (ResNet-56). At the first checkpoint: cost {{fact:al.c2.20-56.init.rule0.proj_k9.cost}}, null $5$th percentile
+  {{fact:al.c2.20-56.init.rule0.proj_k9.null05}}; same-seed pairings there
+  ({{fact:al.c2.20-56.init.sameseed.rule0.proj_k9.pairings}}): cost
+  {{fact:al.c2.20-56.init.sameseed.rule0.proj_k9.cost}}, null $5$th percentile
+  {{fact:al.c2.20-56.init.sameseed.rule0.proj_k9.null05}}. <a href="#experiments/x-across-nets">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="al-c3" id="ref-across-nets-c3">
+  <figcaption><b>Plotted:</b> top, the distance $D_{ij}$ at each point $(i, j)$ of the DTW path (solid) and the seed
+  floor at the same point (dashed: mean of $A$'s floor at site $i$ and $B$'s floor at site $j$), against relative
+  depth (mean of $i/(L_A-1)$ and $j/(L_B-1)$); one colour per seed pairing (different-seed pairings by default; the
+  same-seed pairings, which share initial draws, on request). Bottom, their ratio (log scale; grey line at $1$).
+  Projector distance: hollow circles are unresolved cuts, in the pair itself or, for the floor and the ratio, in any
+  of the four snapshots the floor uses. Controls: depth pair, checkpoint, distance, kernel rule. <b>Values</b>
+  (ResNet-20 seed 0 against ResNet-56 seed 1, step {{fact:al.final_step}}, kernel rule {{fact:default_mode}}, $d_9$):
+  over the {{fact:al.c3.r20s0-r56s1.rule0.proj_k9.n_points}} path points whose cut is resolved in the pair and in its
+  floor, largest ratio {{fact:al.c3.r20s0-r56s1.rule0.proj_k9.max_ratio}} at
+  {{fact:al.c3.r20s0-r56s1.rule0.proj_k9.max_at}}, median ratio {{fact:al.c3.r20s0-r56s1.rule0.proj_k9.median_ratio}}.
+  <a href="#experiments/x-across-nets">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="al-c4" id="ref-across-nets-c4">
+  <figcaption><b>Plotted:</b> the DTW summary of one depth pair at each of the {{fact:n_checkpoints}} checkpoints (x:
+  training step, symmetric-log); one colour per seed pairing, solid for different seeds and dashed for the same seed
+  (shared initial draws). Panels: normalised DTW cost with the $5$th to $95$th percentile of each different-seed
+  pairing's permutation null (grey) and the two depths' seed-floor costs (dashed); relative-depth gap from the
+  architectural reference; inversion fraction of the row argmins; for the projector distance, the share of the path
+  with an unresolved cut. Controls: depth pair, distance, kernel rule. <b>Values</b> (ResNet-20 against ResNet-56,
+  kernel rule {{fact:default_mode}}, $d_9$): earliest checkpoint from which the cost is below the null's $5$th
+  percentile in both different-seed pairings ({{fact:al.c4.20-56.rule0.proj_k9.pairings}}):
+  {{fact:al.c4.20-56.rule0.proj_k9.below_null_from}}; in both same-seed pairings:
+  {{fact:al.c4.20-56.sameseed.rule0.proj_k9.below_null_from}}. <a href="#experiments/x-across-nets">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<p id="ref-across-nets-modes"><b>Which modes, and which images.</b> For {{fact:al.vec_cells}} snapshots (every
+network at step {{fact:al.final_step}} and ResNet-20 seed 0 at every checkpoint; kernel rule {{fact:default_mode}})
+the leading $64$ eigenfunctions are shipped as $16$-bit values ($d_k$ recomputed from them differs from the
+full-precision value by at most {{fact:al.int16_dk_max_error}}), and the figure below computes in the browser the
+mode-overlap matrix $G = U_{64}(A)^\top U_{64}(B)$, shown as $G^2$ (the sign of an eigenfunction is arbitrary); the
+cumulative block overlap $\|G_{[:i,:j]}\|_F^2 / \min(i, j)$ (on the diagonal, $1 - d_i$); the principal angles
+between the two leading-$k$ spans, as $\cos^2$; and the per-image discrepancy $\delta_i = [(P_k(A) - P_k(B))^2]_{ii}$,
+which sums to $2k\,d_k$. Entries of $G$ for single modes are meaningful only at isolated, reproducible eigenvalues:
+inside a group of near-equal eigenvalues the eigenfunctions can rotate among themselves, so $G$ can look mixed while
+the spans agree; the cumulative overlap and the principal angles are the quantities to compare there.</p>
+
+<figure class="fig wide live" data-live="al-c5" id="ref-across-nets-c5">
+  <figcaption><b>Plotted:</b> for two chosen snapshots $A$ (rows) and $B$ (columns), kernel rule
+  {{fact:default_mode}}: $G^2$ for modes $1$ to $64$; the cumulative block overlap; the $k$ values of $\cos^2$ of the
+  principal angles between the leading-$k$ spans, largest first; and, at the chosen $k$, the mean of $\delta_i$ per
+  CIFAR class (validation) with the images of largest $\delta_i$. Ticks along the axes of the two matrices mark modes
+  $m$ whose cut $m \mid m+1$ is unresolved in that snapshot. The line under the controls compares $d_k$ recomputed
+  from the shipped eigenfunctions with the stored all-pairs value. <a href="#experiments/x-across-nets">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<!-- ============================================================================================ X9 image-stats -->
+<h2 id="ref-image-stats">How does the association of the leading eigenfunctions with twelve pixel statistics change over training?</h2>
+<p>These charts give the per-eigenfunction and per-statistic detail behind the experiment's summary, the span-level
+and within-class variants of the fit, and the agreement of each site's sets with the untrained network's.
+<a class="explore-link" href="#experiments/x-image-stats">Back to the experiment</a></p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/image-stats.json#app4.r2_maxk" data-height="280">
+  <figcaption><b>Plotted:</b> for each site's single-snapshot block (one line per site, ordinal colour) the largest
+  over $k = 1..8$ of the $R^2$ of a least-squares fit of $\psi_k$ on the twelve standardised image statistics plus an
+  intercept (y), against training step (x, symmetric-log); kernel rule {{fact:x.image-stats.rule}}. Reference line:
+  $95$th percentile of the same fit with the images permuted, pooled over $k$, largest over snapshots
+  ({{fact:x.image-stats.null_max}}). <a href="#experiments/x-image-stats">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/image-stats.json#app4.r2_within_maxk" data-height="280">
+  <figcaption><b>Plotted:</b> as left with class means of $\psi_k$ and of each statistic removed before the fit
+  (labels used for validation only). Reference line: $95$th percentile with images permuted within each class,
+  pooled over $k$, largest over snapshots ({{fact:x.image-stats.wc_null_max}}).
+  <a href="#experiments/x-image-stats">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/image-stats.json#app4.r2_span" data-height="280">
+  <figcaption><b>Plotted:</b> for each site's single-snapshot block the largest $R^2$ of any unit-norm combination of
+  $\psi_1..\psi_8$ fitted on the twelve statistics (the squared first canonical correlation of the two spans; y),
+  against training step (x, symmetric-log). Reference line: $95$th percentile of the same quantity with the images
+  permuted ({{fact:x.image-stats.n_perm}} draws), largest over snapshots ({{fact:x.image-stats.span_null_max}}).
+  <a href="#experiments/x-image-stats">&larr; experiment</a></figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/image-stats.json#app4.untrained" data-height="280">
+  <figcaption><b>Plotted:</b> for each site's single-snapshot block, the AMI (y) between its $r = 4$ SEBA sets and
+  the sets of the same block at step {{fact:x.app-measurements.first_step}} (the untrained network), on the images
+  both assign, against training step (x, symmetric-log; $1$ at the first checkpoint by construction). Reference line:
+  $95$th percentile of the AMI with one labelling permuted within the jointly assigned images, largest over
+  snapshots. <a href="#experiments/x-image-stats">&larr; experiment</a></figcaption>
+</figure>
+</div>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/image-stats.json#app4.heat_r2_psi">
+  <figcaption><b>Plotted:</b> $R^2$ of $\psi_k$ (rows $k = 1..8$) on the twelve statistics, per site (columns);
+  slider: checkpoint. Single-snapshot blocks, kernel rule {{fact:x.image-stats.rule}}; computed over the
+  {{fact:n_images}} probe images. <a href="#experiments/x-image-stats">&larr; experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/image-stats.json#app4.heat_maxabs_psi">
+  <figcaption><b>Plotted:</b> $\max_{k = 1..8} |\mathrm{corr}(\text{statistic}, \psi_k)|$ (rows: the twelve
+  statistics; columns: sites); slider: checkpoint. Single-snapshot blocks, kernel rule {{fact:x.image-stats.rule}};
+  computed over the {{fact:n_images}} probe images. <a href="#experiments/x-image-stats">&larr;
+  experiment</a></figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/image-stats.json#app4.heat_maxabs_psi_wc">
+  <figcaption><b>Plotted:</b> as the previous chart with within-class correlations (class means removed from
+  $\psi_k$ and the statistic). <a href="#experiments/x-image-stats">&larr; experiment</a></figcaption>
+</figure>
+
+<!-- ============================================================================================ general -->
+<h2 id="ref-general">Training curves, decodability and class make-up</h2>
+<p>These charts describe the trained network and the probe independently of any experiment: how training went, how
+well the class can be read from each site by a supervised fit, and which classes make up the sets of a few blocks.
+Class labels are used here for validation only.</p>
+
+<h3 id="ref-curves">Training curves</h3>
+<figure class="fig wide live" data-live="curves">
+  <figcaption><b>Plotted:</b> training and validation accuracy (left) and cross-entropy loss (right) at all saved
+  checkpoints, x = training step (symmetric-log); dots: the {{fact:n_checkpoints}} checkpoints used in the explorer
+  and the experiments. <b>Values:</b> final validation accuracy {{fact:final_val_acc}}.</figcaption>
+</figure>
+
+<h3 id="ref-decodability">Linear and nearest-neighbour decodability of class</h3>
+<figure class="fig wide live" data-live="decod">
+  <figcaption><b>Plotted:</b> test accuracy ({{fact:x.app-measurements.decod.n_classes}} classes; chance
+  {{fact:x.app-measurements.decod.chance}}) of a closed-form ridge classifier or a weighted cosine nearest-neighbour
+  vote ({{fact:x.app-measurements.decod.knn_k}} neighbours) (toggle), fitted on
+  {{fact:x.app-measurements.decod.n_train}} CIFAR training images and tested on the
+  {{fact:x.app-measurements.decod.n_test}} test images (which include the probe images), from the flattened activation
+  map or its per-channel means (toggle). Left: x = site, one line per checkpoint; right: x = training step
+  (symmetric-log), one line per site. A supervised fit, not part of the construction. Definition:
+  <a href="#method-details/stat-decod">Appendix C</a>. <b>Values:</b> step {{fact:q.decod.final_step}}, ridge,
+  flattened map: stem {{fact:q.decod.ridge.flat.stem.final}}, b5 {{fact:q.decod.ridge.flat.b5.final}}, b9
+  {{fact:q.decod.ridge.flat.b9.final}}, pool {{fact:q.decod.ridge.flat.pool.final}}; ridge, channel means: stem
+  {{fact:q.decod.ridge.gap.stem.final}}, b5 {{fact:q.decod.ridge.gap.b5.final}}, b9 {{fact:q.decod.ridge.gap.b9.final}},
+  pool {{fact:q.decod.ridge.gap.pool.final}}; kNN, flattened map: stem {{fact:q.decod.knn.flat.stem.final}}, b5
+  {{fact:q.decod.knn.flat.b5.final}}, b9 {{fact:q.decod.knn.flat.b9.final}}, pool {{fact:q.decod.knn.flat.pool.final}};
+  kNN, channel means: stem {{fact:q.decod.knn.gap.stem.final}}, b5 {{fact:q.decod.knn.gap.b5.final}}, b9
+  {{fact:q.decod.knn.gap.b9.final}}, pool {{fact:q.decod.knn.gap.pool.final}}. Step {{fact:q.decod.first_step}}, range
+  over sites: ridge {{fact:q.decod.ridge.flat.step0_min}} to {{fact:q.decod.ridge.flat.step0_max}} (flattened),
+  {{fact:q.decod.ridge.gap.step0_min}} to {{fact:q.decod.ridge.gap.step0_max}} (channel means); kNN
+  {{fact:q.decod.knn.flat.step0_min}} to {{fact:q.decod.knn.flat.step0_max}} (flattened),
+  {{fact:q.decod.knn.gap.step0_min}} to {{fact:q.decod.knn.gap.step0_max}} (channel means).</figcaption>
+</figure>
 
 <details class="static-version"><summary>Static version (PNG)</summary>
 <figure class="fig wide">
-  <img src="assets/fig/q_when.png" alt="Static version: heatmap of matched Jaccard with the final checkpoint's sets by site and step, and matched Jaccard with the classes over training.">
-  <figcaption>Static version of the charts above. The dashed size ceiling is the mean over sites; a single site's
-  score can exceed it at a checkpoint where that site's set sizes differ from the average.</figcaption>
+  <img src="assets/fig/q_decod.png" alt="Static version: ridge and kNN accuracy by site, flattened and channel-mean features.">
+  <figcaption><b>Plotted:</b> the decodability charts above, as a static image.</figcaption>
 </figure>
 </details>
 
-<h2 id="carry">Agreement between sites at one checkpoint</h2>
+<h3 id="ref-classmix">Class make-up of the sets of a few blocks</h3>
+<p>Each table counts $n_{jc}$, the probe images of CIFAR class $c$ in SEBA set $j$ (rows in the explorer's set
+order), with a last row for the unassigned images; each class has {{fact:x.groups.per_class}} probe images, which is
+the top of the colour range. Definition: <a href="#method-details/stat-makeup">Appendix C</a>. The make-up of layer
+block b7..pool is the lead figure of <a href="#experiments/x-groups">the first experiment</a>; that of b9 at $r = 2$
+and of the time block b9 over all checkpoints are above, under their experiments.</p>
 
-<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
-<p>The <b>$r = 4$ sets of the single-snapshot blocks of two sites</b> at the same checkpoint, compared. The screenshot shows <b>site b2 alone at step {{fact:final_step}}</b>, its sets painted on every site; reading along the bottom row shows how far they survive in the other sites.</p>
-<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
-  <a href="#explorer?tour=b2-b3"><img style="width: 100%; height: auto" src="assets/fig/view_b2-b3.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
-  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
-  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
-</figure></div>
-
-<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_carry.0_4.matrix">
-  <figcaption><b>Plotted:</b> rows and columns: sites; slider: checkpoint (default: final). Colour: matched Jaccard
-  between the SEBA sets of the single-snapshot blocks of the two sites at that checkpoint; symmetric; diagonal = 1.
-  Default kernel rule, $r = 4$. No null (see the adjacent-site chart under "More views").</figcaption>
-</figure>
-
-<details class="more"><summary>More views: adjacent sites at every checkpoint, with a null</summary>
-<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_carry.0_4.adjacent">
-  <figcaption><b>Plotted:</b> x: adjacent site pair (site $a \to a{+}1$); y: matched Jaccard between the two sites'
-  single-snapshot SEBA sets; one line per checkpoint (ordinal colour, step 0 light to final dark). Default kernel rule,
-  $r = 4$. Null (per pair and checkpoint, stored as <code>q_carry.0_4.adjacent_null</code>): permutation of the first
-  site's labels. <b>Values:</b> final checkpoint, adjacent pairs {{fact:q.carry.r4.final.adjacent_min}}
-  ({{fact:q.carry.r4.final.adjacent_min_pair}}) to {{fact:q.carry.r4.final.adjacent_max}}
-  ({{fact:q.carry.r4.final.adjacent_max_pair}}), null mean {{fact:q.carry.r4.final.adjacent_null_mean}}, null 97.5th
-  percentile at most {{fact:q.carry.r4.final.adjacent_null_hi_max}}; mean over adjacent pairs ranges from
-  {{fact:q.carry.r4.mean_adjacent_min}} (step {{fact:q.carry.r4.mean_adjacent_min_step}}) to
-  {{fact:q.carry.r4.mean_adjacent_max}} (step {{fact:q.carry.r4.mean_adjacent_max_step}}).</figcaption>
-</figure>
-</details>
-
-
-<details class="static-version"><summary>Static version (PNG)</summary>
-<figure class="fig wide">
-  <img src="assets/fig/q_carry.png" alt="Static version: site-by-site matched Jaccard matrix at the final checkpoint and adjacent-site matched Jaccard over training.">
-  <figcaption>Static version. Comparisons between adjacent layer blocks (sites $a..a{+}1$ against $a{+}2..a{+}3$, and
-  blocks of width three) are in <code>questions.json</code> under <code>q_carry.*.w2</code> and <code>w3</code>.</figcaption>
-</figure>
-</details>
-
-<h2 id="classmix">Class make-up of coherent sets</h2>
-
-<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
-<p>Each table is the class make-up of the <b>$r = 4$ sets of one single-snapshot block</b>; the explorer shows the same make-up as bars beside each set's images. The screenshot shows <b>site b9 at step {{fact:final_step}}</b>.</p>
-<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
-  <a href="#explorer?fam=layer&t=7&a=9&b=9&m=0&c=seba&r=4"><img style="width: 100%; height: auto" src="assets/fig/view_b9-final-r4.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
-  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
-  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
-</figure></div>
-
-<p>Each table counts $n_{jc}$, the images of CIFAR class $c$ in SEBA set $j$ (rows in the explorer's set order), with a
-last row for the unassigned images. Each class has 200 probe images, so the colour range is 0 to 200. Definition:
-<a href="#method-details/stat-makeup">Appendix C</a>.</p>
-
-<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.layer_t7_b7-pool_r4">
-  <figcaption><b>Plotted:</b> $n_{jc}$ for the layer block b7..pool (sites b7, b8, b9, pool) at the final checkpoint;
-  default kernel rule, $r = 4$. <b>Values:</b> $\lambda_1, \lambda_2, \lambda_3$ = {{fact:q.f1.b7_pool.final.r4.lambda1}},
-  {{fact:q.f1.b7_pool.final.r4.lambda2}}, {{fact:q.f1.b7_pool.final.r4.lambda3}}, gap $\lambda_3 - \lambda_4$ =
-  {{fact:q.f1.b7_pool.final.r4.gap_after_lambda3}}; retention $\rho_c$ of the SEBA vectors over the block's snapshots
-  {{fact:q.f1.b7_pool.final.r4.retention_min}} to {{fact:q.f1.b7_pool.final.r4.retention_max}}; set sizes
-  {{fact:q.f1.b7_pool.final.r4.set1.size}}, {{fact:q.f1.b7_pool.final.r4.set2.size}},
-  {{fact:q.f1.b7_pool.final.r4.set3.size}}, {{fact:q.f1.b7_pool.final.r4.set4.size}};
-  {{fact:q.f1.b7_pool.final.r4.n_unassigned}} unassigned.
-  <a class="explore-link" href="#explorer?fam=layer&t=7&a=7&b=10&m=0&c=seba&r=4">this block in the explorer</a></figcaption>
-</figure>
-
-<details class="more"><summary>More views: single-snapshot blocks at stem, b5 and b9 (slider: checkpoint)</summary>
 <div class="fig-row">
 <figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.4.stem">
-  <figcaption><b>Plotted:</b> $n_{jc}$ for the single-snapshot block at site stem; slider: checkpoint (default: final).
-  Default kernel rule, $r = 4$.</figcaption>
+  <figcaption><b>Plotted:</b> $n_{jc}$ for the single-snapshot block at site stem, $r = 4$; slider: checkpoint
+  (default: final); kernel rule {{fact:default_mode}}.</figcaption>
 </figure>
 <figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.4.b5">
   <figcaption><b>Plotted:</b> as left, site b5.</figcaption>
 </figure>
 </div>
 
-
 <div class="fig-row">
 <figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.4.b9">
-  <figcaption><b>Plotted:</b> as in the row above, site b9, $r = 4$.</figcaption>
-</figure>
-<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.cells.2.b9">
-  <figcaption><b>Plotted:</b> as left, site b9, $r = 2$ (two sets and the unassigned row).</figcaption>
-</figure>
-</div>
-</details>
-<details class="more"><summary>More views: time blocks at b9 (all checkpoints; the last four)</summary>
-<div class="fig-row">
-<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.time_b9_0-7_r4">
-  <figcaption><b>Plotted:</b> $n_{jc}$ for the time block at site b9 over all checkpoints (steps 0 to
-  {{fact:final_step}}); default kernel rule, $r = 4$. <b>Values:</b> $\lambda_1..\lambda_3$ =
-  {{fact:q.f2.b9_time.step0-64000.r4.lambda1}}, {{fact:q.f2.b9_time.step0-64000.r4.lambda2}},
-  {{fact:q.f2.b9_time.step0-64000.r4.lambda3}}, gap $\lambda_3 - \lambda_4$ =
-  {{fact:q.f2.b9_time.step0-64000.r4.gap_after_lambda3}}; retention {{fact:q.f2.b9_time.step0-64000.r4.retention_min}}
-  to {{fact:q.f2.b9_time.step0-64000.r4.retention_max}}; set sizes {{fact:q.f2.b9_time.step0-64000.r4.set1.size}},
-  {{fact:q.f2.b9_time.step0-64000.r4.set2.size}}, {{fact:q.f2.b9_time.step0-64000.r4.set3.size}},
-  {{fact:q.f2.b9_time.step0-64000.r4.set4.size}}; {{fact:q.f2.b9_time.step0-64000.r4.n_unassigned}} unassigned.
-  <a class="explore-link" href="#explorer?fam=time&t=9&a=0&b=7&m=0&c=seba&r=4">explorer</a></figcaption>
+  <figcaption><b>Plotted:</b> as above, site b9.</figcaption>
 </figure>
 <figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_classmix.named.time_b9_4-7_r4">
-  <figcaption><b>Plotted:</b> as left, time block at b9 over the later half of the {{fact:n_checkpoints}} checkpoints (the last four). <b>Values:</b> $\lambda_1..\lambda_3$ = {{fact:q.f2.b9_time.step2560-64000.r4.lambda1}},
-  {{fact:q.f2.b9_time.step2560-64000.r4.lambda2}}, {{fact:q.f2.b9_time.step2560-64000.r4.lambda3}}, gap
+  <figcaption><b>Plotted:</b> $n_{jc}$ for the time block at site b9 over the last four of the
+  {{fact:n_checkpoints}} checkpoints (steps {{fact:x.app-measurements.late_half_first_step}} to {{fact:final_step}}), kernel rule
+  {{fact:default_mode}}, $r = 4$. <b>Values:</b> $\lambda_1, \lambda_2, \lambda_3$ =
+  {{fact:q.f2.b9_time.step2560-64000.r4.lambda1}}, {{fact:q.f2.b9_time.step2560-64000.r4.lambda2}},
+  {{fact:q.f2.b9_time.step2560-64000.r4.lambda3}}, gap $\lambda_3 - \lambda_4$ =
   {{fact:q.f2.b9_time.step2560-64000.r4.gap_after_lambda3}}; retention
-  {{fact:q.f2.b9_time.step2560-64000.r4.retention_min}} to {{fact:q.f2.b9_time.step2560-64000.r4.retention_max}};
-  set sizes {{fact:q.f2.b9_time.step2560-64000.r4.set1.size}}, {{fact:q.f2.b9_time.step2560-64000.r4.set2.size}},
+  {{fact:q.f2.b9_time.step2560-64000.r4.retention_min}} to {{fact:q.f2.b9_time.step2560-64000.r4.retention_max}}; set
+  sizes {{fact:q.f2.b9_time.step2560-64000.r4.set1.size}}, {{fact:q.f2.b9_time.step2560-64000.r4.set2.size}},
   {{fact:q.f2.b9_time.step2560-64000.r4.set3.size}}, {{fact:q.f2.b9_time.step2560-64000.r4.set4.size}};
   {{fact:q.f2.b9_time.step2560-64000.r4.n_unassigned}} unassigned.
-  <a class="explore-link" href="#explorer?fam=time&t=9&a=4&b=7&m=0&c=seba&r=4">explorer</a></figcaption>
+  <a class="explore-link" href="#explorer?fam=time&amp;t=9&amp;a=4&amp;b=7&amp;m=0&amp;c=seba&amp;r=4">this block in
+  the explorer</a></figcaption>
 </figure>
 </div>
-</details>
-<p>Tables for other sites and $r \in \{2, 3, 4\}$ are in <code>q_classmix.cells.&lt;r&gt;.&lt;site&gt;</code>; every
-stored layer and time block is in <code>q_classmix.by_mode.0</code>.</p>
-
-
-
-
-<h2 id="va">The $r = 2$ sets against the vehicle/animal partition</h2>
-
-<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
-<p>The <b>two sets ($r = 2$) of each single-snapshot block</b>, scored against vehicles versus animals. The screenshot shows <b>site b9 at step 64</b>, where the split already matches vehicles against animals best.</p>
-<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
-  <a href="#explorer?fam=layer&t=1&a=9&b=9&m=0&c=seba&r=2"><img style="width: 100%; height: auto" src="assets/fig/view_b9-step64.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
-  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
-  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
-</figure></div>
-
-<p>$V$ = {airplane, automobile, ship, truck} (800 images) and $A$ = the other six classes (1,200 images) form a fixed
-2-set reference labeling. Each single-snapshot block's two $r = 2$ SEBA sets are scored against $(V, A)$ by matched
-Jaccard (for $2 \times 2$, the better of the two pairings), with null, size ceiling and normalised excess as in the
-callout above. Definitions, including the pixel baseline: <a href="#method-details/stat-va">Appendix C</a>.</p>
-
-<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.by_mode.0.lines"
-        data-ceiling-src="assets/questions.json#q_va.by_mode.0.ceiling" data-ceiling-label="size ceiling (mean over sites)">
-  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site (ordinal colour): matched Jaccard between
-  the $r = 2$ SEBA sets of the single-snapshot block and $(V, A)$; band: permutation null, 2.5 to 97.5 percentiles; dashed
-  grey: size ceiling, mean over sites. Default kernel rule. <b>Values:</b> b9, final: score
-  {{fact:q.va.b9.final.score}}, $\mu_0$ {{fact:q.va.b9.final.null_mean}}, null maximum
-  {{fact:q.va.b9.final.null_max}}, ceiling {{fact:q.va.b9.final.ceiling}}, {{fact:q.va.b9.final.n_unassigned}}
-  unassigned; stem, final: score {{fact:q.va.stem.final.score}}, $\mu_0$ {{fact:q.va.stem.final.null_mean}}, ceiling
-  {{fact:q.va.stem.final.ceiling}}, {{fact:q.va.stem.final.n_unassigned}} unassigned; largest null maximum over all
-  snapshots {{fact:q.va.null_max.max_over_cells}}.</figcaption>
-</figure>
-
-<details class="more"><summary>More views: normalised excess, where each class goes, the pixel baseline and the rank of vehicles/animals among all 511 class splits</summary>
-<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_va.by_mode.0.lines_norm_excess">
-  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site: normalised excess $(\text{score} -
-  \mu_0) / (\text{ceiling} - \mu_0)$ of the chart above (0 = null mean, 1 = size ceiling). Default kernel rule,
-  $r = 2$. <b>Values:</b> final: b9 {{fact:q.va.b9.final.norm_excess}}, stem
-  {{fact:q.va.stem.final.norm_excess}}.</figcaption>
-</figure>
-
-<div class="fig-row">
-<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_va.class_placement.in_matched">
-  <figcaption><b>Plotted:</b> rows: sites; columns: CIFAR classes; slider: checkpoint (default: final). Colour: the
-  fraction of the class's 200 images that lie in the $r = 2$ SEBA set matched to the class's own group ($V$ or $A$)
-  in that single-snapshot block. Default kernel rule.</figcaption>
-</figure>
-<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_va.class_placement.unassigned">
-  <figcaption><b>Plotted:</b> as left; colour: the fraction of the class's 200 images that are unassigned at
-  $r = 2$.</figcaption>
-</figure>
-</div>
-
-
-<div class="fig-row">
-<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_va.pixel_baseline.score">
-  <figcaption><b>Plotted:</b> rows: sites; columns: checkpoints. Colour: pixel baseline, the largest matched Jaccard
-  with $(V, A)$ over 24 single-statistic splits (12 <a href="#method-details/stat-imgstats">image statistics</a> × 2 signs;
-  top $n_1$ images to set 1, bottom $n_2$ to set 2, with $n_1, n_2$ the snapshot's $r = 2$ SEBA set sizes). The best
-  split is chosen with the labels, so it is an upper reference for single-statistic splits of these sizes; the
-  maximising statistic is in <code>q_va.pixel_baseline.stat</code>.</figcaption>
-</figure>
-<figure class="fig live" data-live="heatmap" data-src="assets/questions.json#q_va.best_bipartition.va_rank">
-  <figcaption><b>Plotted:</b> rows: sites; columns: checkpoints. Colour: the rank of $(V, A)$ among all 511
-  two-group splits of the 10 classes, ordered by matched Jaccard with the snapshot's $r = 2$ SEBA sets (1 = $(V, A)$ is
-  the best-matching split; colour range 1 to 511). Default kernel rule.</figcaption>
-</figure>
-</div>
-
-<p>Also stored, as site × checkpoint heatmaps: <code>q_va.by_mode.0.score</code>, <code>.norm_excess</code>,
-<code>.agree</code> (the fraction of assigned images whose set is matched to their own group), and the same
-quantities for the other kernel rules (<code>q_va.by_mode.1</code> to <code>4</code>).</p>
-</details>
-
-<h2 id="imgstats">Image statistics against eigenfunctions and SEBA vectors</h2>
-
-<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
-<p>Here the eigenfunctions themselves, not the sets: <b>$\psi_1..\psi_8$ (and the SEBA vectors) of each block</b>, correlated with pixel statistics. The screenshot shows <b>$\psi_1$ of the single-snapshot block at the stem, step {{fact:final_step}}</b> (blue negative, red positive), with the images at its two ends in the side panel.</p>
-<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
-  <a href="#explorer?fam=layer&t=7&a=0&b=0&m=0&c=eig&k=1"><img style="width: 100%; height: auto" src="assets/fig/view_stem-psi1.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
-  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
-  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
-</figure></div>
-
-<p>Twelve statistics of each probe image's pixels (channel means, luminance $Y$, RMS contrast, saturation,
-border-minus-centre differences, high-frequency share; definitions in <a href="#method-details/stat-imgstats">Appendix C</a>) are
-correlated over the {{fact:n_images}} images with $\psi_1..\psi_8$ and with the SEBA vectors for $r = 2, 3, 4$ of each
-block. Nulls permute the images (1,000 permutations, one bank shared by all blocks); within-class nulls permute images
-within each class. Thresholds: pointwise two-sided 5% level, median over single-snapshot blocks,
-{{fact:q.img.thr_point_median}}; familywise 5% level over a block's 17 × 12 correlations, median over single-snapshot
-blocks, {{fact:q.img.thr_family_median}} (within-class: {{fact:q.img.thr_family_wc_median}}); familywise over every
-block and entry, {{fact:q.img.thr_global}}.</p>
-
-<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_maxabs_psi">
-  <figcaption><b>Plotted:</b> rows: image statistics; columns: sites (single-snapshot blocks); slider: checkpoint
-  (default: final). Colour: $\max_{k = 1..8} |\mathrm{corr}(\text{statistic}, \psi_k)|$, Pearson correlation over the
-  probe images. Default kernel rule. Null: thresholds above.</figcaption>
-</figure>
-
-<details class="more"><summary>More views: within-class correlations, $R^2$ of a fit on all twelve statistics, and three statistics over training</summary>
-<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_maxabs_psi_wc">
-  <figcaption><b>Plotted:</b> as above, with the within-class correlation: the function and the statistic each have
-  their mean over the image's CIFAR class subtracted before correlating. Null: within-class permutations
-  (familywise median {{fact:q.img.thr_family_wc_median}}).</figcaption>
-</figure>
-
-<figure class="fig wide live" data-live="heatmap" data-src="assets/questions.json#q_imgstats.heat_r2_psi">
-  <figcaption><b>Plotted:</b> rows: $\psi_1..\psi_8$; columns: sites (single-snapshot blocks); slider: checkpoint. Colour:
-  $R^2$ of a least-squares fit of $\psi_k$ on the 12 standardised statistics plus an intercept (a closed-form fit,
-  not part of the construction). Null: the same fit with the images permuted; 95th percentile pooled over $k$, at most
-  {{fact:q.img.r2_null_hi_max}} over all snapshots.</figcaption>
-</figure>
-
-<div class="fig-row">
-<figure class="fig live" data-live="lines" data-src="assets/questions.json#q_imgstats.lines_maxabs_psi.luminance">
-  <figcaption><b>Plotted:</b> x: training step (symlog); one line per site (single-snapshot block, ordinal colour):
-  $\max_k |\mathrm{corr}(Y, \psi_k)|$, $Y$ = mean luminance; reference line: the familywise 5% null level for
-  this statistic over $k = 1..8$, the largest over all snapshots.</figcaption>
-</figure>
-<figure class="fig live" data-live="lines" data-src="assets/questions.json#q_imgstats.lines_maxabs_psi.mean_b">
-  <figcaption><b>Plotted:</b> as left, for the mean of the blue channel.</figcaption>
-</figure>
-</div>
-
-<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_imgstats.lines_maxabs_psi.hf_frac">
-  <figcaption><b>Plotted:</b> as above, for the high-frequency share of $Y$ (share of spectral energy above 8 cycles
-  per image). Lines for the other nine statistics are in <code>q_imgstats.lines_maxabs_psi.&lt;statistic&gt;</code>;
-  signed correlations per $\psi_k$, per SEBA vector and for multi-snapshot blocks in <code>q_imgstats.heat_psi</code>,
-  <code>heat_seba</code> and <code>heat_blocks_psi</code>.</figcaption>
-</figure>
-</details>
-
-<h2 id="gradients">Per-image loss gradients within and between sets</h2>
-
-<div class="callout key view-box"><p class="callout-title">What we are looking at</p>
-<p>Groupings of the probe images (coherent sets, or class unions) compared with per-image loss gradients. The main chart uses the <b>sets of the time block at site b9 over all checkpoints</b>, shown in the screenshot with $r = 4$.</p>
-<figure class="fig" style="margin: .6em 0 0; max-width: 100%">
-  <a href="#explorer?tour=b9-all-training"><img style="width: 100%; height: auto" src="assets/fig/view_b9-all-training.png" alt="The explorer set to this view: controls, the grid of snapshots with the selected block outlined, and the side panel."></a>
-  <figcaption>The explorer at this view (screenshot; click to open it live). The outlined panels are the block the
-  colours come from; the side panel lists its sets or eigenfunction ends with their images.</figcaption>
-</figure></div>
-
-<p>For each probe image and checkpoint, $g_i$ is the gradient of its loss with respect to every parameter. For a
-labeling, the within-set mean is the mean of $\cos(g_i, g_j)$ over ordered pairs $i \ne j$ in the same set, the
-between-set mean the same over pairs in different sets (unassigned images excluded); the plotted quantity is
-within minus between. The loss uses the labels, so this compares the sets with the training signal; it is not part
-of how the sets are found. Definition: <a href="#method-details/stat-grad">Appendix C</a>.</p>
-
-
-<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_grad.0_4_9_all.lines">
-  <figcaption><b>Plotted:</b> x: training step (symlog); y: within-set minus between-set mean gradient cosine at
-  that checkpoint. Series: the $r = 4$ SEBA sets of the time block at b9 over all checkpoints (one labeling, fixed
-  across x); the 10 CIFAR classes; the null mean (dashed) with band, 2.5 to 97.5 percentiles over 100 permutations
-  of the set labels among the assigned images. Reference line at 0. Default kernel rule. <b>Values:</b> block
-  $\lambda_1..\lambda_3$ = {{fact:q.f2.b9_time.step0-64000.r4.lambda1}}, {{fact:q.f2.b9_time.step0-64000.r4.lambda2}},
-  {{fact:q.f2.b9_time.step0-64000.r4.lambda3}}, gap $\lambda_3 - \lambda_4$ =
-  {{fact:q.f2.b9_time.step0-64000.r4.gap_after_lambda3}}; retention {{fact:q.f2.b9_time.step0-64000.r4.retention_min}}
-  to {{fact:q.f2.b9_time.step0-64000.r4.retention_max}}; {{fact:q.f2.b9_time.step0-64000.r4.n_unassigned}}
-  unassigned; null 97.5th percentile at most {{fact:q.grad.r4.b9.all.null_hi_max}}.
-  <a class="explore-link" href="#explorer?fam=time&t=9&a=0&b=7&m=0&c=gcos&r=4">gradient alignment in the explorer</a></figcaption>
-</figure>
-
-<details class="more"><summary>More views: each set's alignment with the mean gradient</summary>
-<figure class="fig wide live" data-live="lines" data-src="assets/questions.json#q_grad.0_4_9_all.setalign">
-  <figcaption><b>Plotted:</b> x: training step (symlog); one line per set of the same block (set colours, explorer
-  order): mean over the set's members of $\cos(g_i, \bar g)$, with $\bar g$ the mean gradient of all
-  {{fact:n_images}} probe images at that checkpoint; dashed: the same mean over all images.</figcaption>
-</figure>
-</details>
-<details class="more"><summary>Values: the class-union reference</summary>
-<p><b>Class-union reference</b> (no chart; values from the same computation): give each CIFAR class wholly to the
-set holding most of its images, which yields an $r$-group partition of the classes, evaluated on the same images
-the SEBA sets assign (unassigned images excluded from both). For the b9 time block over all
-checkpoints, within minus between at the first and final checkpoints: $r = 4$, class-union reference
-{{fact:q.grad.r4.b9.all.first.class_union_assigned_diff}} and {{fact:q.grad.r4.b9.all.final.class_union_assigned_diff}}, SEBA sets
-{{fact:q.grad.r4.b9.all.first.sets_diff}} and {{fact:q.grad.r4.b9.all.final.sets_diff}} (final ratio, sets over
-reference, {{fact:q.grad.r4.b9.all.final.sets_over_class_union_assigned}}); $r = 2$, reference
-{{fact:q.grad.r2.b9.all.first.class_union_assigned_diff}} and {{fact:q.grad.r2.b9.all.final.class_union_assigned_diff}}, sets
-{{fact:q.grad.r2.b9.all.first.sets_diff}} and {{fact:q.grad.r2.b9.all.final.sets_diff}} (ratio
-{{fact:q.grad.r2.b9.all.final.sets_over_class_union_assigned}}); the 10 classes {{fact:q.grad.classes.first.diff}} and
-{{fact:q.grad.classes.final.diff}}.</p>
-</details>
-
-
-<details class="static-version"><summary>Static version (PNG)</summary>
-<figure class="fig wide">
-  <img src="assets/fig/q_grad.png" alt="Static version: within-minus-between gradient cosine for each site's time-block sets, against classes and random sets.">
-  <figcaption>Static version: the first chart above for the all-checkpoint time block at every site, one small
-  panel per site.</figcaption>
-</figure>
-</details>
-
-<h2 id="decodability">Linear and nearest-neighbour decodability of class</h2>
-
-<figure class="fig wide live" data-live="decod">
-  <figcaption><b>Plotted:</b> test accuracy (10 classes; chance 10%) of a closed-form ridge classifier or a weighted
-  cosine nearest-neighbour vote (toggle), fitted on 10,000 CIFAR training images and tested on the 10,000 test images
-  (which include the probe images), from the flattened activation map or its per-channel means (toggle). Left: x =
-  site, one line per checkpoint; right: x = training step (symlog), one line per site. A supervised fit, not part of
-  the construction. Definition: <a href="#method-details/stat-decod">Appendix C</a>. <b>Values:</b> step {{fact:q.decod.final_step}}, ridge, flattened map: stem {{fact:q.decod.ridge.flat.stem.final}}, b5 {{fact:q.decod.ridge.flat.b5.final}}, b9 {{fact:q.decod.ridge.flat.b9.final}}, pool {{fact:q.decod.ridge.flat.pool.final}}; ridge, channel means:
-  stem {{fact:q.decod.ridge.gap.stem.final}}, b5 {{fact:q.decod.ridge.gap.b5.final}}, b9 {{fact:q.decod.ridge.gap.b9.final}}, pool {{fact:q.decod.ridge.gap.pool.final}}; kNN, flattened map: stem {{fact:q.decod.knn.flat.stem.final}}, b5 {{fact:q.decod.knn.flat.b5.final}}, b9 {{fact:q.decod.knn.flat.b9.final}}, pool {{fact:q.decod.knn.flat.pool.final}}; kNN, channel means: stem {{fact:q.decod.knn.gap.stem.final}}, b5 {{fact:q.decod.knn.gap.b5.final}}, b9 {{fact:q.decod.knn.gap.b9.final}}, pool {{fact:q.decod.knn.gap.pool.final}}. Step 0, range over sites: ridge
-  {{fact:q.decod.ridge.flat.step0_min}} to {{fact:q.decod.ridge.flat.step0_max}} (flattened), {{fact:q.decod.ridge.gap.step0_min}} to {{fact:q.decod.ridge.gap.step0_max}} (channel means); kNN {{fact:q.decod.knn.flat.step0_min}} to {{fact:q.decod.knn.flat.step0_max}} (flattened), {{fact:q.decod.knn.gap.step0_min}} to {{fact:q.decod.knn.gap.step0_max}} (channel means).</figcaption>
-</figure>
-
-<figure class="fig wide live" data-live="curves">
-  <figcaption><b>Plotted:</b> training and validation accuracy (left) and cross-entropy loss (right) at all saved
-  checkpoints, x = training step (symlog); dots: the {{fact:n_checkpoints}} checkpoints used in the explorer.
-  <b>Values:</b> final validation accuracy {{fact:final_val_acc}}.</figcaption>
-</figure>
-
-<details class="static-version"><summary>Static version (PNG)</summary>
-<figure class="fig wide">
-  <img src="assets/fig/q_decod.png" alt="Static version: ridge and kNN accuracy by site, flattened and channel-mean features.">
-  <figcaption>Static version of the decodability charts.</figcaption>
-</figure>
-</details>
+<p>Tables for the other sites and $r \in \{2, 3, 4\}$ are stored in <code>assets/questions.json</code> under
+<code>q_classmix.cells.&lt;r&gt;.&lt;site&gt;</code>; every stored layer and time block is under
+<code>q_classmix.by_mode.0</code>.</p>

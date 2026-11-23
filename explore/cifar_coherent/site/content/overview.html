@@ -93,7 +93,7 @@ sets of their inputs' dynamics, so that coherent sets are a natural lens on what
 <p>Hankel reconstruction, spectral clustering and coherent sets are close relatives, and each gives a principled
 reading of "treated the same". The analogies are loose, and the dropdown below says where each one stops. One
 concrete difference: a block here averages the walks of its layers rather than forming a Hankel-like product
-(<a href="#method-details/avgprod">the two agree closely</a>).</p>
+(<a href="#choices/avgprod">the two agree closely</a>).</p>
 
 <details class="more"><summary>The precise statements, and where each analogy stops</summary>
 <ul>
@@ -197,7 +197,7 @@ linear in the walk, so</p>
 <p>This is Froyland's dynamic Laplacian, and Banisch and Koltai's space-time diffusion maps, with depth or training
 in place of time. The product $M_b \cdots M_a$ is the theory's natural object, and it respects the order of the layers; the average is
 the default, the explorer's <b>Operator</b> switch shows the product, and the two agree closely on short blocks but not
-on long ones (<a href="#method-details/avgprod">average versus product</a>). Checkpoints count equally, and they
+on long ones (<a href="#choices/avgprod">average versus product</a>). Checkpoints count equally, and they
 are roughly geometric in steps.</p>
 </details>
 </div>
@@ -258,20 +258,20 @@ $\rho_c$, <a href="#method/glossary-coherent-set">coherent set</a>,
         data-r="4" data-j="1" data-n="21">
   <figcaption><b>The sets at the end of training.</b> Plotted: the 21 images with the largest SEBA value in set 2 of
   layer block b7 to pool, step {{fact:final_step}}, $r = 4$.<br>
-  <a href="#findings/f-end-sets">Finding 1</a> · <a class="explore-link" href="#explorer?tour=late-layers">explorer</a></figcaption>
+  <a href="#experiments/x-groups">Experiment 1</a> · <a class="explore-link" href="#explorer?tour=late-layers">explorer</a></figcaption>
 </figure>
 <figure class="fig live" data-live="cells" data-cells="0:9,1:9,3:9,7:9" data-size="70"
         data-fam="time" data-t="9" data-a="4" data-b="7" data-m="0" data-c="seba" data-r="2">
   <figcaption><b>Late sets, painted back through training.</b> Plotted: site b9 at steps 0, 64, 1,024 and
   {{fact:final_step}}, coloured by the fixed $r = 2$ sets of the time block b9, steps 2,560 to {{fact:final_step}}.
-  Finding 2 instead recomputes b9's own sets at each checkpoint.<br>
-  <a href="#findings/f-looking-back">Finding 2</a> · <a class="explore-link" href="#explorer?tour=b9-two-sets">explorer</a></figcaption>
+  Experiment 2 instead recomputes b9's own sets at each checkpoint.<br>
+  <a href="#experiments/x-when">Experiment 2</a> · <a class="explore-link" href="#explorer?tour=b9-two-sets">explorer</a></figcaption>
 </figure>
 <figure class="fig">
-  <a href="#findings/f-depth"><img src="assets/fig/q_carry.png" loading="eager" alt="Matched Jaccard between the single-snapshot sets of every pair of sites at the last checkpoint, and between adjacent sites at every checkpoint."></a>
+  <a href="#experiments/x-depth"><img src="assets/fig/q_carry.png" loading="eager" alt="Matched Jaccard between the single-snapshot sets of every pair of sites at the last checkpoint, and between adjacent sites at every checkpoint."></a>
   <figcaption><b>Agreement between sites.</b> Plotted: matched Jaccard between the $r = 4$ sets of single-snapshot
   blocks, site against site (left: step {{fact:final_step}}; right: adjacent sites at every checkpoint).<br>
-  <a href="#findings/f-depth">Finding 3</a> · <a class="explore-link" href="#explorer?tour=b2-b3">explorer</a></figcaption>
+  <a href="#experiments/x-depth">Experiment 3</a> · <a class="explore-link" href="#explorer?tour=b2-b3">explorer</a></figcaption>
 </figure>
 </div>
 

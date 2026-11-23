@@ -1,4 +1,4 @@
-// Live figures of the "Alignment" tab (content/alignment.html): W1-W4 and C1-C5 of explore/spectral_align/SPEC.md.
+// Live alignment figures (data-live="al-*"; W1-W4 and C1-C5 of explore/spectral_align/SPEC.md), now placed in the experiments and appendices.
 // Data: d/al/ from site/alignment.py (analysis by explore/spectral_align/analyze.py; layout in its docstring).
 // Distances arrive as uint16 per distance (lazily), eigenvectors as int16 per snapshot (lazily, C5 only).
 import * as D from "./data.js";

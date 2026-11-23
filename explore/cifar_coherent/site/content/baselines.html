@@ -1,52 +1,68 @@
-<p class="lede">This appendix puts the method's numbers next to the same numbers from <b>simpler methods</b> run on the
-same blocks, and from <b>null data</b> that keep some properties of the activations and destroy others. Each chart
-shows a reference drawn from one of these, so a reader can see whether a spectrum, a set of sets or an agreement score
-of the kind shown in the <a href="#explorer">Explorer</a> also appears without the structure in question. The charts
-describe; they do not grade. In the explorer, the <b>Sets from</b> control paints any of these sources on every
-panel.</p>
+<!-- Appendix B (App 2 in EXPERIMENTS_PLAN.md): is the method sound? Live figures data-live="bn-*" are drawn by
+     js/baselines.js from d/bn/ (site/baselines.py; facts bn.*); data-live="al-w4" by js/alignment.js from d/al/
+     (site/alignment.py; facts al.*). Ids w4 and iso are kept so that old #alignment/w4 and #alignment/iso links
+     land here. The construction ablations and the transfer-operator pilot moved to Appendix A (Construction
+     choices); the list of stored files moved to Appendix E (Reproduce). -->
+
+<p class="lede">The experiments read numbers produced by one construction. This appendix asks whether those numbers
+mean what they are taken to mean: it puts the method next to <b>simpler methods</b> run on the same blocks and next
+to <b>null data</b> that keep some properties of the activations and destroy others, and it checks how far the
+method's output moves with the sample, the starting point, the rank, the machine and the choice of distance. Each
+section opens with the question it checks about the method. The charts describe; they do not grade. In the
+<a href="#explorer">Explorer</a>, the <b>Sets from</b> control paints any of these sources on every panel.</p>
 
 <p>Everything here uses kernel rule {{fact:mode_name.rule0}} and the average operator $\bar M$ (the default
 construction), on the {{fact:n_images}} probe images. "The method" means SEBA sets from $\psi_0..\psi_{r-1}$ of $\bar M$,
 for $r \in \{2, 3, 4, 6, 8\}$ (definitions: <a href="#method-details/baselines-defs">Appendix C</a>). The sources were computed
-on all {{fact:bn.n_grid_blocks}} explorer blocks; the nulls with many draws, the stability checks and the ablations on
-twelve <b>representative blocks</b> fixed before any class outcome was looked at.</p>
+on all {{fact:bn.n_grid_blocks}} explorer blocks; the nulls with many draws and the stability checks on
+{{fact:bn.n_reps}} <b>representative blocks</b> fixed before any class outcome was looked at.</p>
 
-<details class="more"><summary>The twelve representative blocks</summary>
+<details class="more"><summary>The representative blocks</summary>
 <p>The single snapshots stem, b5, b9 and logits at step {{fact:final_step}}; the layer blocks stem to b3, b4 to b6, b7
-to b9 and stem to logits at step {{fact:final_step}}; b4 to b6 at steps 0 and 1,024; and the time blocks from step
-1,024 to {{fact:final_step}} at b5 and at b9.</p>
+to b9 and stem to logits at step {{fact:final_step}}; b4 to b6 at steps $0$ and $1{,}024$; and the time blocks from
+step $1{,}024$ to {{fact:final_step}} at b5 and at b9.</p>
 </details>
 
-<aside class="callout" id="read-null">
-<p class="callout-title">How to read a null band</p>
+<h2 id="read-null">Reading a null</h2>
+
+<p><i>What it checks.</i> Every number below is read against a reference. Without one, a spectrum or an agreement
+score cannot be told apart from what the same procedure returns on data that lack the structure in question; this
+section says how the references are built and how to read them.</p>
+
 <p>A <b>null</b> is a way of generating data, or labels, that keeps some properties of the real thing and destroys
-others. Running the method on many draws of a null gives a spread of values; the band shows that spread (here usually
-the 5th to 95th percentile of the draws). A real value inside the band is one that this generator's recorded draws
-covered; a value outside it lies outside the central 90% of the recorded draws. No null here is <i>the</i> null: each
-one answers a different question, so every chart names the null it shows and what that null keeps.</p>
+others. Running the method on many draws of a null gives a spread of values; the band shows that spread (here the
+5th to 95th percentile of the draws unless a caption says otherwise). A real value inside the band is one that this
+generator's recorded draws covered; a value outside it lies outside the central 90% of the recorded draws. No null
+here is <i>the</i> null: each one answers a different question, so every chart names the null it shows and what that
+null keeps.</p>
+
 <p><b>Agreement scores</b> come with a permutation value: the score when one labelling is shuffled across the images
 with its set sizes kept ({{fact:bn.n_perm}} shuffles for the stored comparisons, {{fact:bn.n_perm_site}} for the few
 computed by the site build). That 95th percentile is for <b>one</b> block and one $r$. If you scan many blocks and
 pick the largest score, compare it with the <b>scanned-blocks reference</b> instead: shuffle the labels in every
 block scanned, take the largest score over those blocks, repeat, and read the 95th percentile of that largest score.
 It comes from shuffled labels, not from the observed scores.</p>
-</aside>
 
 <details class="more" id="worked-example"><summary>A worked example: reading one agreement score</summary>
 <p>Open the explorer on the layer block b4 to b6 at step {{fact:final_step}}, $r = 4$, and choose <b>Sets from:
-cosine PCA + SEBA</b> (<a class="explore-link" href="#explorer?fam=layer&t=7&a=4&b=6&m=0&c=seba&r=4&src=L1">this
+cosine PCA + SEBA</b> (<a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=4&amp;b=6&amp;m=0&amp;c=seba&amp;r=4&amp;src=L1">this
 view</a>). The side card reads: AMI on jointly assigned images {{fact:bn.ex.ami}}, coverage {{fact:bn.ex.cov}},
 permutation 95th percentile {{fact:bn.ex.q95}}, scanned-blocks reference {{fact:bn.ex.max95}}. In words: both
 methods put {{fact:bn.ex.cov}} of the images in some set; on those images, how much the two partitions coincide is
-measured as {{fact:bn.ex.ami}} on a scale where 0 is what shuffled labels give and 1 is the same partition. Shuffling
+measured as {{fact:bn.ex.ami}} on a scale where $0$ is what shuffled labels give and $1$ is the same partition. Shuffling
 the labels of this one block gives values up to {{fact:bn.ex.q95}} in 95% of shuffles, and the largest over all
 {{fact:bn.ex.nblocks}} layer blocks at that step, under shuffling, stays below {{fact:bn.ex.max95}} in 95% of
-shuffles. Matched Jaccard: {{fact:bn.ex.mj}}, against a permutation mean of {{fact:bn.ex.mj_null}} (it is not near 0
+shuffles. Matched Jaccard: {{fact:bn.ex.mj}}, against a permutation mean of {{fact:bn.ex.mj_null}} (it is not near $0$
 under shuffling, because it depends on the set sizes). None of these numbers says which of the two partitions is
 preferable; they say how far they coincide.</p>
 </details>
 
 <h2 id="sources">The sources and the nulls</h2>
+
+<p><i>What it checks.</i> Which simpler procedures and which kinds of null data the method is compared with, and
+what each comparison can rule out. A source that returns the method's sets without its construction would make the
+construction unnecessary for those sets; a null that returns them would make them a property of what that null
+keeps.</p>
 
 <p>Status tags, as on the explorer's control: <span class="tag">S</span> a label-free spectral object built from dot
 products; <span class="tag">P</span> post-processing, a diagnostic or a null generator; <span class="tag">B</span> a
@@ -61,30 +77,35 @@ it has $r$ sets.</p>
 <tr><td>PCA + k-means</td><td>B</td><td>k-means on the block's PCA scores</td><td>the same, with a clustering fit instead of SEBA</td></tr>
 <tr><td>spherical k-means</td><td>B</td><td>k-means on the normalised activations, through the block Gram</td><td>a clustering of the cosine geometry with no spectral step</td></tr>
 <tr><td>method eigenvectors + k-means (plain, row-normalised)</td><td>S+B</td><td>k-means on the method's own $\psi$'s</td><td>SEBA against k-means on the same span</td></tr>
-<tr><td>textbook spectral clustering</td><td>S+B</td><td>the same 15-NN graphs with $D^{-1/2}AD^{-1/2}$, no Sinkhorn, no lazy step</td><td>what Sinkhorn, laziness and SEBA change together</td></tr>
+<tr><td>textbook spectral clustering</td><td>S+B</td><td>the same $k = 15$ nearest-neighbour graphs with $D^{-1/2}AD^{-1/2}$, no Sinkhorn, no lazy step</td><td>what Sinkhorn, laziness and SEBA change together</td></tr>
 <tr><td>first / middle / last snapshot</td><td>S+P</td><td>the method on one snapshot of the block</td><td>are the block's sets those of one of its snapshots?</td></tr>
 <tr><td>co-assignment consensus</td><td>P</td><td>a vote: how often the snapshots' own sets put two images together</td><td>voting on sets against averaging operators</td></tr>
 <tr><td>mean-projector consensus</td><td>S+P</td><td>the average of the snapshots' leading spans</td><td>spans only against full spectra</td></tr>
-<tr><td>pixels</td><td>S+P</td><td>the method on the network's input</td><td>do the sets belong to the images rather than the network?</td></tr>
-<tr><td>untrained network</td><td>S+P</td><td>the method on the same layer block at step 0</td><td>the same question, with an untrained network</td></tr>
-<tr><td>other training seed</td><td>S+P</td><td>the method on a second network (seed 1), final checkpoint</td><td>what two trainings share</td></tr>
-<tr><td>classes; predicted class</td><td>V</td><td>CIFAR labels; the network's prediction (10 sets each)</td><td>are the sets the labels or the output?</td></tr>
+<tr><td>pixels</td><td>S+P</td><td>the method on the network's input (normalised pixels) as one snapshot</td><td>do the sets belong to the images rather than the network?</td></tr>
+<tr><td>untrained network</td><td>S+P</td><td>the method on the same layer block at step $0$</td><td>the same question, with an untrained network</td></tr>
+<tr><td>other training seed</td><td>S+P</td><td>the method on the same layer block of a second network (seed 1), final checkpoint</td><td>what two trainings share</td></tr>
+<tr><td>classes; predicted class</td><td>V</td><td>CIFAR labels; the network's prediction (ten sets each)</td><td>are the sets the labels or the output?</td></tr>
 </table></div>
 
 <div class="table-scroll"><table class="data" id="nulls-table">
 <tr><th>null</th><th>status</th><th>keeps</th><th>destroys</th><th>where</th></tr>
-<tr><td>trajectory shuffle</td><td>P</td><td>every snapshot's walk exactly; the block's first snapshot is not shuffled</td><td>that row $i$ is the same image in every snapshot</td><td>20 draws on the representative blocks; one draw (seed 0) on every explorer block</td></tr>
-<tr><td>within-class trajectory shuffle</td><td>P+V</td><td>every snapshot, and each image's class in every snapshot</td><td>which image within a class is which, across snapshots</td><td>20 draws, representative blocks</td></tr>
-<tr><td>spectrum-matched Gaussian</td><td>P</td><td>each snapshot's feature-covariance spectrum, in expectation and before the pipeline's centring and row normalisation</td><td>higher moments; every link between snapshots</td><td>20 draws, representative blocks</td></tr>
-<tr><td>joint second-order surrogate</td><td>P</td><td>the mean and all within- and cross-snapshot second moments <i>before</i> the unit diagonal is restored; after restoring, the stored cross-snapshot second-moment diagnostic changes by up to {{fact:bn.n2b_mm_max}} over the twelve blocks ({{fact:bn.n2b_mm_b4b6}} for b4 to b6)</td><td>all image-level structure beyond second moments</td><td>20 draws, representative blocks</td></tr>
-<tr><td>degree-preserving rewiring</td><td>P</td><td>each image's number of graph neighbours</td><td>which images are neighbours</td><td>10 draws, representative blocks</td></tr>
+<tr><td>trajectory shuffle</td><td>P</td><td>every snapshot's walk exactly; the block's first snapshot is not shuffled</td><td>that row $i$ is the same image in every snapshot</td><td>$20$ draws on the representative blocks; one draw (seed 0) on every explorer block</td></tr>
+<tr><td>within-class trajectory shuffle</td><td>P+V</td><td>every snapshot, and each image's class in every snapshot</td><td>which image within a class is which, across snapshots</td><td>$20$ draws, representative blocks</td></tr>
+<tr><td>spectrum-matched Gaussian</td><td>P</td><td>each snapshot's feature-covariance spectrum, in expectation and before the pipeline's centring and row normalisation</td><td>higher moments; every link between snapshots</td><td>$20$ draws, representative blocks</td></tr>
+<tr><td>joint second-order surrogate</td><td>P</td><td>the mean and all within- and cross-snapshot second moments <i>before</i> the unit diagonal is restored; after restoring, the stored cross-snapshot second-moment diagnostic changes by up to {{fact:bn.n2b_mm_max}} over the representative blocks ({{fact:bn.n2b_mm_b4b6}} for b4 to b6)</td><td>all image-level structure beyond second moments</td><td>$20$ draws, representative blocks</td></tr>
+<tr><td>degree-preserving rewiring</td><td>P</td><td>each image's number of graph neighbours</td><td>which images are neighbours</td><td>$10$ draws, representative blocks</td></tr>
 <tr><td>random subspaces for SEBA</td><td>P</td><td>$N$ and $r$</td><td>the operator: SEBA rounds a random $(r-1)$-dimensional subspace</td><td>{{fact:bn.haar_draws}} draws per $r$</td></tr>
-<tr><td>random SEBA start</td><td>P</td><td>the span of $\psi_0..\psi_{r-1}$</td><td>the starting rotation of SEBA</td><td>20 draws, representative blocks</td></tr>
+<tr><td>random SEBA start</td><td>P</td><td>the span of $\psi_0..\psi_{r-1}$</td><td>the starting rotation of SEBA</td><td>$20$ draws, representative blocks</td></tr>
 <tr><td>label permutation</td><td>P</td><td>the set sizes and the number of unassigned images</td><td>which images are in which set</td><td>every agreement score</td></tr>
 <tr><td>isotropic Gaussian cells (synthetic)</td><td>P</td><td>$N$, the dimension, the pipeline; optionally a shared component across cells</td><td>everything else</td><td>planted benchmark P0</td></tr>
 </table></div>
 
-<h2 id="spectra">(a) Spectra against null bands</h2>
+<h2 id="spectra">Spectra against null bands</h2>
+
+<p><i>What it checks.</i> Whether the block operator's leading eigenvalues differ from those of data that keep part
+of the activations' structure and destroy the rest. If a null gave the same leading eigenvalues, the leading modes
+could come from what that null keeps (for the trajectory shuffle, each snapshot's own walk; for the Gaussian, each
+snapshot's covariance spectrum) rather than from the images being the same images across the block.</p>
 
 <figure class="fig wide live" data-live="bn-spectra" data-block="b4-b6">
 <figcaption><b>Plotted:</b> the eight leading non-trivial eigenvalues of the block operator, written as
@@ -94,115 +115,132 @@ real block and on the null draws: share of images unassigned, size of the smalle
 of the null draw's sets with the method's sets on the images both assign. Status: P (null generators).</figcaption>
 </figure>
 
-<h2 id="agreement">(b) Agreement between sources</h2>
+<p>Class agreement under the trajectory shuffle is not a zero reference: the shuffle leaves the block's first snapshot
+in place, so sets that follow that snapshot keep its class structure. Its band is in the table under this chart.</p>
 
-<figure class="fig wide live" data-live="bn-matrix" data-block="b4-b6">
-<figcaption><b>Plotted:</b> for one representative block and rank $r$, the agreement of every pair of sources' hard
-sets: AMI on the images both assign (or matched Jaccard), including the classes, the predicted class and one draw of
-each null. Hover a cell for the coverage (share of images both assign) and the permutation
-references for that pair (AMI: 95th percentile; matched Jaccard: mean and 95th percentile); a white dot marks a value
-at or below its own 95th percentile. Computed by the site build from the stored labels with
-{{fact:bn.n_perm_site}} permutations.</figcaption>
+<h2 id="agreement">Agreement between sources</h2>
+
+<p><i>What it checks.</i> Whether the method's sets are something a simpler procedure also returns, and whether they
+belong to the trained network rather than to the input images (the <b>pixels</b> source), to the architecture before
+training (the <b>untrained network</b> source) or to one training run (the <b>other training seed</b> source). High
+agreement with a simpler source says the construction is not needed for those sets; high agreement with pixels or
+with the untrained network says the sets could be read off the images or the architecture alone.</p>
+
+<figure class="fig wide live" data-live="bn-matrix" data-block="b7-b9">
+<figcaption><b>Plotted:</b> for one representative block (opening on b7 to b9 at step {{fact:final_step}}) and rank
+$r$, the agreement of every pair of sources' hard sets: AMI on the images both assign (or matched Jaccard), including
+the classes, the predicted class and one draw of each null. Hover a cell for the coverage (share of images both
+assign) and the permutation references for that pair (AMI: 95th percentile; matched Jaccard: mean and 95th
+percentile); a white dot marks a value at or below its own 95th percentile. Computed by the site build from the stored
+labels with {{fact:bn.n_perm_site}} permutations.</figcaption>
 </figure>
 
 <figure class="fig wide live" data-live="bn-dist">
 <figcaption><b>Plotted:</b> every explorer block of one checkpoint (layer blocks) or one site (time blocks): one dot
-per block for each source's agreement with the method's sets at the same block and $r$. Grey bar and tick: a reference from shuffled
-labels, not an observed value: the 95th percentile of the largest agreement over these blocks when every block's
-labels are shuffled; it is the reference for a value picked by scanning. The "classes" row is the method's sets against the class labels. Status tags as in the table above.</figcaption>
+per block for each source's agreement with the method's sets at the same block and $r$. Grey bar and tick: a
+reference from shuffled labels, not an observed value: the 95th percentile of the largest agreement over these blocks
+when every block's labels are shuffled; it is the reference for a value picked by scanning. The "classes" row is the
+method's sets against the class labels. Status tags as in the sources table.</figcaption>
 </figure>
 
-<p>Class agreement under the trajectory shuffle is not a zero reference: the shuffle leaves the block's first snapshot
-in place, so sets that follow that snapshot keep its class structure. Its band is in the table under chart (a).</p>
+<p id="input-rows">The three sources outside the network under study, on the representative blocks at step
+{{fact:final_step}}, $r = 4$: AMI of each source's sets with the method's sets on the images both assign, with the
+coverage in brackets. The permutation 95th percentile of every value in the table is at most
+{{fact:bn.src.r4.q95_max}}. The pixels source is one set of sets (the method on the input), compared with each
+block's sets; the untrained-network and other-seed sources are the same block computed on that network.</p>
 
-<h2 id="forced">(c) What forced extraction returns</h2>
+<div class="table-scroll"><table class="data" id="input-rows-table">
+<tr><th>representative block</th><th class="num">pixels</th><th class="num">untrained network</th><th class="num">other training seed</th></tr>
+<tr><td>stem</td><td class="num">{{fact:bn.src.cell_stem.r4.I1.ami}} ({{fact:bn.src.cell_stem.r4.I1.cov}})</td><td class="num">{{fact:bn.src.cell_stem.r4.I2.ami}} ({{fact:bn.src.cell_stem.r4.I2.cov}})</td><td class="num">{{fact:bn.src.cell_stem.r4.I3.ami}} ({{fact:bn.src.cell_stem.r4.I3.cov}})</td></tr>
+<tr><td>b5</td><td class="num">{{fact:bn.src.cell_b5.r4.I1.ami}} ({{fact:bn.src.cell_b5.r4.I1.cov}})</td><td class="num">{{fact:bn.src.cell_b5.r4.I2.ami}} ({{fact:bn.src.cell_b5.r4.I2.cov}})</td><td class="num">{{fact:bn.src.cell_b5.r4.I3.ami}} ({{fact:bn.src.cell_b5.r4.I3.cov}})</td></tr>
+<tr><td>b9</td><td class="num">{{fact:bn.src.cell_b9.r4.I1.ami}} ({{fact:bn.src.cell_b9.r4.I1.cov}})</td><td class="num">{{fact:bn.src.cell_b9.r4.I2.ami}} ({{fact:bn.src.cell_b9.r4.I2.cov}})</td><td class="num">{{fact:bn.src.cell_b9.r4.I3.ami}} ({{fact:bn.src.cell_b9.r4.I3.cov}})</td></tr>
+<tr><td>logits</td><td class="num">{{fact:bn.src.cell_logits.r4.I1.ami}} ({{fact:bn.src.cell_logits.r4.I1.cov}})</td><td class="num">{{fact:bn.src.cell_logits.r4.I2.ami}} ({{fact:bn.src.cell_logits.r4.I2.cov}})</td><td class="num">{{fact:bn.src.cell_logits.r4.I3.ami}} ({{fact:bn.src.cell_logits.r4.I3.cov}})</td></tr>
+<tr><td>stem to b3</td><td class="num">{{fact:bn.src.stem-b3.r4.I1.ami}} ({{fact:bn.src.stem-b3.r4.I1.cov}})</td><td class="num">{{fact:bn.src.stem-b3.r4.I2.ami}} ({{fact:bn.src.stem-b3.r4.I2.cov}})</td><td class="num">{{fact:bn.src.stem-b3.r4.I3.ami}} ({{fact:bn.src.stem-b3.r4.I3.cov}})</td></tr>
+<tr><td>b4 to b6</td><td class="num">{{fact:bn.src.b4-b6.r4.I1.ami}} ({{fact:bn.src.b4-b6.r4.I1.cov}})</td><td class="num">{{fact:bn.src.b4-b6.r4.I2.ami}} ({{fact:bn.src.b4-b6.r4.I2.cov}})</td><td class="num">{{fact:bn.src.b4-b6.r4.I3.ami}} ({{fact:bn.src.b4-b6.r4.I3.cov}})</td></tr>
+<tr><td>b7 to b9</td><td class="num">{{fact:bn.src.b7-b9.r4.I1.ami}} ({{fact:bn.src.b7-b9.r4.I1.cov}})</td><td class="num">{{fact:bn.src.b7-b9.r4.I2.ami}} ({{fact:bn.src.b7-b9.r4.I2.cov}})</td><td class="num">{{fact:bn.src.b7-b9.r4.I3.ami}} ({{fact:bn.src.b7-b9.r4.I3.cov}})</td></tr>
+<tr><td>stem to logits</td><td class="num">{{fact:bn.src.stem-logits.r4.I1.ami}} ({{fact:bn.src.stem-logits.r4.I1.cov}})</td><td class="num">{{fact:bn.src.stem-logits.r4.I2.ami}} ({{fact:bn.src.stem-logits.r4.I2.cov}})</td><td class="num">{{fact:bn.src.stem-logits.r4.I3.ami}} ({{fact:bn.src.stem-logits.r4.I3.cov}})</td></tr>
+</table></div>
 
-<p>SEBA and k-means declare $r$ set slots whatever they are given; some slots may stay empty, and SEBA can leave
-images unassigned. This section shows what SEBA returns from subspaces that carry no information about the images,
-and how much its answer moves with its starting rotation.</p>
+<p>How these sources relate to training is taken up in the experiments: the pixel statistics in
+<a href="#experiments/x-image-stats">the image-statistics experiment</a> and the other seed and other depths in
+<a href="#experiments/x-across-nets">the across-networks experiment</a>.</p>
+
+<h2 id="forced">What forced extraction returns</h2>
+
+<p><i>What it checks.</i> Whether SEBA returns sets even when there is nothing to find. SEBA and k-means declare $r$
+set slots whatever they are given; some slots may stay empty, and SEBA can leave images unassigned. If SEBA on a
+random subspace gave the same unassigned share and set sizes as on the method's eigenvectors, those properties of
+the sets would come from the rounding step, not from the operator. The second check asks how much SEBA's answer moves
+with its starting rotation.</p>
 
 <figure class="fig wide live" data-live="bn-haar" data-block="b4-b6">
 <figcaption><b>Plotted:</b> SEBA on {{fact:bn.haar_draws}} random $(r-1)$-dimensional subspaces orthogonal to the
 constant, $N$ = {{fact:n_images}}: median (dashed) and 5th to 95th percentile (band) of the share of images left
-unassigned, of the smallest set's share, or of the clipped negative mass; dots: the method on the twelve
-representative blocks. Table: on the chosen block, SEBA started from 20 random rotations of $\psi_0..\psi_{r-1}$,
-compared with the default start (joint AMI and coverage). Status: P.</figcaption>
+unassigned, of the smallest set's share, or of the clipped negative mass; dots: the method on the
+{{fact:bn.n_reps}} representative blocks. Table: on the chosen block, SEBA started from $20$ random rotations of
+$\psi_0..\psi_{r-1}$, compared with the default start (joint AMI and coverage). Status: P.</figcaption>
 </figure>
 
-<h2 id="stability">(d) Stability</h2>
+<h2 id="stability">Stability</h2>
+
+<p><i>What it checks.</i> Whether the sets would change with a different sample of images, on images the
+construction has not seen, with the rank $r$, or with one snapshot of the block left out. A grouping that moves with
+the sample cannot be read as a property of the network; one that survives on held-out images is not an artefact of
+fitting the probe.</p>
 
 <figure class="fig wide live" data-live="bn-stab" data-block="b4-b6">
-<figcaption><b>Plotted</b>, for one representative block: <b>S1</b>, agreement of the method's sets on ten 80%
-subsamples of the images (drawn without replacement; centring, normalisation, graph and balancing all recomputed)
-with the sets on all images, on the shared images; <b>S2</b>, a fit on 1,500 images extended to 500 held-out images
-with everything frozen (centring from the fit images, Sinkhorn factors, SEBA rotation), against a refit on all
-2,000, and the retention of each extended set on a graph built from the test images alone, minus its size null;
-<b>S3</b>, the conditional entropy of the sets at $r$ given the sets at $r' > r$; and the retention of the block's
-sets, recomputed without one snapshot, on the omitted snapshot and on the first snapshot after the block.</figcaption>
+<figcaption><b>Plotted:</b> for one representative block, <b>S1</b>, agreement of the method's sets on ten
+subsamples of $80\%$ of the images (drawn without replacement; centring, normalisation, graph and balancing all
+recomputed) with the sets on all images, on the shared images; <b>S2</b>, a fit on $1{,}500$ images extended to
+$500$ held-out images with everything frozen (centring from the fit images, Sinkhorn factors, SEBA rotation), against
+a refit on all {{fact:n_images}}, and the retention of each extended set on a graph built from the test images alone,
+minus its size null; <b>S3</b>, the conditional entropy of the sets at $r$ given the sets at $r' &gt; r$; and the
+retention of the block's sets, recomputed without one snapshot, on the omitted snapshot and on the first snapshot after
+the block.</figcaption>
 </figure>
 
-<details class="more"><summary>More views: subsample stability of every single snapshot, and the 10,000-image check</summary>
+<details class="more"><summary>More views: subsample stability of every single snapshot, and the check on the full CIFAR-10 test set</summary>
 <figure class="fig wide live" data-live="bn-s1cells">
 <figcaption><b>Plotted:</b> S1 for each single snapshot at step {{fact:final_step}}: median over the ten subsamples
 of the joint AMI (or the subspace overlap) with the full-sample sets, one line per $r$. Table: the default
-construction on the 10,000 CIFAR-10 test images for the representative blocks of at most three snapshots at the final
-step, with $k = 15$ and $k = 75$, compared on the 2,000 probe images with the 2,000-image sets (joint AMI, coverage
-in brackets).</figcaption>
+construction on the $10{,}000$ CIFAR-10 test images for the representative blocks of at most three snapshots at the
+final step, with $k = 15$ and $k = 75$, compared on the {{fact:n_images}} probe images with the probe-only sets
+(joint AMI, coverage in brackets).</figcaption>
 </figure>
 </details>
 
+<h2 id="linear">Linear content and CKA</h2>
 
-<p>Training seed: the "other training seed" source compares the method with the same block of a second network. Its
-agreement over all 78 layer blocks at step {{fact:final_step}} is a row of chart (b), and it is a column of the
-source-by-source matrix.</p>
+<p><i>What it checks.</i> Whether the method is principal components, or a standard similarity index, in another
+form. If the method's span reproduced the block's cosine Gram as well as the principal directions do, and the
+principal directions were as smooth under the walks as the method's eigenfunctions, the graph construction would add
+nothing to PCA; if CKA between snapshots tracked the overlap of their eigenfunctions and the agreement of their sets,
+it would add nothing to CKA.</p>
 
-<h2 id="ablations">(e) Construction ablations</h2>
-
-<p>Each row changes one choice of the default construction and keeps the rest.</p>
-
-<details class="more"><summary>The factors and their levels</summary>
-<p><b>A</b> the graph
-(union kNN with $k$ = 5, 15, 50, 150; mutual 15-NN; per-image perplexity 30, 100, 300; a locally scaled kernel; an
-$\varepsilon$-ball at the default's mean degree; four global temperatures), each also at a matched median effective
-neighbour count $1/\sum_j P_{ij}^2$; <b>B</b> the floor added before balancing; <b>C</b> the normalisation (Sinkhorn
-against $D^{-1/2}K^{(\alpha)}D^{-1/2}$ and the raw adjacency scaled by its norm); <b>D</b> the diagonal (kept kernel
-diagonal; products of non-lazy walks with laziness $\gamma$); <b>E</b> how a block combines its snapshots (mean of $M$,
-mean of $M^2$, ordered product, two-end product, products of heat kernels, one graph on the concatenated view, union
-and intersection graphs); <b>F</b> the weights of a time block's checkpoints; <b>G</b> the SEBA threshold; <b>H</b>
-the view (uncentred cosine; spatially averaged features); <b>I</b> the number of images.</p>
-</details>
-
-<figure class="fig full live" data-live="bn-ablate" data-block="b4-b6">
-<figcaption><b>Plotted</b>, one panel per factor, for one representative block and rank $r$: each level's sets
-against the default's (AMI on jointly assigned images with coverage and its own permutation 95th percentile; matched
-Jaccard with its permutation mean), the subspace overlap of its $r-1$ leading directions with the default's (chance in
-brackets), for Markov levels the level's own subsample stability (S1) and its first eigenvalue's excess over the
-trajectory-shuffle 95th percentile, and its leading eigenvalue or singular value in its own convention (named beside
-it; hover for the full statement). Levels that are not Markov operators, such as the raw adjacency, have no
-retention, stability or shuffle excess. Levels that could not be computed show the stored error.</figcaption>
-</figure>
-
-<h2 id="linear">(f) Linear content and CKA</h2>
-
-<p>Two linear summaries sit next to the method. <b>Variance capture</b> asks how much of the block's cosine Gram the
-method's span reproduces, against the best any span of that dimension can do (the principal directions). The
-<b>Dirichlet energy</b> asks the reverse: how smooth the principal directions are under the snapshots' walks,
-against the method's eigenfunctions. <b>CKA</b> (centred kernel alignment) compares the snapshots' Gram matrices with
-each other; here it is shown next to the overlap of their leading eigenfunctions and the agreement of their sets.</p>
+<p><b>Variance capture</b> asks how much of the block's cosine Gram the method's span reproduces, against the best any
+span of that dimension can do (the principal directions). The <b>Dirichlet energy</b> asks the reverse: how smooth the
+principal directions are under the snapshots' walks, against the method's eigenfunctions. <b>CKA</b> (centred kernel
+alignment) compares the snapshots' Gram matrices with each other; here it is shown next to the overlap of their
+leading eigenfunctions and the agreement of their sets.</p>
 
 <figure class="fig wide live" data-live="bn-linear" data-block="stem-logits">
-<figcaption><b>Plotted</b>, for one representative block: variance capture of the method's span in the block Gram
+<figcaption><b>Plotted:</b> for one representative block, variance capture of the method's span in the block Gram
 and the rank-$q$ optimum ($q = r - 1$), with the range over snapshots; the mean (and largest) Dirichlet energy over
 the snapshots of the method's $\psi_j$ and of the $j$-th principal direction; and, snapshot by snapshot, debiased
 linear CKA, the subspace overlap of the leading $r-1$ eigenfunctions, and the AMI of the single-snapshot sets (joint,
 with its permutation 95th percentile). Status: S for the spectral quantities, P for the set agreement.</figcaption>
 </figure>
 
-<h2 id="planted">(g) Planted benchmarks</h2>
+<h2 id="planted">Planted benchmarks</h2>
 
-<p>Synthetic data with a known answer, run through the production code path (centring, row normalisation, the same
-graph and operators), {{fact:bn.bench_units}} runs: 10 seeds, $N$ = 500, 1,000 and 2,000, each benchmark swept along
-one difficulty axis. Each cell (the synthetic analogue of a snapshot) is embedded by its own random isometry, which
+<p><i>What it checks.</i> Whether the method recovers structure where the answer is known, returns nothing where
+nothing is planted, and fails in the ways one would predict where the planted structure is not what it is built to
+find. On real activations there is no ground truth; synthetic data with a planted answer are the only place the
+method can be scored directly.</p>
+
+<p>The synthetic data run through the production code path (centring, row normalisation, the same graph and
+operators), {{fact:bn.bench_units}} runs: $10$ seeds, $N \in \{500, 1000, 2000\}$, each benchmark swept along one
+difficulty axis. Each cell (the synthetic analogue of a snapshot) is embedded by its own random isometry, which
 changes no dot product. The <b>oracle</b> knows the generative form: it projects each preprocessed cell onto the
 planted subspace and classifies there with a held-out kNN vote (chance-normalised accuracy $\kappa$) or regresses
 ($R^2$), so it shows how much of the planted information survives the preprocessing. Truth and oracle are validation
@@ -217,7 +255,7 @@ planted subspace and classifies there with a held-out kNN vote (chance-normalise
 <tr><td>P4</td><td>P1's groups, with some interior cells replaced by noise</td><td>number of noise cells</td></tr>
 <tr><td>P5</td><td>two linked great circles: groups with no linear separator</td><td>noise $s$</td></tr>
 <tr><td>P6</td><td>a circle with uneven sampling density, no partition</td><td>density modulation $\eta$</td></tr>
-<tr><td>P7</td><td>unequal groups (60/25/10/5%) with near-duplicate pairs</td><td>contamination condition</td></tr>
+<tr><td>P7</td><td>unequal groups (shares $60/25/10/5\%$) with near-duplicate pairs</td><td>contamination condition</td></tr>
 <tr><td>P8</td><td>two views of a circle, $\phi = 2\theta$ + noise, against independent pairing</td><td>phase noise $\sigma$</td></tr>
 <tr><td>P9</td><td>three cells each encoding a different contrast $u$, $v$, $uv$</td><td>signal $a$</td></tr>
 <tr><td>P10</td><td>a two-level tree whose lower split appears only in later cells</td><td>depth signal $\beta_{max}$</td></tr>
@@ -227,87 +265,89 @@ planted subspace and classifies there with a held-out kNN vote (chance-normalise
 
 <figure class="fig wide live" data-live="bn-bench">
 <figcaption><b>Plotted:</b> the chosen benchmark's statistic for each method against its difficulty axis, median
-over 10 seeds with the 10th to 90th percentile band; grey lines: the oracle or chance reference named under the
+over the seeds with the 10th to 90th percentile band; grey lines: the oracle or chance reference named under the
 chart. Charts follow the chart specification in <code>NOTES_B.md</code>.</figcaption>
 </figure>
 
-<details class="more"><summary>Run-to-run variation between machines</summary>
-<p>Run-to-run variation: <code>NOTES_B.md</code> compared two runs of the same code on different machines. Across
-{{fact:bn.rr.n_medians}} AMI medians the largest difference was {{fact:bn.rr.max_diff}} and the 99th percentile
-{{fact:bn.rr.p99_diff}}; {{fact:bn.rr.share_over_001}} of medians differed by more than 0.01 and
-{{fact:bn.rr.share_over_005}} by more than 0.05; on P3, P3L, P4, P5, P9, P10 and P11 the difference was at most
-{{fact:bn.rr.headline_max}}. The differences sit in transition regimes, where floating-point differences between hosts
+<details class="more" id="run-to-run"><summary>Run-to-run variation between machines</summary>
+<p><i>What it checks.</i> Whether the benchmark numbers depend on the machine they were computed on.
+<code>NOTES_B.md</code> compared two runs of the same code on different machines. Across {{fact:bn.rr.n_medians}}
+AMI medians the largest difference was {{fact:bn.rr.max_diff}} and the 99th percentile {{fact:bn.rr.p99_diff}};
+{{fact:bn.rr.share_over_001}} of medians differed by more than $0.01$ and {{fact:bn.rr.share_over_005}} by more than
+$0.05$; on P3, P3L, P4, P5, P9, P10 and P11 the difference was at most {{fact:bn.rr.headline_max}}.
+<code>NOTES_B.md</code> locates the differences in transition regimes, where floating-point differences between hosts
 flip near-tied neighbours and votes. The intersection-graph variant often has repeated eigenvalues, and its sets
 differed between the runs in {{fact:bn.rr.intersection_rows_differ}} of {{fact:bn.rr.intersection_rows}} AMI rows.
 Values from one run are deterministic per seed.</p>
 </details>
 
-<h2 id="transfer">(h) The transfer-operator pilot</h2>
+<h2 id="w4">Do the operator distances order pairs the same way?</h2>
 
-<p>A pilot of one more variant, labelled as such. For two snapshots $a$ and $b$ of the same images, the transfer
-operator $(Tf)(y) = \mathbb E[f(X) \mid Y = y]$ maps a function of the images at $a$ to its best prediction at $b$;
-its singular functions are the pairs of source and destination observables with the largest correlation. Because
-each image is one exact pair, an unrestricted estimate reproduces the pairing itself, so every estimate here uses a
-declared finite function space and is judged on <b>held-out</b> images. Estimators: linear CCA on cosine PCA scores,
-a soft Ulam joint table on landmarks, and whitened cross-covariance on Nyström or diffusion-coordinate features (the
-ridge terms are fits). Twelve pairs were fixed in advance; each of {{fact:bn.tr_splits}} splits uses
-{{fact:bn.tr_split_sizes}} images (fit / tuning / test). The control permutes the pairing inside each split and
-repeats the whole procedure, tuning included ({{fact:bn.tr_perm}} permutations).</p>
+<p class="al-data al-data-{{fact:al.data_slug}}">{{fact:al.data_note}}</p>
 
+<p><i>What it checks.</i> The experiments that compare operators (across depth, over training, across networks) read
+one distance at one cut $k$. If another distance, or another cut, ordered the same pairs of snapshots differently, a
+statement made with one of them would be a statement about that choice. This section measures how far the
+distances agree on which pairs are close, including a standard baseline (CKA) that is not part of the construction.</p>
 
+<p>The distances, between two snapshots on the same {{fact:al.n_images}} images (full definitions, cut diagnostics
+and floors: <a href="#method-details">Appendix C</a>): the <b>projector distance</b>
+$d_k = 1 - \|U_k(A)^\top U_k(B)\|_F^2 / k$ between leading-$k$ eigenfunction spans, $k \in \{${{fact:al.k_grid}}$\}$;
+the <b>diffusion-kernel distance</b> $h_t$, one minus the cosine between $M_A^t - \mathbf 1\mathbf 1^\top/N$ and
+$M_B^t - \mathbf 1\mathbf 1^\top/N$, with no cut, $t \in \{${{fact:al.t_grid}}$\}$; the <b>eigenvalue-only
+distance</b> $s_k$, which ignores the eigenvectors; and the <b>CKA distance</b> $1 - \mathrm{CKA}$ of the two
+centred cosine Grams (baseline).</p>
 
-<figure class="fig wide live" data-live="bn-tr-real">
-<figcaption><b>Plotted:</b> one real pair and estimator: held-out correlation of each of the six leading fitted
-functions, median and range over the {{fact:bn.tr_splits}} splits, with the 95th percentile of the independence
-control. The text under the chart gives the overlap of the leading source functions with the source span of the
-existing product $Q = M_bM_a$ and with the two-snapshot average, against chance (computed on all images, so
-transductive).</figcaption>
+<figure class="fig wide live" data-live="al-w4" id="fig-w4">
+<figcaption><b>Plotted:</b> Spearman rank correlation between two distances, taken over a fixed set of snapshot
+pairs; rows and columns: $d_k$ for every $k$, $h_t$ for every $t$, the eigenvalue-only $s_k$ for every $k$ and the CKA
+baseline; colour from $-1$ (blue) through $0$ (grey) to $1$ (red). Pair sets: <i>within</i>, every pair of distinct
+snapshots of one network that share a checkpoint or a site (all {{fact:al.n_nets}} networks,
+{{fact:al.w4.within.rule0.n_pairs}} pairs under rule $0$); <i>across</i>, every site pair of two networks with different
+seeds at the final checkpoint (including the two seeds of each depth; {{fact:al.w4.cross.rule0.n_pairs}} pairs under
+rule $0$).</figcaption>
 </figure>
 
-<details class="more"><summary>More views: synthetic check, supported functions per pair, the 10,000-image sample-size curve and the composition test</summary>
-<figure class="fig wide live" data-live="bn-tr-syn">
-<figcaption><b>Plotted:</b> synthetic check on benchmark P8 ($\sigma$ = {{fact:bn.tr_sigma}}), where the operator's
-singular values are known: held-out correlation of one fitted function against the number of fit images, per
-estimator, with the known value (line) and the independence-control band. Status: S (ridge terms are fits).</figcaption>
-</figure>
+<p>Selected Spearman correlations (the full matrices are in the chart):</p>
 
-<figure class="fig wide live" data-live="bn-tr-support">
-<figcaption><b>Plotted:</b> for each real pair (rows) and estimator and landmark count (columns), the number of
-leading functions counted as supported at this resolution by the preregistered rule. Hover for the per-function split
-counts and the held-out VAMP-2 score (the squared Frobenius norm of the test-split cross-covariance of the six fitted
-source and destination functions, each side whitened by its regularised test covariance with the tuned ridge; see
-<a href="#method-details/baselines-transfer">Appendix C</a>) with its control value.</figcaption>
-</figure>
+<div class="table-scroll"><table class="data" id="w4-table">
+<tr><th>pair of distances</th><th class="num">within, rule $0$</th><th class="num">across, rule $0$</th><th class="num">within, rule $1$</th><th class="num">across, rule $1$</th></tr>
+<tr><td>number of snapshot pairs</td><td class="num">{{fact:al.w4.within.rule0.n_pairs}}</td><td class="num">{{fact:al.w4.cross.rule0.n_pairs}}</td><td class="num">{{fact:al.w4.within.rule1.n_pairs}}</td><td class="num">{{fact:al.w4.cross.rule1.n_pairs}}</td></tr>
+<tr><td>smallest between any two cuts $d_k$, $d_{k'}$</td><td class="num">{{fact:al.w4.within.rule0.proj_min}}</td><td class="num">{{fact:al.w4.cross.rule0.proj_min}}</td><td class="num">{{fact:al.w4.within.rule1.proj_min}}</td><td class="num">{{fact:al.w4.cross.rule1.proj_min}}</td></tr>
+<tr><td>$d_1$ vs $d_{64}$</td><td class="num">{{fact:al.w4.within.rule0.proj_k1.proj_k64}}</td><td class="num">{{fact:al.w4.cross.rule0.proj_k1.proj_k64}}</td><td class="num">{{fact:al.w4.within.rule1.proj_k1.proj_k64}}</td><td class="num">{{fact:al.w4.cross.rule1.proj_k1.proj_k64}}</td></tr>
+<tr><td>$d_9$ vs $d_{16}$</td><td class="num">{{fact:al.w4.within.rule0.proj_k9.proj_k16}}</td><td class="num">{{fact:al.w4.cross.rule0.proj_k9.proj_k16}}</td><td class="num">{{fact:al.w4.within.rule1.proj_k9.proj_k16}}</td><td class="num">{{fact:al.w4.cross.rule1.proj_k9.proj_k16}}</td></tr>
+<tr><td>$d_9$ vs $d_{64}$</td><td class="num">{{fact:al.w4.within.rule0.proj_k9.proj_k64}}</td><td class="num">{{fact:al.w4.cross.rule0.proj_k9.proj_k64}}</td><td class="num">{{fact:al.w4.within.rule1.proj_k9.proj_k64}}</td><td class="num">{{fact:al.w4.cross.rule1.proj_k9.proj_k64}}</td></tr>
+<tr><td>$d_9$ vs $h_{16}$</td><td class="num">{{fact:al.w4.within.rule0.proj_k9.heat_t16}}</td><td class="num">{{fact:al.w4.cross.rule0.proj_k9.heat_t16}}</td><td class="num">{{fact:al.w4.within.rule1.proj_k9.heat_t16}}</td><td class="num">{{fact:al.w4.cross.rule1.proj_k9.heat_t16}}</td></tr>
+<tr><td>$h_1$ vs $h_{256}$</td><td class="num">{{fact:al.w4.within.rule0.heat_t1.heat_t256}}</td><td class="num">{{fact:al.w4.cross.rule0.heat_t1.heat_t256}}</td><td class="num">{{fact:al.w4.within.rule1.heat_t1.heat_t256}}</td><td class="num">{{fact:al.w4.cross.rule1.heat_t1.heat_t256}}</td></tr>
+<tr><td>$d_9$ vs CKA (baseline)</td><td class="num">{{fact:al.w4.within.rule0.proj_k9.cka}}</td><td class="num">{{fact:al.w4.cross.rule0.proj_k9.cka}}</td><td class="num">{{fact:al.w4.within.rule1.proj_k9.cka}}</td><td class="num">{{fact:al.w4.cross.rule1.proj_k9.cka}}</td></tr>
+<tr><td>$h_{16}$ vs CKA (baseline)</td><td class="num">{{fact:al.w4.within.rule0.heat_t16.cka}}</td><td class="num">{{fact:al.w4.cross.rule0.heat_t16.cka}}</td><td class="num">{{fact:al.w4.within.rule1.heat_t16.cka}}</td><td class="num">{{fact:al.w4.cross.rule1.heat_t16.cka}}</td></tr>
+<tr><td>$d_9$ vs eigenvalue-only $s_9$</td><td class="num">{{fact:al.w4.within.rule0.proj_k9.eigd_k9}}</td><td class="num">{{fact:al.w4.cross.rule0.proj_k9.eigd_k9}}</td><td class="num">{{fact:al.w4.within.rule1.proj_k9.eigd_k9}}</td><td class="num">{{fact:al.w4.cross.rule1.proj_k9.eigd_k9}}</td></tr>
+</table></div>
 
-<figure class="fig wide live" data-live="bn-tr-10k">
-<figcaption><b>Plotted:</b> the sample-size curve from the 10,000 CIFAR-10 test images (split
-{{fact:bn.tr10k_split}}): held-out correlation of the first six functions at $N_{fit}$ = {{fact:bn.tr10k_curve}},
-with the control band ({{fact:bn.tr10k_perm}} permutations). Final checkpoint pairs only.</figcaption>
-</figure>
+<p>A rank correlation says whether two distances put pairs in the same order; it does not say whether a cut is
+resolved. Whether a cut separates eigenvalues reproducibly is a separate check (the cut diagnostics in
+<a href="#method-details">Appendix C</a>; the choice of $k$ in <a href="#choices">Appendix A</a>).</p>
 
-<figure class="fig wide live" data-live="bn-tr-comp">
-<figcaption><b>Plotted:</b> on {{fact:bn.tr_triples}} chains $a \to b \to c$ fixed by the builder, the norms of the
-two exact parts of the composition discrepancy $T_{bc}T_{ab} - T_{ac}$ (regulariser term and partial term) and of the
-held-out residual cross-moment, against the requested size of the intermediate basis (actual dimensions annotated);
-the norms of the parts do not add up to the norm of the discrepancy, which is not plotted. Right: the partial term and
-the held-out residual on a synthetic chain that is Markov by construction and on the same chain re-paired at
-random.</figcaption>
-</figure>
-</details>
+<h2 id="iso">Iso-accuracy (secondary)</h2>
 
+<p><i>What it checks.</i> Whether comparing networks of different depth at the same training step confounds depth
+with progress: deeper networks reach a given test accuracy at a different step. As a secondary comparison, ResNet-20
+at its final checkpoint is also compared with each deeper network at the earliest saved checkpoint whose test
+accuracy is at least ResNet-20's final accuracy (same seed), accepted only if it overshoots that target by at most
+$0.5$ points. This choice is <b>conditioned on an outcome and uses test labels</b>: it is a validation analysis, not
+part of the label-free construction, and the equal-step comparisons in
+<a href="#experiments/x-across-nets">the across-networks experiment</a> are primary.</p>
 
+<div class="table-scroll"><table class="data" id="iso-table">
+<tr><th>network</th><th class="num">target (ResNet-20 final, same seed)</th><th class="num">earliest step at or above</th><th class="num">its accuracy</th><th class="num">overshoot</th><th>status</th></tr>
+<tr><td>ResNet-32 seed 0</td><td class="num">{{fact:al.iso.r32s0.target}}</td><td class="num">{{fact:al.iso.r32s0.step}}</td><td class="num">{{fact:al.iso.r32s0.accuracy}}</td><td class="num">{{fact:al.iso.r32s0.overshoot}}</td><td>{{fact:al.iso.r32s0.reason}}</td></tr>
+<tr><td>ResNet-32 seed 1</td><td class="num">{{fact:al.iso.r32s1.target}}</td><td class="num">{{fact:al.iso.r32s1.step}}</td><td class="num">{{fact:al.iso.r32s1.accuracy}}</td><td class="num">{{fact:al.iso.r32s1.overshoot}}</td><td>{{fact:al.iso.r32s1.reason}}</td></tr>
+<tr><td>ResNet-56 seed 0</td><td class="num">{{fact:al.iso.r56s0.target}}</td><td class="num">{{fact:al.iso.r56s0.step}}</td><td class="num">{{fact:al.iso.r56s0.accuracy}}</td><td class="num">{{fact:al.iso.r56s0.overshoot}}</td><td>{{fact:al.iso.r56s0.reason}}</td></tr>
+<tr><td>ResNet-56 seed 1</td><td class="num">{{fact:al.iso.r56s1.target}}</td><td class="num">{{fact:al.iso.r56s1.step}}</td><td class="num">{{fact:al.iso.r56s1.accuracy}}</td><td class="num">{{fact:al.iso.r56s1.overshoot}}</td><td>{{fact:al.iso.r56s1.reason}}</td></tr>
+</table></div>
 
-<p>The pilot also stores SEBA sets built from the transfer functions where their held-out stability passed a
-threshold. They are exploratory summaries computed on all images after fitting (the held-out correlations evaluate
-the fitted function pairs on held-out images, not the partitions), and they are not shown on this page or in the
-explorer.</p>
-
-<h2 id="sources-files">Where the numbers come from</h2>
-
-<p>Stored by the baselines study (<code>explore/cifar_baselines/</code>; schema in <code>SCHEMA.md</code>): the
-sources' labels and their agreement rows on every explorer block, the null draws, stability, linear content and
-ablations of the representative blocks, the random-subspace SEBA runs, the planted-benchmark summaries
-(<code>NOTES_B.md</code>) and the transfer pilot (<code>TRANSFER.md</code>). Computed by the site build with the
-study's own functions: the predicted-class agreement rows, the agreement of the stored null draws with the method, the
-source-by-source matrices and the snapshot-by-snapshot set agreement ({{fact:bn.n_perm_site}} permutations each).
-The added data take {{fact:bn.site_mb}} MB.</p>
+<p>Where a network's checkpoint is not accepted, its iso-accuracy comparison is not made: the tolerance was fixed
+before the run and is not relaxed afterwards. In the cross-network figures, "iso-accuracy" is offered as the
+checkpoint of a ResNet-20 / deeper pair only for pairs with an accepted checkpoint. With a single accepted deeper
+network there is no seed floor at iso-accuracy for that depth (it would need the other seed at its own accepted
+checkpoint).</p>

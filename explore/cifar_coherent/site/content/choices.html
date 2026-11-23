@@ -1,0 +1,506 @@
+<!-- Appendix A (App 1 in EXPERIMENTS_PLAN.md): construction choices. Numbers: facts x.app-choices.* from
+     site/experiments/app_choices.py (assets/x/app-choices.{json,facts.json}, assets/fig/app_choices_*.png), plus shared
+     facts (final_step, mode_name.*, bn.*, al.*). Live figures bn-* from js/baselines.js, al-w3 from js/alignment.js.
+     Ids sweep, avgprod, hankel-detail, product-blocks, umap (from Appendix C), ablations, transfer (from Appendix B)
+     and w3 (from the Alignment appendix) are kept so that old links land here. -->
+
+<p class="lede">Every number in the experiments comes from one construction with a handful of choices: which kernel
+turns activations into a walk, whether distances use the cosine or the full dot product, whether a block averages its
+snapshots' walks or composes them, how many eigenfunctions SEBA rotates ($r$) and how many an operator comparison keeps
+($k$). This appendix records each choice, the label-free diagnostic it was made on, and how much the output moves
+when the choice changes. Labels appear only as validation columns, computed after the choice.</p>
+
+<nav class="callout" id="choices-toc"><p class="callout-title">Contents</p><ol>
+<li><a href="#choices/sweep">Kernel rules and the sweep behind them</a></li>
+<li><a href="#choices/kernel-dot">Cosine or dot product (Euclidean)</a></li>
+<li><a href="#choices/avgprod">Average versus product</a></li>
+<li><a href="#choices/ablations">Construction ablations and the robustness of the end-of-training sets</a></li>
+<li><a href="#choices/choice-r">The SEBA rank $r$</a></li>
+<li><a href="#choices/w3">The cut $k$ of an operator comparison</a></li>
+<li><a href="#choices/umap">Layouts (display only)</a></li>
+<li><a href="#choices/variants">Variants: the transfer-operator pilot</a></li>
+</ol></nav>
+
+<!-- ================================================================================================ 1. kernel rules -->
+<h2 id="sweep">Kernel rules and the sweep behind them</h2>
+
+<p>The explorer offers five kernel rules (formulas in <a href="#method/kappa">Method</a>): rule 0,
+{{fact:mode_name.rule0}} (the default); rules 1 and 2, {{fact:mode_name.rule1}} and {{fact:mode_name.rule2}}; rule 3,
+{{fact:mode_name.rule3}}; rule 4, {{fact:mode_name.rule4}}. Rules 3 and 4 are kept as references for the two ways a
+single temperature fails in the middle layers (<a href="#method/kernel">Method</a>). They were picked from a sweep of
+{{fact:x.app-choices.sweep.n_rules}} candidates on label-free diagnostics only.</p>
+
+<p>Candidates (<code>data/r20s0b/sweep.json</code>, produced by <code>sweep_math.py</code>): one global $\kappa$ from
+{{fact:x.app-choices.sweep.global}}; $\kappa$ calibrated to a median 15-NN mass share of
+{{fact:x.app-choices.sweep.mass}}; per-image perplexity {{fact:x.app-choices.sweep.perplexity}}; kNN graphs with $k$
+from {{fact:x.app-choices.sweep.union_knn}}. Snapshots: {{fact:x.app-choices.sweep.sites}} at steps
+{{fact:x.app-choices.sweep.steps}}. Each snapshot's operator is computed alone ($M = \tfrac12(I + P)$, Sinkhorn as in
+<a href="#method/operator">Method</a>). Label-free diagnostics: the participation number $\mathrm{PN}(\psi) = 1/\sum_i
+\psi_i^4$ of the unit vectors $\psi_1..\psi_8$ ($N$ when all entries have equal size, $2$ when two images carry
+everything); $1 - \lambda_1..\lambda_8$; the sizes of the SEBA sets for $r = 4, 8$; and Sinkhorn stability. Matched
+Jaccard of the SEBA sets with the classes was computed after the choice, as validation.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/rules.png" alt="Participation number of the leading eigenvector, one minus its eigenvalue, and the smallest SEBA set, against a single global kappa for five sites, with the per-image rules shown at the right of each panel.">
+  <figcaption><b>Plotted:</b> single-snapshot operators at step {{fact:final_step}}, one line per site (b2, b5, b8, pool,
+  logits; light to dark). Wide part of each panel: one global $\kappa$ for the snapshot (log axis); red crosses: the
+  $\kappa$ the calibrated half-mass rule picks in that snapshot. Narrow grey part: the per-image rules (kNN graph
+  $k = 15$, perplexity $100$, perplexity $300$). Left: $\mathrm{PN}(\psi_1)$, log scale, dashed line at $2$. Middle:
+  $1 - \lambda_1$. Right: size of the smallest of the $r = 8$ SEBA sets, log scale (a size of $0$ is drawn at the
+  floor). Source: <code>sweep.json</code>.<br>
+  <b>Values:</b> $1 - \lambda_1$ in b2, b5, b8 at step {{fact:final_step}}: {{fact:x.app-choices.sweep.gap1.global_small}}
+  for global $\kappa \in \{2, 3, 5\}$; {{fact:x.app-choices.sweep.gap1.per_image}} under the per-image rules.</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img src="assets/fig/sweep.png" alt="Participation number, one minus the leading eigenvalue, and class agreement of SEBA sets for every candidate kernel rule and five sites at the final checkpoint.">
+  <figcaption><b>Plotted:</b> all {{fact:x.app-choices.sweep.n_rules}} candidate rules at step {{fact:final_step}},
+  single-snapshot operators, one line per site (b2, b5, b8, pool, logits; light to dark). x: the rule's parameter,
+  grouped by family (global $\kappa$; median 15-NN mass target; per-image perplexity; kNN graph $k$). Top: median
+  $\mathrm{PN}$ of $\psi_1..\psi_8$ (solid) and minimum (dotted), log scale, dashed line at $2$. Middle: $1 -
+  \lambda_1$ of $M$. Bottom: matched Jaccard of the $r = 8$ SEBA sets with the ten classes (validation, computed after
+  the choice). Source: <code>sweep.json</code>.</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img src="assets/fig/kappa.png" alt="Kernel weight against neighbour rank, cumulative kernel mass against rank, and achieved 15-neighbour mass by site, for five single-kappa rules.">
+  <figcaption><b>Plotted:</b> five single-$\kappa$ kernels $\exp(-\kappa d)$ at step {{fact:final_step}}: kNN scale,
+  the two-distance half-mass heuristic, calibrated half-mass, global $\kappa = 5$, global $\kappa = 30$ (legend: their
+  $\kappa$ at b5). Left: weight of the $m$-th nearest neighbour relative to the nearest, at the median distance over
+  images for each rank, b5; dotted line at $m = 15$. Middle: share of an image's kernel mass (self excluded, before
+  Sinkhorn) in its $m$ nearest neighbours, median over images, b5; dotted lines at $m = 15$ and one half. Right: that
+  share at $m = 15$, per site. Recomputed by <code>site/figdata.py</code> from the same checkpoint and probe.</figcaption>
+</figure>
+
+<!-- ================================================================================================ 2. cosine vs dot -->
+<h2 id="kernel-dot">Cosine or dot product (Euclidean)</h2>
+
+<p>Every rule above is a function of the cosine distance $d_{ij} = 1 - \cos_{ij}$, which on unit-norm activations
+equals $\lVert \hat x_i - \hat x_j \rVert^2/2$: the construction normalises each image's activation vector and so
+discards its norm. The <b>dot (Euclidean)</b> variant keeps the norm. It replaces $d_{ij}$ by the half squared
+Euclidean distance induced by the same dot product on the unnormalised, flattened activations,
+$D_{ij} = (G_{ii} + G_{jj})/2 - G_{ij} = \lVert x_i - x_j \rVert^2/2$ with $G = XX^\top$, divided by one global scale
+per snapshot (the mean of $G_{ii}$ over the probe after centring). All five rules are invariant to that scale, and on
+unit rows $D$ is exactly $1 - \cos$, so the cosine construction is the special case. Everything else is unchanged:
+probe, checkpoints, sites, rules, scaling, $M = \tfrac12(I + P)$, SEBA, products (<code>SPEC_DOT.md</code>; data tag
+<code>r20s0d</code>).</p>
+
+<p>Two identities limit what "dot product" can mean here. For the global-$\kappa$ rules (3 and 4), $\exp(\kappa
+G_{ij})$ and $\exp(-\kappa D_{ij})$ differ by a factor $a_i a_j$ with $a_i = \exp(\kappa G_{ii}/2)$, which the
+symmetric scaling removes, so an exponentiated dot product is not a separate rule. For the rank-based rules (0, 1, 2),
+ranking neighbours by the raw dot product $G_{ij}$ (maximum inner product) does not come from a metric; it was run
+once as a diagnostic, below.</p>
+
+<p><b>How the two are compared.</b> Agreement of two operators is the mean $\cos^2$ of the principal angles between
+their leading non-trivial spans ($r$ eigenvectors, constant excluded; a random span gives about $r/N$, with $N$ =
+{{fact:x.app-choices.n_images}}). Label-free diagnostics beside it: the largest 15-NN in-degree (how many images list
+one image among their 15 nearest), the 15-NN overlap between the two distances, and the participation number of the
+leading eigenvectors. Validation only: agreement of each span with the nine-dimensional span of the class indicators.
+Leading modes were recomputed in <code>float64</code> from the saved operators (<code>data/kernels/compare_single.json</code>,
+<code>compare_blocks.json</code>, <code>compare_ggn.json</code>); every comparison stores the eigenvalue gap at its
+cutoff, since a near-tie there makes a fixed-rank span unstable.</p>
+
+<p><b>Measured</b> (single snapshots, step {{fact:x.app-choices.final_step}}). Cosine–dot span agreement at $r = 4$ is
+{{fact:x.app-choices.dot.r4.rule0.early}} under rule 0 and {{fact:x.app-choices.dot.r4.rule1.early}} under rule 1 at
+{{fact:x.app-choices.dot.early_sites}}, and {{fact:x.app-choices.dot.r4.late}} under both rules at
+{{fact:x.app-choices.dot.late_sites}}. At {{fact:x.app-choices.dot.early_sites}} the largest Euclidean 15-NN in-degree
+is {{fact:x.app-choices.dot.indeg.dot.early}} of {{fact:x.app-choices.n_images}} images, against
+{{fact:x.app-choices.dot.indeg.cos.early}} for cosine, and the two distances share
+{{fact:x.app-choices.dot.nn_overlap.early}} of each image's 15 nearest neighbours; at
+{{fact:x.app-choices.dot.late_sites}} the largest in-degree under either distance is
+{{fact:x.app-choices.dot.indeg.late}}. Under rule 0 the dot construction's $\psi_1$ has participation number
+{{fact:x.app-choices.dot.pn1.rule0.dot.early}} at {{fact:x.app-choices.dot.early_sites}} (at most $3$ at
+{{fact:x.app-choices.dot.pn1.rule0.dot.early_n_le3}} of these {{fact:x.app-choices.dot.n_early}} sites), against
+{{fact:x.app-choices.dot.pn1.rule0.cos.all}} for cosine at every site. Under rule 1 the median participation number of
+$\psi_1..\psi_8$ at {{fact:x.app-choices.dot.early_sites}} is {{fact:x.app-choices.dot.pnmed.rule1.dot.early}}
+(dot) against {{fact:x.app-choices.dot.pnmed.rule1.cos.early}} (cosine). For the full stem–logits layer block (average
+operator) the span agreement at $r = 4$ is {{fact:x.app-choices.dot.full.rule0.span4}} (rule 0) and
+{{fact:x.app-choices.dot.full.rule1.span4}} (rule 1), and the matched Jaccard of the SEBA sets is
+{{fact:x.app-choices.dot.full.rule0.sets4}} and {{fact:x.app-choices.dot.full.rule1.sets4}} at $r = 4$,
+{{fact:x.app-choices.dot.full.rule0.sets8}} and {{fact:x.app-choices.dot.full.rule1.sets8}} at $r = 8$. Validation:
+the median over sites of the class-span agreement at $r = 10$ is {{fact:x.app-choices.dot.class10.rule0.cos.median}}
+(cosine) and {{fact:x.app-choices.dot.class10.rule0.dot.median}} (dot) under rule 0,
+{{fact:x.app-choices.dot.class10.rule1.cos.median}} and {{fact:x.app-choices.dot.class10.rule1.dot.median}} under
+rule 1.</p>
+
+<p><b>The choice.</b> The construction stays on cosine. The dot product on each view is the theory's one geometric
+assumption, and the cosine is that dot product on normalised activations; the norm-keeping variant is the
+alternative this section measured. On this network the measured differences are the ones above: at
+{{fact:x.app-choices.dot.early_sites}}, under rule 0, larger largest in-degrees and leading eigenvectors with smaller
+participation numbers; at {{fact:x.app-choices.dot.late_sites}}, span agreement of {{fact:x.app-choices.dot.r4.late}}
+between the two.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/app-choices.json#dot_span" data-height="300">
+  <figcaption><b>Plotted:</b> for each site's single snapshot at step {{fact:x.app-choices.final_step}}, the mean
+  $\cos^2$ of principal angles between the leading non-trivial span of the cosine operator and that of the dot
+  (Euclidean) operator; colour: kernel rule (rule 0, rule 1); solid: $r = 4$ eigenvectors; dashed: $r = 10$. A random
+  pair of spans gives about $r/N$. Source: <code>compare_single.json</code>.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/app-choices.json#dot_indeg" data-height="260">
+  <figcaption><b>Plotted:</b> for each site at step {{fact:x.app-choices.final_step}}, the largest in-degree of the
+  directed 15-nearest-neighbour graph (the number of images that list one image among their 15 nearest), under the
+  cosine distance and under the Euclidean distance of the unnormalised activations; y from $0$ to $N$. Label-free.
+  Source: <code>compare_single.json</code> (<code>hubness</code>).</figcaption>
+</figure>
+
+<figure class="fig wide">
+  <img src="assets/fig/app_choices_pn.png" alt="Participation number of the leading eigenvector and median participation number of the first eight eigenvectors, by site, for the cosine and dot constructions under rules 0 and 1.">
+  <figcaption><b>Plotted:</b> for each site's single snapshot at step {{fact:x.app-choices.final_step}}, the
+  participation number $1/\sum_i \psi_i^4$ of the unit eigenvectors of $M$ (log scale): solid, $\psi_1$; dashed, the
+  median over $\psi_1..\psi_8$; blue, cosine construction; orange, dot (Euclidean) construction. Left panel: rule 0;
+  right panel: rule 1. Dotted line at $2$ (two images carry the whole vector); $N$ = {{fact:x.app-choices.n_images}}
+  when all entries have equal size. Computed from the exported eigenvectors (<code>layer_64000.npz</code> of
+  <code>r20s0b</code> and <code>r20s0d</code>).</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/app-choices.json#dot_blocks_span_rule0">
+  <figcaption><b>Plotted:</b> for every layer block from site $a$ (row) to site $b$ (column), $a \le b$, the mean
+  $\cos^2$ of principal angles between the leading $r = 4$ non-trivial spans of the cosine and the dot average
+  operators $\bar M$, kernel rule 0; the slider selects the checkpoint. Diagonal: single snapshots. Source:
+  <code>compare_blocks.json</code>.</figcaption>
+</figure>
+
+<details class="more"><summary>More views: rule 1 and set agreement on blocks, agreement over training, class-span validation, gradient-side references, raw dot ranking</summary>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/app-choices.json#dot_blocks_span_rule1">
+  <figcaption><b>Plotted:</b> as the block heatmap above, kernel rule 1.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/app-choices.json#dot_blocks_sets_rule0">
+  <figcaption><b>Plotted:</b> for every layer block $a..b$, matched Jaccard (Hungarian matching, hard sets, unassigned
+  images in no set; <a href="#method-details/stat-jaccard">definition</a>) between the $r = 4$ SEBA sets of the cosine
+  and the dot average operators, kernel rule 0; the slider selects the checkpoint.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/app-choices.json#dot_blocks_sets_rule1">
+  <figcaption><b>Plotted:</b> as the set heatmap above, kernel rule 1.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/app-choices.json#dot_span_steps_rule0">
+  <figcaption><b>Plotted:</b> cosine–dot span agreement at $r = 4$ for each site's single snapshot (rows) at each
+  checkpoint (columns), kernel rule 0.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/app-choices.json#dot_span_steps_rule1">
+  <figcaption><b>Plotted:</b> as above, kernel rule 1.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/app-choices.json#dot_class" data-height="280">
+  <figcaption><b>Plotted:</b> validation only. For each site's single snapshot at step
+  {{fact:x.app-choices.final_step}}, the squared Frobenius overlap of the leading $r = 10$ non-trivial span with the
+  span of the ten class indicators (constant removed), divided by the smaller rank; solid: cosine, dashed: dot;
+  colour: kernel rule.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/app-choices.json#dot_ggn" data-height="280">
+  <figcaption><b>Plotted:</b> for each site at step {{fact:x.app-choices.final_step}}, kernel rule 0, the span
+  agreement ($r = 10$) of the dot site operator with a fixed gradient-side reference operator minus that of the cosine
+  site operator with the same reference; one line per reference ({{fact:x.app-choices.dot.ggn.refs}}: the
+  label-free GGN and trace-NTK sample kernels, each in cosine and dot form; definitions in
+  <a href="#method-details/stat-ggn">Appendix C</a>). Horizontal line at $0$. <b>Values:</b>
+  {{fact:x.app-choices.dot.ggn.d10.early}} at {{fact:x.app-choices.dot.early_sites}}
+  ({{fact:x.app-choices.dot.ggn.early_neg}} of {{fact:x.app-choices.dot.ggn.early_total}} site–reference pairs below
+  $0$), {{fact:x.app-choices.dot.ggn.d10.late}} at {{fact:x.app-choices.dot.late_sites}}; full stem–logits average
+  block, $r = 4$ and $10$: {{fact:x.app-choices.dot.ggn.block}}. Source: <code>compare_ggn.json</code>.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/app-choices.json#mips" data-height="280">
+  <figcaption><b>Plotted:</b> the raw-dot-ranking diagnostic: rule 0 built from the top 15 neighbours by $G_{ij}$ on
+  centred activations (union, same scaling), step {{fact:x.app-choices.final_step}}, for each site: solid, its 15-NN
+  overlap with the cosine and with the Euclidean neighbours; dashed, the span agreement ($r = 4$) of its operator with
+  the cosine and with the dot operator. Also stored for step {{fact:x.app-choices.mips.steps}}.
+  <b>Values:</b> span agreement with cosine {{fact:x.app-choices.mips.span_cos.mid}} at
+  {{fact:x.app-choices.mips.mid_sites}} and {{fact:x.app-choices.mips.span_cos.ends}} at stem, pool and logits; with
+  dot {{fact:x.app-choices.mips.span_dot.mid}} at {{fact:x.app-choices.mips.mid_sites}} and
+  {{fact:x.app-choices.mips.span_dot.ends}} at stem, pool and logits; median over sites of the 15-NN overlap
+  {{fact:x.app-choices.mips.nn_cos}} with cosine and {{fact:x.app-choices.mips.nn_dot}} with Euclidean; largest 15-NN
+  in-degree {{fact:x.app-choices.mips.indeg}}.</figcaption>
+</figure>
+</details>
+
+<p><b>Limits.</b> One network and one seed; the inherited probe was stratified by label (the kernels and bases use no
+labels, but the sample was chosen with them); fixed-rank spans are noisy where the cutoff is near a tie (the gaps are
+in the JSON). The arc-cosine kernel was not run: in its angular form it ranks neighbours exactly as the cosine does.</p>
+
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=5&amp;b=5&amp;m=0&amp;c=seba&amp;r=4&amp;kern=dot">Open b5
+under the dot kernel in the explorer</a>: the <b>Kernel</b> switch is under <i>more options</i>. The dot data ship
+rules 0 and 1 only; the seed-1 layout is cosine-only, and the dot PCA layout is rotated onto the cosine one for
+display.</p>
+
+<!-- ================================================================================================ 3. average vs product -->
+<h2 id="avgprod">Average versus product</h2>
+
+<p>A block's default operator is the average $\bar M = \frac{1}{|B|}\sum_{c \in B} M_c$ of its snapshots' walks. It
+ignores the order of the snapshots. The alternative is to compose them.</p>
+
+<p id="hankel-detail">The project's theory builds on a product, not an average. For a layer block $a < b$, the
+chronological product $Q = M_b \cdots M_a$ (functions are column vectors; layer $a$ applied first) is the nearest
+cross-layer object: its right singular vectors are functions at layer $a$, its left singular vectors their
+normalised images at layer $b$ (Froyland's coherent pairs). The title's "cross-Hankel" is an analogy to this: for a
+time series $y$, a Hankel matrix $H_{ij} = y_{i+j}$ has windows of the past as rows and of the future as columns, and
+for linear systems its leading singular vectors give a small state through which the past influences the future;
+$Q$ plays that role between layer $a$ and layer $b$.</p>
+
+<p>To first order in the step size the two agree: if $M_c = I - \varepsilon L_c$, then $Q^\top Q = I - 2\varepsilon
+\sum_c L_c + O(\varepsilon^2)$ and $\bar M = I - \tfrac{\varepsilon}{|B|}\sum_c L_c$, so they share leading vectors
+up to $O(\varepsilon)$ when the relevant eigenvalues of $\sum_c L_c$ are simple. Beyond first order they differ:
+$(\tfrac12(M_a + M_b))^2$ contains $\tfrac14(M_aM_b + M_bM_a)$, while $Q^\top Q$ does not average.</p>
+
+<p><code>avgprod.json</code> reports, for rules 0 and 1, with the constant projected out of both sides, the mean
+$\cos^2$ of principal angles between $\mathrm{span}(\psi_1..\psi_r)$ of $\bar M$ and the top-$r$ non-trivial right and
+left singular vectors of $Q$ and of the two-end product $M_b M_a$, $r \in \{3, 6\}$. At step {{fact:final_step}},
+$r = 3$, over the {{fact:x.app-choices.avgprod.n_pairs}} layer pairs, median (lowest): {{fact:mode_name.rule0}},
+{{fact:x.app-choices.avgprod.rule0.r3.right}} for the right and {{fact:x.app-choices.avgprod.rule0.r3.left}} for the
+left singular vectors of $Q$, and {{fact:x.app-choices.avgprod.rule0.r3.end_right}} and
+{{fact:x.app-choices.avgprod.rule0.r3.end_left}} for the two-end product; {{fact:mode_name.rule1}},
+{{fact:x.app-choices.avgprod.rule1.r3.right}} and {{fact:x.app-choices.avgprod.rule1.r3.left}}, and
+{{fact:x.app-choices.avgprod.rule1.r3.end_right}} and {{fact:x.app-choices.avgprod.rule1.r3.end_left}}. With $r = 6$
+the medians are {{fact:x.app-choices.avgprod.r6.median_range}}.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/avgprod.png" alt="Heatmaps of agreement between the averaged operator's leading span and the product operator's singular vectors, for every pair of first and last site.">
+  <figcaption><b>Plotted:</b> step {{fact:final_step}}, $r = 3$, constant projected out. Row: first site $a$; column:
+  last site $b$ ($a < b$). Colour: mean $\cos^2$ of principal angles between $\mathrm{span}(\psi_1, \psi_2, \psi_3)$ of
+  $\bar M$ for block $a..b$ and, by column of panels, the top-$3$ non-trivial right singular vectors of $Q = M_b \cdots
+  M_a$, its left singular vectors, and the right and left singular vectors of $M_b M_a$. Top row of panels:
+  {{fact:mode_name.rule0}}; bottom row: {{fact:mode_name.rule1}}. Source: <code>avgprod.json</code>.</figcaption>
+</figure>
+
+<h3 id="product-blocks">Product blocks in the explorer</h3>
+
+<p>The explorer's <b>Operator</b> switch replaces $\bar M$ by the ordered product, for every layer and time block and
+every kernel rule. With $C_c = M_c - \mathbf 1\mathbf 1^\top/N$ (the constant projected out; each $M_c$ is symmetric
+and doubly stochastic, so $C_c = M_c(I - \mathbf 1\mathbf 1^\top/N)$), the block operator is $Q = C_b \cdots C_a$,
+first snapshot applied first, with singular value decomposition $Q = \sum_k \sigma_k u_k v_k^\top$. <b>Product ·
+start</b> shows the right singular vectors $v_k$: the functions on the probe images that keep the largest share
+$\sigma_k = |Q v_k|$ of their norm after being smoothed by every snapshot of the block in turn. <b>Product · end</b>
+shows $u_k = Q v_k / \sigma_k$, what they have become after the last snapshot. Both are exported in exactly the
+average's format ($\sigma_0 = 1$ for the constant, SEBA on $v_0..v_{r-1}$ or $u_0..u_{r-1}$), from a
+<code>float64</code> eigensolve of $Q^\top Q$ or $QQ^\top$.</p>
+
+<p>Two properties differ from the average. The product is <em>multiplicative</em>: a function's survival is the
+product of its <b>step gains</b> $g_c = |C_c w_{c-1}| / |w_{c-1}|$ ($w$ the function pushed through the block so far,
+from first to last snapshot for $v$, from last to first for $u$), so one snapshot that erases a split sinks it, where
+the average only dilutes it. The explorer's retention strip shows these gains (solid) next to $\rho_c$ (dashed); for
+$\psi_k$ they multiply to $\sigma_k$ (largest absolute difference ${{fact:x.app-choices.prod.gain_check}}$ over
+{{fact:x.app-choices.prod.gain_check_n}} exported block–rule pairs). The product is <em>order-sensitive</em>, but only
+up to reversal: each $M_c$ is symmetric, so reversing the snapshots transposes $Q$, which keeps the singular values
+and swaps start and end. The average ignores order entirely. No order-specific test (for example an ordered against a
+reversed chain on data that are not symmetric) has been run, so this is a comparison of constructions, not an
+experiment.</p>
+
+<p><b>Measured</b> at step {{fact:final_step}}, {{fact:mode_name.rule0}}, $r = 4$: matched Jaccard between the
+average's and the product's hard sets on the same block, mean over the layer blocks of each length,
+{{fact:x.app-choices.prod.len2.sets_start}} (start) and {{fact:x.app-choices.prod.len2.sets_end}} (end) for two sites,
+{{fact:x.app-choices.prod.len4.sets_start}} and {{fact:x.app-choices.prod.len4.sets_end}} for four,
+{{fact:x.app-choices.prod.len6.sets_start}} and {{fact:x.app-choices.prod.len6.sets_end}} for six,
+{{fact:x.app-choices.prod.len8.sets_start}} and {{fact:x.app-choices.prod.len8.sets_end}} for eight,
+{{fact:x.app-choices.prod.len10.sets_start}} and {{fact:x.app-choices.prod.len10.sets_end}} for ten, and
+{{fact:x.app-choices.prod.full.sets_start}} and {{fact:x.app-choices.prod.full.sets_end}} for the full stem–logits
+block. For the full block the leading spans agree more than the sets (mean $\cos^2$
+{{fact:x.app-choices.prod.full.span_start}} start, {{fact:x.app-choices.prod.full.span_end}} end), and the singular
+values $\sigma_{1..3}$ are {{fact:x.app-choices.prod.full.sigma}} against $\lambda_{1..3}$ =
+{{fact:x.app-choices.prod.full.lam}}: averaging and composing the walks give different scales, so $\sigma$ is compared
+only with $\sigma$. Validation only (matched Jaccard with the classes, full block): average
+{{fact:x.app-choices.prod.full.cls_avg_r4}}, product end {{fact:x.app-choices.prod.full.cls_end_r4}}, product start
+{{fact:x.app-choices.prod.full.cls_start_r4}} at $r = 4$; {{fact:x.app-choices.prod.full.cls_avg_r8}},
+{{fact:x.app-choices.prod.full.cls_end_r8}} and {{fact:x.app-choices.prod.full.cls_start_r8}} at $r = 8$. One network,
+one seed; <code>product_summary.json</code> has every block, rule and $r$.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/app-choices.json#product_by_len" data-height="300">
+  <figcaption><b>Plotted:</b> step {{fact:final_step}}, $r = 4$, against the number of sites in a layer block
+  ($b - a + 1$), each value the mean over the layer blocks of that length (of the
+  {{fact:x.app-choices.prod.n_blocks}} blocks with $a < b$): solid, matched Jaccard between the average's SEBA sets and the product's start (blue) or end (orange) sets,
+  rule 0; dotted, mean $\cos^2$ of principal angles between the average's leading $r - 1$ non-trivial span and the
+  product's, rule 0; dashed, the solid quantity under rule 1. Source: <code>product_summary.json</code>.</figcaption>
+</figure>
+
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=0&amp;b=11&amp;m=0&amp;c=seba&amp;r=4&amp;op=start">Open
+the full stem–logits block as a product (start) in the explorer</a>; switch <b>Operator</b> to the average or to the
+end side to compare.</p>
+
+<!-- ================================================================================================ 4. ablations -->
+<h2 id="ablations">Construction ablations and the robustness of the end-of-training sets</h2>
+
+<p>Each row of the ablation table changes one choice of the default construction and keeps the rest, on the
+{{fact:bn.n_reps}} representative blocks of <a href="#baselines">Appendix B</a> (fixed before any class outcome was
+looked at).</p>
+
+<details class="more"><summary>The factors and their levels</summary>
+<p><b>A</b> the graph (union kNN with $k = 5, 15, 50, 150$; mutual 15-NN; per-image perplexity $30, 100, 300$; a
+locally scaled kernel; an $\varepsilon$-ball at the default's mean degree; four global temperatures), each also at a
+matched median effective neighbour count $1/\sum_j P_{ij}^2$; <b>B</b> the floor added before balancing; <b>C</b> the
+normalisation (Sinkhorn against $D^{-1/2}K^{(\alpha)}D^{-1/2}$ and the raw adjacency scaled by its norm); <b>D</b> the
+diagonal (kept kernel diagonal; products of non-lazy walks with laziness $\gamma$); <b>E</b> how a block combines its
+snapshots (mean of $M$, mean of $M^2$, ordered product, two-end product, products of heat kernels, one graph on the
+concatenated view, union and intersection graphs); <b>F</b> the weights of a time block's checkpoints; <b>G</b> the
+SEBA threshold; <b>H</b> the view (uncentred cosine; spatially averaged features); <b>I</b> the number of images.</p>
+</details>
+
+<figure class="fig full live" data-live="bn-ablate" data-block="b4-b6">
+<figcaption><b>Plotted:</b> one panel per factor, for one representative block and rank $r$: each level's sets
+against the default's (AMI on jointly assigned images with coverage and its own permutation 95th percentile; matched
+Jaccard with its permutation mean), the subspace overlap of its $r-1$ leading directions with the default's (chance in
+brackets), for Markov levels the level's own subsample stability (S1) and its first eigenvalue's excess over the
+trajectory-shuffle 95th percentile, and its leading eigenvalue or singular value in its own convention (named beside
+it; hover for the full statement). Levels that are not Markov operators, such as the raw adjacency, have no
+retention, stability or shuffle excess. Levels that could not be computed show the stored error.</figcaption>
+</figure>
+
+<h3 id="robustness">The b7..pool sets under other rules and readouts</h3>
+
+<p>The <a href="#experiments/x-groups">end-of-training sets</a> are those of the layer block b7..pool at step
+{{fact:final_step}}, rule 0. The same sets can be compared with the sets of the same block under the other four rules,
+with b9's single snapshot, and with b9's time block from step {{fact:x.app-choices.robust.late_from}} to
+{{fact:final_step}}. At $r = 4$ the matched Jaccard is {{fact:x.app-choices.robust.r4.rule1}},
+{{fact:x.app-choices.robust.r4.rule2}}, {{fact:x.app-choices.robust.r4.rule3}} and
+{{fact:x.app-choices.robust.r4.rule4}} against rules 1 to 4, {{fact:x.app-choices.robust.r4.b9_alone}} against b9
+alone and {{fact:x.app-choices.robust.r4.b9_time_late}} against b9's late time block; the largest 97.5th percentile of
+the permutation null among these comparisons is {{fact:x.app-choices.robust.r4.null_hi_max}}. Rule 4 is the rule that
+fails in the middle layers (<a href="#method/kernel">Method</a>).</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/app-choices.json#robust" data-height="300">
+  <figcaption><b>Plotted:</b> matched Jaccard between the SEBA sets of b7..pool (layer block, step
+  {{fact:final_step}}, rule 0) and, by column, the same block under rules 1 to 4, b9's single snapshot, and b9's time
+  block from step {{fact:x.app-choices.robust.late_from}} to {{fact:final_step}} (both rule 0); markers: $r = 2, 3, 4$
+  (colours); bands: the 2.5th to 97.5th percentile of {{fact:x.app-choices.robust.n_perm}} permutations of the b7..pool
+  labels (set sizes and unassigned count kept). Computed from the stored <code>seba_label</code> arrays.</figcaption>
+</figure>
+
+<!-- ================================================================================================ 5. r -->
+<h2 id="choice-r">The SEBA rank $r$</h2>
+
+<p>SEBA rotates the leading $r$ eigenvectors (constant included) into $r$ sparse vectors and thresholds them into at
+most $r$ hard sets. Every block is exported at $r \in \{2, 3, 4, 6, 8\}$, and the explorer and the experiments use
+$r = 4$ unless they say otherwise. $r$ is a resolution, not a number the spectrum supplies: a choice of $r$ would be
+read off the spectrum only if one gap $\lambda_{r-1} - \lambda_r$ stood out, and the chart below shows the gaps at
+every exported resolution. Over the {{fact:x.app-choices.gaps.n_rows}} operators in it, the largest gap falls at
+{{fact:x.app-choices.gaps.argmax_counts}} operators. How the sets at one $r$ relate to those at another (whether finer
+sets refine coarser ones) is measured by the rank-nesting entropy (<a href="#method-details/baselines-stats">Appendix
+C</a>) and shown for the end-of-training sets in <a href="#experiments/x-groups">that experiment</a>.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/app-choices.json#gaps">
+  <figcaption><b>Plotted:</b> the eigenvalue gap $\lambda_{r-1} - \lambda_r$ of $M$ (lazy scale, $\lambda_0 = 1$ the
+  constant) at each SEBA rank $r$ (columns), for each site's single snapshot and the layer block b7..pool (rows), step
+  {{fact:final_step}}, rule 0. Source: <code>layer_64000.npz</code> (<code>vals</code>).</figcaption>
+</figure>
+
+<!-- ================================================================================================ 6. k -->
+<h2 id="w3">The cut $k$ of an operator comparison</h2>
+
+<p>The projector distance $d_k$ between two snapshots compares their leading $k$ eigenvectors
+(<a href="#method-details/distances">definition</a>). A cut is resolved in a snapshot when two rebuilds of its operator
+on overlapping subsets of the images agree on the leading-$k$ span; the stability horizon is the largest resolved $k$
+(<a href="#method-details/cuts">Appendix C</a>). The experiments report $d_k$ at a cut named in each, with unresolved
+cuts drawn hollow.</p>
+
+<figure class="fig wide live" data-live="al-w3" id="fig-w3">
+<figcaption><b>Plotted:</b> projector distance $d_k$ between adjacent sites ($i$, $i+1$) of one network at one
+checkpoint against $k$ (log scale); one line per adjacent pair, light (stem–b1) to dark (pool–logits); filled circles
+are resolved cuts and hollow circles unresolved ones. Grey band: the range of the seed floor $d_k$ over the sites whose
+cut is resolved in both seeds, with its median dashed; where no site's floor cut is resolved there is no band and the
+median, taken over all sites, is drawn hollow; thin grey line: the chance line $1 - k/(N-1)$; vertical dotted lines:
+the median and the range of the sites' stability horizons. <b>Values</b> (rule 0, step {{fact:al.final_step}}):
+stability horizon of ResNet-20 seed 0, median {{fact:al.w3.r20s0.rule0.horizon_median}} (range
+{{fact:al.w3.r20s0.rule0.horizon_range}}); smallest $k$ at which more than half of the adjacent pairs have an
+unresolved cut: {{fact:al.w3.r20s0.rule0.k_most_unresolved}}.</figcaption>
+</figure>
+
+<div class="table-scroll"><table class="data" id="w3-table">
+<tr><th>network</th><th class="num">stability horizon: median (range)</th><th class="num">smallest $k$ with most adjacent cuts unresolved</th><th class="num">unresolved share, $k = 8$</th><th class="num">unresolved share, $k = 16$</th></tr>
+<tr><td>ResNet-20, seed 0</td><td class="num">{{fact:al.w3.r20s0.rule0.horizon_median}} ({{fact:al.w3.r20s0.rule0.horizon_range}})</td><td class="num">{{fact:al.w3.r20s0.rule0.k_most_unresolved}}</td><td class="num">{{fact:al.w3.r20s0.rule0.unresolved_share_k8}}</td><td class="num">{{fact:al.w3.r20s0.rule0.unresolved_share_k16}}</td></tr>
+<tr><td>ResNet-20, seed 1</td><td class="num">{{fact:al.w3.r20s1.rule0.horizon_median}} ({{fact:al.w3.r20s1.rule0.horizon_range}})</td><td class="num">{{fact:al.w3.r20s1.rule0.k_most_unresolved}}</td><td class="num">{{fact:al.w3.r20s1.rule0.unresolved_share_k8}}</td><td class="num">{{fact:al.w3.r20s1.rule0.unresolved_share_k16}}</td></tr>
+<tr><td>ResNet-32, seed 0</td><td class="num">{{fact:al.w3.r32s0.rule0.horizon_median}} ({{fact:al.w3.r32s0.rule0.horizon_range}})</td><td class="num">{{fact:al.w3.r32s0.rule0.k_most_unresolved}}</td><td class="num">{{fact:al.w3.r32s0.rule0.unresolved_share_k8}}</td><td class="num">{{fact:al.w3.r32s0.rule0.unresolved_share_k16}}</td></tr>
+<tr><td>ResNet-32, seed 1</td><td class="num">{{fact:al.w3.r32s1.rule0.horizon_median}} ({{fact:al.w3.r32s1.rule0.horizon_range}})</td><td class="num">{{fact:al.w3.r32s1.rule0.k_most_unresolved}}</td><td class="num">{{fact:al.w3.r32s1.rule0.unresolved_share_k8}}</td><td class="num">{{fact:al.w3.r32s1.rule0.unresolved_share_k16}}</td></tr>
+<tr><td>ResNet-56, seed 0</td><td class="num">{{fact:al.w3.r56s0.rule0.horizon_median}} ({{fact:al.w3.r56s0.rule0.horizon_range}})</td><td class="num">{{fact:al.w3.r56s0.rule0.k_most_unresolved}}</td><td class="num">{{fact:al.w3.r56s0.rule0.unresolved_share_k8}}</td><td class="num">{{fact:al.w3.r56s0.rule0.unresolved_share_k16}}</td></tr>
+<tr><td>ResNet-56, seed 1</td><td class="num">{{fact:al.w3.r56s1.rule0.horizon_median}} ({{fact:al.w3.r56s1.rule0.horizon_range}})</td><td class="num">{{fact:al.w3.r56s1.rule0.k_most_unresolved}}</td><td class="num">{{fact:al.w3.r56s1.rule0.unresolved_share_k8}}</td><td class="num">{{fact:al.w3.r56s1.rule0.unresolved_share_k16}}</td></tr>
+</table></div>
+<p class="table-note">Rule 0, step {{fact:al.final_step}}. Unresolved share: the fraction of adjacent site pairs whose
+cut $k$ is unresolved in either snapshot.</p>
+
+<!-- ================================================================================================ 7. layouts -->
+<h2 id="umap">Layouts (display only)</h2>
+
+<ul>
+<li>Per checkpoint: <code>umap.AlignedUMAP</code> across the twelve sites (identity relations between consecutive
+sites), <code>n_neighbors=15</code>, <code>min_dist=0.1</code>, <code>alignment_regularisation=0.02</code>,
+<code>random_state=0</code>, on the top $50$ principal components ($u_k\sqrt{\lambda_k}$ from the eigendecomposition
+of $C$) of each snapshot.</li>
+<li>Across checkpoints, per site: centre, scale to unit RMS, orthogonal Procrustes (reflections allowed) onto the
+previous checkpoint, then rescale to the $0.5$ and $99.5$ percentiles for drawing. The within-checkpoint alignment is
+part of the UMAP objective and shapes the layouts; across checkpoints only rotation, reflection, centring and scale
+change.</li>
+<li>No quantity is computed from the two-dimensional coordinates. Distances in a layout are not distances in the
+operator.</li>
+<li><b>Other seed</b> ("layout from"). A second ResNet-20, identical recipe, training seed 1; only its activations' top
+$50$ PCs and its own AlignedUMAP and Procrustes layouts are computed, for the same probe images and steps. Colours
+always come from seed 0's blocks. Seed 1's layouts are aligned along its own checkpoints, not onto seed 0's.</li>
+<li><b>Spectral</b> layout. For each snapshot, the diffusion coordinates $\lambda_k \psi_k$, $k = 1..32$, of that
+snapshot's own lazy walk $M_c$ under the {{fact:mode_name.rule0}} rule (diffusion map at $t = 1$; constant excluded;
+the same single-snapshot eigenfunctions the explorer shows for $a = b$, extended to $32$), then the same AlignedUMAP
+and Procrustes steps as above. It is fixed per snapshot and does not change with the selected block or kernel
+rule.</li>
+<li><b>Under the dot kernel</b>, the PCA layout uses the top $50$ PCs of the centred dot Gram and is rotated onto the
+cosine layout for display; the other-seed layout is not available.</li>
+</ul>
+
+<!-- ================================================================================================ 8. variants -->
+<h2 id="variants">Variants of the construction</h2>
+
+<h3 id="transfer">The transfer-operator pilot</h3>
+
+<p>A pilot of one more variant, labelled as such. For two snapshots $a$ and $b$ of the same images, the transfer
+operator $(Tf)(y) = \mathbb E[f(X) \mid Y = y]$ maps a function of the images at $a$ to its best prediction at $b$;
+its singular functions are the pairs of source and destination observables with the largest correlation. Because
+each image is one exact pair, an unrestricted estimate reproduces the pairing itself, so every estimate here uses a
+declared finite function space and is judged on <b>held-out</b> images. Estimators: linear CCA on cosine PCA scores,
+a soft Ulam joint table on landmarks, and whitened cross-covariance on Nyström or diffusion-coordinate features (the
+ridge terms are fits; definitions in <a href="#method-details/baselines-transfer">Appendix C</a>).
+{{fact:bn.tr_pairs}} pairs were fixed in advance; each of {{fact:bn.tr_splits}} splits uses
+{{fact:bn.tr_split_sizes}} images (fit / tuning / test). The control permutes the pairing inside each split and
+repeats the whole procedure, tuning included ({{fact:bn.tr_perm}} permutations).</p>
+
+<figure class="fig wide live" data-live="bn-tr-real">
+<figcaption><b>Plotted:</b> one real pair and estimator: held-out correlation of each of the six leading fitted
+functions, median and range over the {{fact:bn.tr_splits}} splits, with the 95th percentile of the independence
+control. The text under the chart gives the overlap of the leading source functions with the source span of the
+existing product $Q = M_bM_a$ and with the two-snapshot average, against chance (computed on all images, so
+transductive).</figcaption>
+</figure>
+
+<details class="more"><summary>More views: synthetic check, supported functions per pair, the sample-size curve on the full test set and the composition test</summary>
+<figure class="fig wide live" data-live="bn-tr-syn">
+<figcaption><b>Plotted:</b> synthetic check on benchmark P8 ($\sigma$ = {{fact:bn.tr_sigma}}), where the operator's
+singular values are known: held-out correlation of one fitted function against the number of fit images, per
+estimator, with the known value (line) and the independence-control band. Status: S (ridge terms are fits).</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="bn-tr-support">
+<figcaption><b>Plotted:</b> for each real pair (rows) and estimator and landmark count (columns), the number of
+leading functions counted as supported at this resolution by the preregistered rule. Hover for the per-function split
+counts and the held-out VAMP-2 score (the squared Frobenius norm of the test-split cross-covariance of the six fitted
+source and destination functions, each side whitened by its regularised test covariance with the tuned ridge; see
+<a href="#method-details/baselines-transfer">Appendix C</a>) with its control value.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="bn-tr-10k">
+<figcaption><b>Plotted:</b> the sample-size curve from the full CIFAR-10 test set (split
+{{fact:bn.tr10k_split}}): held-out correlation of the first six functions at $N_{fit}$ = {{fact:bn.tr10k_curve}},
+with the control band ({{fact:bn.tr10k_perm}} permutations). Final checkpoint pairs only.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="bn-tr-comp">
+<figcaption><b>Plotted:</b> on {{fact:bn.tr_triples}} chains $a \to b \to c$ fixed by the builder, the norms of the
+two exact parts of the composition discrepancy $T_{bc}T_{ab} - T_{ac}$ (regulariser term and partial term) and of the
+held-out residual cross-moment, against the requested size of the intermediate basis (actual dimensions annotated);
+the norms of the parts do not add up to the norm of the discrepancy, which is not plotted. Right: the partial term and
+the held-out residual on a synthetic chain that is Markov by construction and on the same chain re-paired at
+random.</figcaption>
+</figure>
+</details>
+
+<p>The pilot also stores SEBA sets built from the transfer functions where their held-out stability passed a
+threshold. They are exploratory summaries computed on all images after fitting (the held-out correlations evaluate
+the fitted function pairs on held-out images, not the partitions), and they are not shown on this page or in the
+explorer.</p>

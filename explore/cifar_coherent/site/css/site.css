@@ -61,7 +61,7 @@ code, kbd { font-family: var(--mono); font-size: .86em; background: var(--wash);
 .masthead .cta { margin-top: 18px; }
 .page-head { max-width: var(--prose-w); margin: 0 auto; padding: 40px 24px 0; }
 .page-head h1 { font: 600 34px/1.2 var(--serif); margin: 0; letter-spacing: -.01em; }
-#tab-findings .prose, #tab-measurements .prose, #tab-method .prose { padding-top: 18px !important; }
+#tab-experiments .prose, #tab-measurements .prose, #tab-method .prose { padding-top: 18px !important; }
 .masthead-inner { max-width: var(--prose-w); margin: 0 auto; padding: 0 24px; }
 /* long title (two clauses) and a long "or, ..." subtitle: balanced lines, the subtitle clearly subordinate */
 .title { font: 600 clamp(25px, 2.9vw, 34px)/1.18 var(--serif); letter-spacing: -.012em; margin: 0 0 12px; max-width: 34ch;
@@ -513,3 +513,37 @@ table.mini tr.inb td { font-weight: 650; color: var(--fg); }
 .cg-ctl .seg { flex-wrap: wrap; max-width: 100%; }
 .cg-ctl .seg button { padding: 2px 8px; font-size: 12px; }
 .cg-stats { font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; margin-top: 4px; }
+
+/* Experiments tab (2026-11-19, EXPERIMENTS_PLAN.md): content/experiments/<id>.html, one section each */
+.x-toc ol { font: 15px/1.5 var(--sans); padding-left: 1.6em; margin: 1.2em 0 2.4em; }
+.x-toc li { margin-bottom: .45em; }
+.x-toc a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); }
+.x-toc a:hover { border-bottom-color: var(--fg); }
+.prose section.experiment { counter-increment: xnum; border-top: 1px solid var(--line); margin-top: 3.2em; padding-top: .2em; }
+.prose section.experiment > h2 { margin-top: 1em; }
+.prose section.experiment > h2::before { content: "Experiment " counter(xnum); display: block; font: 600 12.5px/1.4 var(--sans);
+  letter-spacing: .06em; text-transform: uppercase; color: var(--mute); margin-bottom: .45em; }
+#tab-experiments .prose { counter-reset: xnum; }
+.prose p.x-scope { font: 13.5px/1.55 var(--sans); color: var(--mute); }
+.prose p.x-answer { border-left: 3px solid var(--c-set-0); padding: 2px 0 2px 14px; background: color-mix(in srgb, var(--c-set-0) 5%, transparent); }
+.fig.explorer-shot img { border: 1px solid var(--line); border-radius: 6px; }
+
+/* Explorer: through-depth colouring (js/explorer.js depthColouring, renderDepth*). Block-only cards are hidden while it
+   is on, so no block number sits next to a through-depth colouring. */
+.ex.depth #card-block, .ex.depth #card-coarse, .ex.depth #card-ret, .ex.depth #card-stats { display: none !important; }
+.ex:not(.depth) #card-depth { display: none; }
+.ex-steps li.depth-hint { display: none; }
+.ex.depth .ex-steps li.depth-hint { display: flex; }
+.ex.depth .ex-steps li.blk-hint { display: none; }
+.ex-steps li.dw-hint { display: none; }
+.ex.dw .ex-steps li.dw-hint { display: flex; }
+.ex.dw .ex-steps li.blk-hint { display: none; }
+.ex.dw #card-coarse, .ex.dw #card-ret { display: none !important; }
+.ex-dt { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ex-dt input { width: 104px; }
+.ex-dt-val { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.lock-badge { font-size: 11.5px; color: var(--ink-2); background: var(--wash); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.ex-grid .cellbg.lowwt::after { content: attr(data-note); position: absolute; left: 3px; right: 3px; bottom: 2px; z-index: 2; pointer-events: none;
+  font: 600 9px/1.15 var(--sans); color: var(--ink-2); background: rgba(255, 255, 255, .82); border-radius: 3px; padding: 1px 2px; text-align: center; }
+.ex-grid .cellbg.dsite { box-shadow: 0 0 0 1.5px var(--mute); }
+.dp-site { font: inherit; font-size: 12px; margin-left: 4px; }

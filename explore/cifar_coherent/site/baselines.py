@@ -371,6 +371,27 @@ class BN:
                   "bn.ex.max95": f"{mx[self.max_fields.index('ami_joint')][1]:.3f}", "bn.ex.mj": f"{g('mj_max'):.2f}",
                   "bn.ex.mj_null": f"{g('mj_null_mean'):.2f}", "bn.ex.mj_max95": f"{mx[self.max_fields.index('mj_max')][1]:.2f}",
                   "bn.ex.nblocks": str(self.idx["files"][f"layer/{len(self.steps) - 1}"]["P"])})
+        # pixels / untrained network / other training seed against the method, r = 4, on every layer representative
+        # block at the final step (stored grid rows; App 2 "agreement between sources"). Names:
+        # bn.src.<rep id>.r4.<I1|I2|I3>.{ami,cov,q95}, and bn.src.r4.q95_max (largest permutation 95th percentile)
+        q95s = []
+        for rid in out["order"]:
+            rb = self.reps[rid]
+            if rb["fam"] != "layer" or rb["anchor"] != len(self.steps) - 1:
+                continue
+            for s in ("I1", "I2", "I3"):
+                if s not in grid_rows[rid]:
+                    continue
+                row = grid_rows[rid][s][ri]
+                g = lambda k: float(row[F.index(k)])
+                if not math.isfinite(g("ami_joint")):
+                    continue
+                f.update({f"bn.src.{rid}.r4.{s}.ami": f"{g('ami_joint'):.2f}",
+                          f"bn.src.{rid}.r4.{s}.cov": f"{100 * g('joint_coverage'):.0f}%",
+                          f"bn.src.{rid}.r4.{s}.q95": f"{g('ami_joint_null_q95'):.3f}"})
+                q95s.append(g("ami_joint_null_q95"))
+        if q95s:
+            f["bn.src.r4.q95_max"] = f"{max(q95s):.3f}"
         # run-to-run variation of the planted benchmarks: content/bn_facts.json (copied from NOTES_B.md, cited there)
         fp = HERE / "content" / "bn_facts.json"
         if fp.exists():

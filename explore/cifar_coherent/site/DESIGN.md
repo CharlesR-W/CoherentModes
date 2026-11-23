@@ -1,12 +1,13 @@
 # Site design notes (for writers of content fragments)
 
 The site is one page of hash-routed panels. The tab bar holds the **main text**: `#overview`, `#primer`, `#explorer`
-(the centrepiece; its tab is marked), `#findings`, `#method`, and `#appendices` (an index page). The **appendices** are
-their own panels, reached from that index and from a strip at the top of each (`.appx-nav`); the "Appendices" tab stays
-highlighted while one is open (`APPENDICES` in `js/main.js`): A `#measurements`, B `#baselines` (Baselines and nulls),
-C `#method-details` (kernel sweep, average versus product, layouts, per-image diagnostics, statistic and baseline definitions, reproduce), D `#alignment`
-(only with `--alignment`). `build_site.py <tag> [--layout-tag ...] [--baselines r20s0c]` assembles `site/` into
-`viewer/site/` (deploy root, `.nojekyll`).
+(the centrepiece; its tab is marked), `#experiments` (was Findings, 2026-11-19), `#method`, and `#appendices` (an index
+page). The **appendices** are their own panels, reached from that index and from a strip at the top of each
+(`.appx-nav`); the "Appendices" tab stays highlighted while one is open (`APPENDICES` in `js/main.js`): A `#choices`
+(Construction choices), B `#baselines` (Is the method sound? Baselines, nulls and stability), C `#method-details`
+(Definitions and statistics), D `#measurements` (Reference charts), E `#reproduce`. The Alignment appendix was folded
+into the experiments and appendices (EXPERIMENTS_PLAN.md section 3). `build_site.py <tag> [--layout-tag ...]
+[--baselines r20s0c]` assembles `site/` into `viewer/site/` (deploy root, `.nojekyll`).
 
 Curation rule (2026-11-19): the main text carries the argument; systematic charts and full definitions go in an
 appendix. Within an appendix section, show one or two headline charts and put the other views of the same quantity
@@ -17,7 +18,9 @@ in `<details class="more"><summary>More views: ...</summary>` under them (live f
 - `#<tab>`, `#<tab>/<id>` (scroll to the element with that id *inside that tab*), `#<id>` (finds the tab holding it),
   `#explorer?<params>` (explorer state, below). An unknown tab goes to the Overview; an unknown id on a known tab goes
   to that tab's top.
-- `questions` is an alias of `measurements`: `#questions/when` is rewritten to `#measurements/when`.
+- Tab aliases (`TAB_ALIAS`): `questions` → `measurements`, `findings` → `experiments`, `alignment` → `experiments`.
+  Anchor aliases are looked up under the tab *as written in the URL* before the tab alias applies, so
+  `#findings/f-markov` goes to `#experiments/x-markov`. A bare `#f-markov` (no tab) also follows its alias row.
 - Anchor aliases (`ANCHOR_ALIAS` in `js/main.js`) rewrite moved sections with `history.replaceState`, so back and
   forward skip the old URL. An alias applies only when the old id is no longer in the old tab, so links keep working
   while content moves; a target id that does not exist (yet) lands on its tab's top.
@@ -26,12 +29,25 @@ in `<details class="more"><summary>More views: ...</summary>` under them (live f
   |---|---|
   | `overview/treated-alike` | `overview/procedure` |
   | `overview/blocks`, `overview/through-training` | `overview/step-3` |
-  | `overview/hankel` | `method-details/avgprod` |
+  | `overview/hankel` | `choices/avgprod` |
   | `overview/kernel` | `method/kernel` |
   | `overview/reading` | `method/reading` |
   | `overview/panels` | `method/reading` |
-  | `overview/limits`, `method/limits`, `method/checks` | `findings/next-checks` |
-  | `method/sweep`, `method/avgprod`, `method/product-blocks`, `method/questions`, `method/stat-*`, `method/baselines-*`, `method/reproduce`, `method/umap`, `method/perimage` | `method-details/<same id>` (by the generic rule below) |
+  | `overview/limits`, `method/limits`, `method/checks` | `experiments` (tab top; open checks are per experiment) |
+  | `findings/f-end-sets`, `f-looking-back`, `f-depth`, `f-block-vs-cell`, `f-gradients`, `f-coarse`, `f-markov` | `experiments/x-groups`, `x-when`, `x-depth`, `x-blocks`, `x-training-signal`, `x-coarse`, `x-markov` |
+  | `findings/qualitative`, `findings/next-checks`, `findings/read-a-finding` | `experiments` |
+  | `measurements/when`, `measurements/va` | `experiments/x-when` (once the old id leaves Appendix D) |
+  | `measurements/carry`, `measurements/imgstats`, `measurements/gradients` | `experiments/x-depth`, `x-image-stats`, `x-training-signal` (same) |
+  | `alignment/w1` | `measurements/ref-depth-w1` |
+  | `alignment/w2` | `experiments/x-when` |
+  | `alignment/w3` | `choices/w3` |
+  | `alignment/w4`, `alignment/iso` | `baselines/w4`, `baselines/iso` |
+  | `alignment/c1` | `experiments/x-across-nets` |
+  | `alignment/c2` … `c5`, `alignment/modes` | `measurements/ref-across-nets-c2` … `-c5`, `measurements/ref-across-nets-modes` |
+  | `method-details/reproduce` (and `method/reproduce`) | `reproduce` (Appendix E, tab top) |
+  | `method/sweep`, `method/avgprod`, `method/product-blocks`, `method/umap`, `method-details/sweep`, `…/avgprod`, `…/product-blocks`, `…/umap`, `…/ablations`, `…/transfer` | `choices/<same id>` (by the generic rule below) |
+  | `baselines/sources-files` | `reproduce/sources-files` (generic rule) |
+  | `method/questions`, `method/stat-*`, `method/baselines-*`, `method/perimage` | `method-details/<same id>` (by the generic rule below) |
   | `method/glossary-cell` | `method/glossary-snapshot` |
   | `method/glossary-single-cell-block` | `method/glossary-single-snapshot-block` |
 
@@ -44,10 +60,12 @@ in `<details class="more"><summary>More views: ...</summary>` under them (live f
 | fragment (writer-owned) | goes into | if missing |
 |---|---|---|
 | `site/content/overview.html` | Overview tab | a placeholder paragraph |
-| `site/content/findings.html` | Findings tab | a placeholder paragraph |
-| `site/content/measurements.html` | Appendix A, Measurements (was `questions.html`) | a placeholder with the default decodability charts |
+| `site/content/experiments/` | Experiments tab: `_lede.html`, a contents list generated from the manifest `index.json` (ordered `[{"id", "title"}]`), then `<id>.html` per entry (one `<section class="experiment" id="x-<id>">` each; template `_template.html`, worked example `markov.html`). Facts from `site/assets/x/<id>.facts.json` join the table as `x.<id>.<name>`. `--manifest NAME` uses `index.NAME.json` instead (a sub-list, e.g. `x7-only`) | a placeholder section per missing fragment (an error with `--release`) |
+| `site/content/choices.html` | Appendix A, Construction choices (`#choices`) | a placeholder paragraph |
+| `site/content/measurements.html` | Appendix D, Reference charts (`#measurements`; was `questions.html`) | a placeholder with the default decodability charts |
+| `site/content/reproduce.html` | Appendix E, Reproduce (`#reproduce`) | a placeholder paragraph |
 | `site/content/method.html` | Method tab | a placeholder paragraph |
-| `site/content/method_details.html` | Appendix C, Method details (`#method-details`) | a placeholder paragraph |
+| `site/content/method_details.html` | Appendix C, Definitions and statistics (`#method-details`) | a placeholder paragraph |
 | `site/content/baselines.html` | Appendix B, Baselines and nulls (live figures `data-live="bn-*"`, `js/baselines.js`) | a placeholder paragraph |
 | `site/content/header.json` (optional) | page header: `{"title", "subtitle", "short_title", "date", "description"?}`. The title is set large and balanced; the subtitle (e.g. "or, ...") sits under it in italics; `short_title` is the compact title in the tab bar on the other tabs; `description` is the `<meta>` description (default: title + subtitle). There is no "joke" line any more (a `joke` key is ignored). | the owner's title and subtitle, "Coherent sets in ResNet-20", today's date |
 | `site/content/tours.json` (optional) | the explorer's Tours menu (see "Tours" below) | no menu |
@@ -83,7 +101,7 @@ string whenever the formatting matters (percentages, intervals, a year). A missi
 Figure with caption. Captions are definitional (the caption policy in `REORG_PLAN.md`): a **Plotted:** part (each
 axis, mark and colour as defined quantities with symbols; block, kernel rule, r or k, checkpoints, sort order, null)
 and an optional **Values:** line with the main quantities only. No class make-up, no "clear"/"persists", no "what it
-shows"; interpretation belongs in Findings.
+shows"; interpretation belongs in the experiment's Answer, as measured statements.
 ```html
 <figure class="fig">
   <img src="assets/fig/pipeline.svg" alt="Activations to cosine Gram to kernel to operator ...">
@@ -148,6 +166,11 @@ bc_g bc_b bc_lum bc_dist hf_frac`; write `px%3Aluminance` or `px:luminance` in a
 id (`M0` default, `L1 L2 L3 G1 G1n G2 C1first C1mid C1last C2 C3 I1 I2 I3 Y1 Y2 N3 N2a N2b N4 N5`, `js/sources.js`;
 kernel rule 0 and the average operator only; an unavailable source falls back to `M0` with a status message); `at` = `own` | `final`
 (for per-image diagnostics); `lay` = `0` | `1` (which seed's UMAP lays out the points); `tour` = a tour id (below).
+`c=depth` is the through-depth colouring (below) with `dv` = `own` | `none` | `paper`, `dt` = coupling index 0..5
+(t = t* x 1/64, 1/16, 1/4, 1, 4, 16; omitted for `paper`), `dm` = mode 1..16 or `sets` (then `dk` = 5 | 10, `dr` = `a`
+shape-aligned | `s` shared coordinates, `j` = isolated set), `ds` = site of the images card (default: the site holding
+most of the mode, or of the space for sets); `t` is the checkpoint row. Also read (never written): `dv=rel` | `native`,
+`dc` for `dt`, `dm=s5` | `s10` for sets with that k.
 
 ## The explorer
 
@@ -197,15 +220,16 @@ the reader changes the view, the URL drops `tour=` and the note dims with a "bac
 sources (label, status tag, definition) is `js/sources.js`; the side card's agreement box is `agreementBox()` in
 `js/explorer.js`. Where every number comes from: `explore/cifar_baselines/NOTES_SITE.md`.
 
-### Alignment tab (spectral-alignment study)
+### Alignment data (spectral-alignment study; the Alignment tab was dissolved 2026-11-19)
 
 `build_site.py ... --alignment ../spectral_align/data` (or `data_fixture`) runs `site/alignment.py`: it reuses or
 reruns `explore/spectral_align/analyze.py` (output in `explore/spectral_align/analysis/<data dir name>/`, rerun when
 the data directory's stamp changes; needs torch and dtw-python, see the command in `alignment.py`), copies it to
-`d/al/` and adds the `al.*` facts. Without the flag the tab link is hidden and its panel is a placeholder. The tab is
-`content/alignment.html`; its live figures are `data-live="al-w1"` .. `"al-w4"`, `"al-c1"` .. `"al-c5"` (`js/alignment.js`,
-no attributes). Data layout: `analyze.py`'s docstring. A fixture build says so in a banner at the top of the tab and
-above every figure (`al.data_note`, `index.fixture`). Verdict slots are `aside.callout.al-slot`.
+`d/al/` and adds the `al.*` facts. Its live figures, `data-live="al-w1"` .. `"al-w4"` and `"al-c1"` .. `"al-c5"`
+(`js/alignment.js`, no attributes), now sit in X8 (`al-c1`) and the appendices (A `w3`, B `w4` and
+`iso`, D `ref-depth-w1` and `ref-across-nets-*`); the data notes are in Appendix E (`rp-alignment`). Without the
+flag those figures show a placeholder line; `--release` requires it. Data layout: `analyze.py`'s docstring. A
+fixture build says so in `al.data_note`.
 
 ## Live mini-figures
 
@@ -250,7 +274,9 @@ Attributes: `data-t`, `data-s` (with `data-t`, the snapshot), `data-m` (initial 
 `data-src="assets/questions.json#path.to.object"` (dot path into the JSON).
 - lines object: `{"x": [...], "xlabel": str, "ylabel": str, "xscale": "linear"|"log"|"symlog",
   "yrange": [lo, hi] (optional, fixed axes preferred), "series": [{"name": str, "y": [...], "dash": bool?,
-  "band": [[lo...],[hi...]]?}], "band": [[lo...],[hi...]]? (one band for the whole chart), "band_label": str?,
+  "band": [[lo...],[hi...]]?, "color": css?, "width": px?, "dots": radius? (point markers), "noline": bool? (markers
+  only, e.g. validation markers), "dash": true (dashed: a control) | "dot" (dotted: a scale reference)?}],
+  "xticklabels": [str...]? (categorical x, e.g. adjacent site pairs), "band": [[lo...],[hi...]]? (one band for the whole chart), "band_label": str?,
   "band_mode": "auto"|"each"|"shared"|"envelope"|"none"?, "colors": "ordinal"|"categorical"|"classes" (default categorical; ordinal = one
   hue light to dark, for ordered series such as checkpoints or sites), "refline": {"y": v, "label": str}?}`.
   Hover shows every series' value at the nearest x. Bands: a chart-level `band` is drawn once in grey. Per-series
@@ -271,6 +297,24 @@ Attributes: `data-t`, `data-s` (with `data-t`, the snapshot), `data-m` (initial 
 Measurement JSON is also served: `d/decod.json`, `d/curves.json`, `d/avgprod.json`, `d/normalisation_compare.json`, `d/sweep.json` (when present), `d/meta.json`, `d/facts.json`; a lines/heatmap object can live in any of them, but the usual place is `assets/questions.json` from `analysis.py`.
 
 `data-live="decod"` and `data-live="curves"`: the default decodability and training-curve charts (no attributes).
+
+## Experiments: generators, validator, release build (EXPERIMENTS_PLAN.md section 4)
+
+- Generator `site/experiments/<id>.py` (run with `python -I`; imports `site/xlib.py` after an explicit `sys.path`
+  insert) writes only `site/assets/x/<id>.json` (chart objects, `data-src="assets/x/<id>.json#<key>"`),
+  `site/assets/x/<id>.facts.json` and `site/assets/fig/x_<id>_*.png`. Charts for Appendix D go under the key `app4`,
+  each with a `caption`.
+- `python3 site/check_fragment.py <id> [--strict]` validates an experiment fragment, and
+  `python3 site/check_fragment.py --appendix <name>` an appendix (choices, baselines, method-details, measurements,
+  reproduce: facts incl. every `x.<id>.*`, page-global id clashes, `#<tab>/<id>` link targets, data-src, captions;
+  for measurements, every experiment's `app4` panel shown), without building. Facts come from
+  `site/build_inputs/facts_base.json` (the non-`x.` facts of a full build; gitignored, a local snapshot for agents
+  validating while a build runs) or, if that is missing, from `viewer/site/d/facts.json`.
+- `build_site.py ... --release [--manifest NAME]` fails on a missing fragment, an unknown fact, a missing `data-src`
+  target or image, or missing alignment data.
+- `python3 site/check_browser.py [--session NAME]` serves the built site on loopback, checks every live figure of the
+  Experiments tab renders, screenshots it (desktop and mobile, `/tmp/x-check/`), and follows every alias row;
+  `--capture-explorer <id>` takes the experiment's explorer screenshot from its `figure.explorer-shot` link.
 
 ## Colour grammar (tokens in `site/palette.json`, used by JS, CSS and `make_figures.py`)
 
@@ -327,3 +371,47 @@ plots retained χ² information vs the number of occupied blocks (spectral k-mea
 labels and predictions as validation markers) against the ceiling F_k, with an efficiency view and, for single cells,
 leakage over the Ky Fan and Cheeger bounds; clicking k there colours the grid by that k-means partition (`c=km`).
 All of this is hidden under the dot kernel.
+
+**Diffusion wavelets add-on** (2026-11-21; cosine root, kernel rule 0, single snapshots only). `wavelets_modal.py`
+(Modal CPUs, about 0.2 container-hours) runs `wavelets.py` (Coifman & Maggioni 2006) on every snapshot's stored lazy
+walk M: level j holds M^(2^j) on an orthonormal scaling basis Φ_j (Φ_0 = deltas); a QR with column pivoting keeps the
+columns with |R_kk| > ε = 1e-4 and gives Φ_{j+1}; the wavelets Ψ_j are a pivoted-QR basis of the complement. Each
+function's centre is the delta it descends from through the pivots. The functions are **not sparse** here (median
+participation ratio tens of images, but ~1,400 of 2,000 entries above 8-bit resolution), so only the first 64 wavelets
+per level in pivot order (a subset; pivot order is not a localization ranking) and the scaling functions of levels with at most 64 are stored. When
+`data/<tag>/wavelets/dw_<step>_<site>.npz` exists for every snapshot, `build_site.py` (`wavelets()`, or alone with
+`--wavelets-only`) checks each snapshot's eigenvalues against the stored single-cell block (the build fails on a
+mismatch) and writes `d/dw/<step>_<site>.bin.gz` (u32 H, H bytes of JSON level/function tables, f32 scales, i8 vectors;
+about 36 MB in all), described in `meta.dw` and stamped in `d/dw/index.json`. In the explorer, Colour by "diffusion
+wavelets" (`c=dw&dwj=<j>&dwk=<1 wavelet|0 scaling>&dwi=<image>|dwf=<index>`) forces the cosine kernel, rule 0 and a
+single snapshot; a click picks the clicked panel's snapshot and image, and the stored function of the chosen scale with the
+largest |f(i)| relative to its own peak (precomputed at full precision: `u8 win` per level and kind) is painted on every panel. The side panel shows its two ends and centre, and a
+card with n_j, the wavelet count and #{λ^(2^j) > ε} per scale (click to change scale).
+
+**Through-depth add-on** (SPEC_SPACETIME.md sections 2, 4 and 6; cosine root, kernel rule 0 only). When
+`data/<tag>/spacetime/st_<step>_0.npz` exists for every checkpoint (`spacetime_stage.py`), `build_site.py`
+(`spacetime()`) checks each unit's `probe_idx` against `probe.npz` (the build fails on a mismatch) and writes `d/st/`,
+described in `meta.spacetime` and stamped in `d/st/index.json` (kept between builds like `blk/`):
+`st/<step>_<variant>.bin.gz` for `own` (relative site units), `none` (native walk units) and `paper` (the paper's
+transition matrix): int8 unit slices (C, 16 modes, 12 sites, N), `round(127 u / max|u|)` with the non-zero floor, C = 6
+couplings (1 for paper), then the four set readouts (k = 5, 10 x shape-aligned, shared coordinates) as 4-bit labels
+(value + 1, 0 = no label), sets renumbered by decreasing size over all sites (display only); and `st/<step>.json.gz`
+(per variant: t, values, depth weight, neighbour cosines, retention, own share, occupancy, scalar control, set groups and
+churn, alignment links; 4 significant digits). About 39 MB gzipped; nothing is fetched until the colouring is used, then
+one checkpoint and variant at a time (`D.depthUnit`, `D.depthSummary` in `js/data.js`).
+
+In the explorer, Colour by "through depth" colours one checkpoint row (click any panel to pick it; a click in the
+coloured row picks the site of the images card); every other row is light grey. Each site's panel shows its own slice
+of the selected mode (diverging, scaled to max|u_l| = 1, one sign for the whole mode) or the set labels (shared
+centroids: one colour is one centroid at every site; grey = no label). A slice holding under 1% of its mode's squared
+norm (`meta.spacetime.low_weight`) is drawn in uniform grey with a "< 1% of mode" note. Controls: variant, coupling
+slider (t/t* and t; hidden for paper), mode 1..16 or sets k = 5 / 10 with the readout. While it is on, the kernel and
+rule are fixed to cosine / kNN graph (a visible badge; the Kernel switch and rule menu are disabled), the layer family is
+used, and the block-only cards (eigenvalues, coarse-graining, retention, per-snapshot table) are hidden by the
+`.ex.depth` class; an incompatible link (dot kernel, another rule, a time block, out-of-range values) is fitted and
+announced in the status line (`fitDepth()`). The first card shows the two ends of the slice (or the sets' class make-up)
+at one site; the "through depth" card shows the mode's depth weight with the scalar control for mode 1, neighbour
+cosines, retention and own share (left out at sub-1% sites), the low space's occupancy, and the 16 values; for sets, the
+number of sets per site, churn and alignment strength. Its caption says mode numbers are local to a setting and that
+mode 1's depth weight mostly follows the sites' gaps. Without the add-on the menu entry is removed. `check_browser.py`
+smoke-tests it (`--no-depth` skips; `--tabs "" --no-aliases` runs it alone).

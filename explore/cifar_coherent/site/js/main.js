@@ -1,25 +1,60 @@
 // Page shell: hash router, maths, gifs, side notes, heading anchors, lazy live figures.
-const TABS = ["overview", "primer", "explorer", "findings", "method", "appendices",
-              "measurements", "baselines", "method-details", "alignment"];
+const TABS = ["overview", "primer", "explorer", "experiments", "method", "appendices",
+              "choices", "baselines", "method-details", "measurements", "reproduce"];
 // Appendix panels: reached from the "Appendices" tab, which stays highlighted while one of them is open.
-const APPENDICES = ["measurements", "baselines", "method-details", "alignment"];
-const TAB_ALIAS = { questions: "measurements" };          // old tab names (the site is published)
-// Old #<tab>/<id> whose section moved. Applied only when <id> is no longer in <tab>, so an old URL keeps
-// working while the content is being moved; a target id that does not exist (yet) lands on its tab's top.
+const APPENDICES = ["choices", "baselines", "method-details", "measurements", "reproduce"];
+// Old tab names (the site is published). Findings became Experiments and the Alignment appendix was folded into
+// the experiments and appendices (2026-11-19, EXPERIMENTS_PLAN.md).
+const TAB_ALIAS = { questions: "measurements", findings: "experiments", alignment: "experiments" };
+// Old #<tab>/<id> whose section moved, keyed by the tab as written in the URL (before TAB_ALIAS). Applied only when
+// <id> is no longer in <tab>, so an old URL keeps working while the content is being moved; a target id that does not
+// exist (yet) lands on its tab's top. A value without "/<id>" is the tab's top.
 const ANCHOR_ALIAS = {
   "overview/treated-alike": "overview/procedure",
   "overview/blocks": "overview/step-3",
   "overview/through-training": "overview/step-3",
-  "overview/hankel": "method-details/avgprod",
+  "overview/hankel": "choices/avgprod",
+  "method-details/reproduce": "reproduce",   // Appendix C's reproduce section became Appendix E
   "overview/kernel": "method/kernel",
   "overview/reading": "method/reading",
   "overview/panels": "method/reading",   // the loadings section was removed
-  "overview/limits": "findings/next-checks",
-  "method/limits": "findings/next-checks",
-  "method/checks": "findings/next-checks",
+  "overview/limits": "experiments",      // "Checks I'd like to run" went into each experiment's open checks
+  "method/limits": "experiments",
+  "method/checks": "experiments",
   "method/glossary-cell": "method/glossary-snapshot",                       // "cell" became "snapshot"
   "method/glossary-single-cell-block": "method/glossary-single-snapshot-block",
+  // Findings -> Experiments (2026-11-19)
+  "findings/f-end-sets": "experiments/x-groups",
+  "findings/f-looking-back": "experiments/x-when",
+  "findings/f-depth": "experiments/x-depth",
+  "findings/f-block-vs-cell": "experiments/x-blocks",
+  "findings/f-gradients": "experiments/x-training-signal",
+  "findings/f-coarse": "experiments/x-coarse",
+  "findings/f-markov": "experiments/x-markov",
+  "findings/qualitative": "experiments",
+  "findings/next-checks": "experiments",
+  "findings/read-a-finding": "experiments",
+  // Appendix A Measurements -> Experiments
+  "measurements/when": "experiments/x-when",
+  "measurements/va": "experiments/x-when",
+  "measurements/carry": "experiments/x-depth",
+  "measurements/imgstats": "experiments/x-image-stats",
+  "measurements/gradients": "experiments/x-training-signal",
+  // Appendix D Alignment -> Experiments and appendices (other alignment ids follow their content by the generic rule)
+  "alignment/w1": "measurements/ref-depth-w1",
+  "alignment/w2": "experiments/x-when",
+  "alignment/w3": "choices/w3",
+  "alignment/w4": "baselines/w4",
+  "alignment/iso": "baselines/iso",
+  "alignment/c1": "experiments/x-across-nets",
+  "alignment/c2": "measurements/ref-across-nets-c2",
+  "alignment/c3": "measurements/ref-across-nets-c3",
+  "alignment/c4": "measurements/ref-across-nets-c4",
+  "alignment/c5": "measurements/ref-across-nets-c5",
+  "alignment/modes": "measurements/ref-across-nets-modes",
 };
+// The Depth embedding tab became its own site (2026-11-21); old #embedding?<state> links go there with their state.
+const EMBEDDING_SITE = "https://charlesr-w.github.io/DepthEmbedding/";
 let explorer = null, current = null;
 
 const panelOf = tab => document.getElementById(`tab-${tab}`);
@@ -31,14 +66,20 @@ function resolveHash() {
   const raw = decodeURIComponent(location.hash.slice(1));
   const qi = raw.indexOf("?"), path = qi < 0 ? raw : raw.slice(0, qi), qs = qi < 0 ? "" : raw.slice(qi);
   let [tab, id] = path.split("/");
+  if (tab === "embedding") { location.replace(EMBEDDING_SITE + "#embedding" + qs); tab = "overview"; id = undefined; }
   let moved = false;
-  if (TAB_ALIAS[tab]) { tab = TAB_ALIAS[tab]; moved = true; }
+  // anchor aliases are looked up under the tab as written (e.g. findings/f-markov) before the tab alias applies
+  const old = id && ANCHOR_ALIAS[`${tab}/${id}`];
+  if (old && !(TABS.includes(tab) && inTab(tab, id))) { [tab, id] = old.split("/"); moved = true; }
+  else if (TAB_ALIAS[tab]) { tab = TAB_ALIAS[tab]; moved = true; }
   if (!TABS.includes(tab)) {
-    // a bare #id (no tab): find the tab that holds it; anything else goes to the Overview
+    // a bare #id (no tab): find the tab that holds it, else an alias row for that id (e.g. #f-markov);
+    // anything else goes to the Overview
     const t = tab && findTabOf(tab);
+    const al = !t && tab && Object.entries(ANCHOR_ALIAS).find(([k]) => k.endsWith(`/${tab}`));
+    if (al) { const [t2, id2] = al[1].split("/"); return { tab: t2, anchor: inTab(t2, id2), query: new URLSearchParams(qs.slice(1)), canon: `#${al[1]}${qs}` }; }
     return { tab: t || "overview", anchor: t ? document.getElementById(tab) : null, query: new URLSearchParams(qs.slice(1)), canon: null };
   }
-  if (id && !inTab(tab, id) && ANCHOR_ALIAS[`${tab}/${id}`]) { [tab, id] = ANCHOR_ALIAS[`${tab}/${id}`].split("/"); moved = true; }
   // a section moved to another tab (e.g. Method -> Appendix C, 2026-11-19): follow its id
   if (id && !inTab(tab, id)) { const t = findTabOf(id); if (t && TABS.includes(t)) { tab = t; moved = true; } }
   const anchor = inTab(tab, id);
@@ -99,9 +140,10 @@ function maths() {
 }
 
 function anchors() {
-  document.querySelectorAll(".prose h2[id], .prose h3[id]").forEach(hd => {
-    const tab = hd.closest(".tab-panel").dataset.tab;
-    const a = document.createElement("a"); a.className = "anchor"; a.href = `#${tab}/${hd.id}`; a.textContent = "#"; a.setAttribute("aria-label", "Link to this section");
+  // an experiment's question (its h2) links to the experiment's section id
+  document.querySelectorAll(".prose h2[id], .prose h3[id], .prose section.experiment[id] > h2:not([id])").forEach(hd => {
+    const tab = hd.closest(".tab-panel").dataset.tab, id = hd.id || hd.parentElement.id;
+    const a = document.createElement("a"); a.className = "anchor"; a.href = `#${tab}/${id}`; a.textContent = "#"; a.setAttribute("aria-label", "Link to this section");
     hd.prepend(a);
   });
   // internal links of the form #id (no tab) still work: route() finds the tab

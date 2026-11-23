@@ -130,6 +130,122 @@
 <li>At that layer the network then behaves like a machine with discrete states, which could in principle be read off.</li>
 </ul>
 
+<h2 id="primer-fluids">The same problem in fluids: coherent structures</h2>
+<figure class="fig wide">
+<svg viewBox="0 0 1000 430" role="img" aria-label="Two matching panels. Left, a fluid: drifters on either side of a ridge of the finite-time Lyapunov exponent; two neighbours straddling the ridge are carried far apart, two on the same side travel together. Right, a network: probe images at one layer on either side of a cell wall, with the same behaviour through the rest of the network." style="width:100%;height:auto">
+<defs><marker id="pf-ar-0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--c-set-0)"/></marker><marker id="pf-ar-1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--c-set-1)"/></marker></defs>
+<text x="235" y="28" font-family="Inter, sans-serif" font-size="19" fill="var(--fg)" text-anchor="middle">Fluid: drifters at time t₀</text>
+<rect x="10" y="45" width="450" height="300" rx="10" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+<circle cx="115" cy="236" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="116" cy="202" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="90" cy="206" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="167" cy="233" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="164" cy="225" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="140" cy="223" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="62" cy="251" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="144" cy="236" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="61" cy="142" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="91" cy="195" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="137" cy="213" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="145" cy="188" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="137" cy="232" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="100" cy="287" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="146" cy="265" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="101" cy="184" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="332" cy="171" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="369" cy="185" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="328" cy="135" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="325" cy="226" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="314" cy="185" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="361" cy="112" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="347" cy="230" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="268" cy="161" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="341" cy="141" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="364" cy="172" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="289" cy="210" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="370" cy="215" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="400" cy="190" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="350" cy="120" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="368" cy="149" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="328" cy="122" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<path d="M235,60 C275,140 195,240 240,330" fill="none" stroke="var(--c-neg)" stroke-width="3.5"/>
+<line x1="218" y1="192" x2="85" y2="290" stroke="var(--c-set-0)" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#pf-ar-0)"/>
+<circle cx="218" cy="192" r="7" fill="var(--c-set-0)" stroke="var(--fg)" stroke-width="2"/>
+<line x1="254" y1="192" x2="405" y2="105" stroke="var(--c-set-1)" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#pf-ar-1)"/>
+<circle cx="254" cy="192" r="7" fill="var(--c-set-1)" stroke="var(--fg)" stroke-width="2"/>
+<line x1="118" y1="112" x2="60" y2="90" stroke="var(--c-set-0)" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#pf-ar-0)"/>
+<circle cx="118" cy="112" r="7" fill="var(--c-set-0)" stroke="var(--fg)" stroke-width="2"/>
+<line x1="136" y1="122" x2="78" y2="100" stroke="var(--c-set-0)" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#pf-ar-0)"/>
+<circle cx="136" cy="122" r="7" fill="var(--c-set-0)" stroke="var(--fg)" stroke-width="2"/>
+<text x="120" y="152" font-family="Inter, sans-serif" font-size="14" fill="var(--fg)" text-anchor="middle">stay together</text>
+<text x="330" y="262" font-family="Inter, sans-serif" font-size="14" fill="var(--fg)" text-anchor="middle">neighbours now,</text>
+<text x="330" y="280" font-family="Inter, sans-serif" font-size="14" fill="var(--fg)" text-anchor="middle">far apart later</text>
+<text x="235" y="372" font-family="Inter, sans-serif" font-size="17" fill="var(--c-neg)" text-anchor="middle" font-weight="600">ridge of the FTLE (forward time)</text>
+<text x="235" y="396" font-family="Inter, sans-serif" font-size="15" fill="var(--mute)" text-anchor="middle">dots: drifters, one per fluid parcel</text>
+<text x="235" y="418" font-family="Inter, sans-serif" font-size="15" fill="var(--mute)" text-anchor="middle">arrows: where the flow carries them</text>
+<text x="765" y="28" font-family="Inter, sans-serif" font-size="19" fill="var(--fg)" text-anchor="middle">Network: probe images at layer ℓ</text>
+<rect x="540" y="45" width="450" height="300" rx="10" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+<circle cx="618" cy="193" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="704" cy="130" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="600" cy="225" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="710" cy="239" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="583" cy="109" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="669" cy="184" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="612" cy="256" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="697" cy="222" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="664" cy="233" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="716" cy="241" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="675" cy="238" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="595" cy="269" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="691" cy="237" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="580" cy="188" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="687" cy="139" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="648" cy="258" r="5" fill="var(--c-set-0)" fill-opacity=".75"/>
+<circle cx="825" cy="243" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="896" cy="169" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="887" cy="202" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="880" cy="223" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="850" cy="158" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="915" cy="176" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="842" cy="215" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="931" cy="156" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="823" cy="169" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="869" cy="162" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="928" cy="132" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="923" cy="122" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="845" cy="202" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="918" cy="211" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="888" cy="181" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<circle cx="881" cy="199" r="5" fill="var(--c-set-1)" fill-opacity=".75"/>
+<path d="M765,60 C805,140 725,240 770,330" fill="none" stroke="var(--c-neg)" stroke-width="3.5"/>
+<line x1="748" y1="192" x2="615" y2="290" stroke="var(--c-set-0)" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#pf-ar-0)"/>
+<circle cx="748" cy="192" r="7" fill="var(--c-set-0)" stroke="var(--fg)" stroke-width="2"/>
+<line x1="784" y1="192" x2="935" y2="105" stroke="var(--c-set-1)" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#pf-ar-1)"/>
+<circle cx="784" cy="192" r="7" fill="var(--c-set-1)" stroke="var(--fg)" stroke-width="2"/>
+<line x1="648" y1="112" x2="590" y2="90" stroke="var(--c-set-0)" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#pf-ar-0)"/>
+<circle cx="648" cy="112" r="7" fill="var(--c-set-0)" stroke="var(--fg)" stroke-width="2"/>
+<line x1="666" y1="122" x2="608" y2="100" stroke="var(--c-set-0)" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#pf-ar-0)"/>
+<circle cx="666" cy="122" r="7" fill="var(--c-set-0)" stroke="var(--fg)" stroke-width="2"/>
+<text x="650" y="152" font-family="Inter, sans-serif" font-size="14" fill="var(--fg)" text-anchor="middle">stay together</text>
+<text x="860" y="262" font-family="Inter, sans-serif" font-size="14" fill="var(--fg)" text-anchor="middle">neighbours now,</text>
+<text x="860" y="280" font-family="Inter, sans-serif" font-size="14" fill="var(--fg)" text-anchor="middle">far apart later</text>
+<text x="765" y="372" font-family="Inter, sans-serif" font-size="17" fill="var(--c-neg)" text-anchor="middle" font-weight="600">cell wall</text>
+<text x="765" y="396" font-family="Inter, sans-serif" font-size="15" fill="var(--mute)" text-anchor="middle">dots: probe images, one per input</text>
+<text x="765" y="418" font-family="Inter, sans-serif" font-size="15" fill="var(--mute)" text-anchor="middle">arrows: through the rest of the network</text>
+</svg>
+<figcaption>Schematic, not data. The same picture in two settings: a wall is where neighbours are pulled apart by what comes after, and a group is a set of points that travel together.</figcaption>
+</figure>
+<p>Fluid dynamics has the same question. A flow stirs everything, and you want to know which parcels of fluid move together and where the boundaries between them lie. Cell walls play the part that <b>Lagrangian coherent structures</b> (Haller and collaborators) play in a flow.</p>
+<ul>
+<li><b>Walls are ridges of stretching.</b> The <b>finite-time Lyapunov exponent</b> (FTLE) at a point is the rate at which two nearby particles there separate over a time window. Where it peaks along a ridge, fluid on one side and fluid on the other end up far apart.</li>
+<li><b>Depth plays time.</b> The rest of the network is the flow map from layer ℓ to the output. Its FTLE at an activation $x$ is $\frac{1}{h}\log\sigma_{\max}(J)$, where $J$ is the Jacobian of the layers after ℓ at $x$ and $h$ is how many there are. Inside a cell the downstream map is nearly flat, so neighbours stay together. At a wall a small step sends the output somewhere else.</li>
+<li><b>Which ridges.</b> Cell walls are ridges of the <em>forward-time</em> FTLE seen at layer ℓ, which Haller calls <em>repelling</em> structures: they divide inputs by where the network sends them next. Backward-time ridges are the <em>attracting</em> structures, the places in a later layer onto which the network gathers its inputs.</li>
+<li><b>Where this comes from.</b> In earlier work (the CellsDevelopmental project) I measured this quantity directly: how far a perturbation at one layer grows through the layers after it, a per-layer FTLE, alongside the activation plateaus behind the cell picture.</li>
+</ul>
+<p>Fluid dynamics also met the obstacle described in the next section. An FTLE field needs the velocity field and a dense grid of particles, differentiated point by point; an ocean gives you a few hundred drifting floats. The field moved to <b>data-driven</b> methods that take sparse particle trajectories and ask which particles stay together, not where the walls are: transfer operators and coherent sets (Froyland and collaborators), clustering of sparse trajectories (Froyland and Padberg-Gehle 2015), spectral clustering of trajectories (Hadjighasem et al. 2016), and space-time diffusion maps (Banisch and Koltai 2017). Hadjighasem et al. (2017) compare these methods with the FTLE-based ones on the same flows.</p>
+<p>This method follows the same move. Each probe image is a <b>Lagrangian particle</b>: a drifter whose trajectory is its activation at each layer (or at each training checkpoint). The rest of the primer builds the coherent-set construction from these trajectories.</p>
+<aside class="callout key"><strong>Takeaway:</strong> cell walls are where the rest of the network pulls neighbouring inputs apart, as FTLE ridges are where a flow pulls neighbouring fluid apart. Probe images are the drifters.</aside>
+
 <h2 id="primer-reframe">Find the groups, not the walls</h2>
 
 <figure class="fig wide">
@@ -309,14 +425,16 @@
 </figure>
 
 <ul>
-<li>Measuring boundaries directly does not scale, and the data only sample the space, so most of any boundary is never seen.</li>
-<li>Instead I ask which inputs the network treats as interchangeable. A cell is then a group of inputs that few neighbourhood links leave.</li>
+<li>Measuring boundaries directly does not scale, and the data only sample the space, so most of any boundary is never seen. This is the FTLE route, and it has the FTLE route's cost.</li>
+<li>Instead, as in the fluid methods above, I ask which inputs the network treats as interchangeable. A cell is then a group of inputs that few neighbourhood links leave.</li>
 <li>Finding such groups is what spectral clustering does: one similarity matrix per layer, one forward pass per input and checkpoint, no Jacobians.</li>
+<li><b>The number of probes is mine to choose</b>, and the cost grows with it, not with the size of the network. That is what makes the problem tractable.</li>
+<li><b>It also sets the scale at which I look.</b> A neighbour graph on a few thousand images cannot resolve a cell that holds only a handful of them, so the probe set works as a coarse-graining. This helps: a layer may well have far more cells than anyone could characterise, and even a complete map of them would be too fine to interpret. At the probe scale the method reports the coarse structure first; more probes resolve finer structure where it is wanted.</li>
 </ul>
 
-<aside class="callout key"><strong>Takeaway:</strong> instead of mapping where the network's behaviour changes, I look for groups of inputs that neighbourhood links rarely leave, at a cost that grows with the number of inputs rather than the size of the network.</aside>
+<aside class="callout key"><strong>Takeaway:</strong> instead of mapping where the network's behaviour changes, I look for groups of inputs that neighbourhood links rarely leave. The number of probes sets both the cost and the scale of the groups, so the coarse structure comes first.</aside>
 
-<aside class="callout caveat">The cell picture, and the working hypothesis that inside a cell the downstream output is close to the average over nearby inputs (a limited form of harmonic label propagation), are motivation. A first labelled test has been designed but not yet run; until it has, this is not a result.</aside>
+<aside class="callout caveat">The cell picture, the fluid analogy, and the working hypothesis that inside a cell the downstream output is close to the average over nearby inputs (a limited form of harmonic label propagation), are motivation. The analogy is loose in known places: the layers of a network are not an invertible flow, the activation space changes dimension from layer to layer, and a ReLU network's Jacobian is piecewise constant, so its walls are steep jumps rather than smooth ridges. Whether measured FTLE ridges coincide with the boundaries of the sets found here has not been tested. A first labelled test of the cell picture has been designed but not yet run; until it has, this is not a result.</aside>
 <!-- Primer part B: neighbour graph, random walk, eigenfunctions. Toy graphics are generated from a 44-point 2-D toy (fixed seed), not from CIFAR data. -->
 
 <h2 id="primer-graph">From activations to a neighbour graph</h2>
@@ -1604,8 +1722,7 @@ not mistaken for a slow mode.</p>
 <p>I average the walks over a run of snapshots: neighbouring layers (a <b>layer block</b>) or neighbouring training
 checkpoints (a <b>time block</b>). Depth or training plays the role of time:</p>
 <p>$$ \bar P = \frac{1}{|B|} \sum_{c \in B} P_c . $$</p>
-<p>Groups that stay together across the whole run are <b>coherent sets</b>, an idea from fluid dynamics (Froyland and
-collaborators): blobs of fluid that hold together while the flow stirs everything around them. An average can hide a weak snapshot, so each set is also checked snapshot by snapshot (retention, next slide). No map between layers or
+<p>Groups that stay together across the whole run are <b>coherent sets</b>, the fluid-dynamics idea from <a href="#primer/primer-fluids">earlier</a>: blobs of fluid that hold together while the flow stirs everything around them. An average can hide a weak snapshot, so each set is also checked snapshot by snapshot (retention, next slide). No map between layers or
 checkpoints is fitted; each snapshot keeps its own geometry.</p>
 
 <h2 id="primer-seba">From eigenvectors to sets</h2>

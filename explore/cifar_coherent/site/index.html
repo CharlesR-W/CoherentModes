@@ -34,7 +34,8 @@
       <a role="tab" href="#overview" data-tab="overview">Overview</a>
       <a role="tab" href="#primer" data-tab="primer">Primer</a>
       <a role="tab" href="#explorer" data-tab="explorer" class="tab-ex">Explorer</a>
-      <a role="tab" href="#findings" data-tab="findings">Findings</a>
+      <a href="https://charlesr-w.github.io/DepthEmbedding/" data-tab="embedding-site" title="The Depth embedding viewer has its own site">Depth embedding &#8599;</a>
+      <a role="tab" href="#experiments" data-tab="experiments">Experiments</a>
       <a role="tab" href="#method" data-tab="method">Method</a>
       <a role="tab" href="#appendices" data-tab="appendices">Appendices</a>
     </div>
@@ -55,10 +56,10 @@
   <section class="tab-panel" id="tab-explorer" data-tab="explorer" hidden>
 {{EXPLORER}}
   </section>
-  <section class="tab-panel" id="tab-findings" data-tab="findings" hidden>
-    <header class="page-head"><h1>Findings</h1></header>
+  <section class="tab-panel" id="tab-experiments" data-tab="experiments" hidden>
+    <header class="page-head"><h1>Experiments</h1></header>
     <article class="prose">
-{{CONTENT_FINDINGS}}
+{{CONTENT_EXPERIMENTS}}
     </article>
   </section>
   <section class="tab-panel" id="tab-method" data-tab="method" hidden>
@@ -70,64 +71,82 @@
   <section class="tab-panel" id="tab-appendices" data-tab="appendices" hidden>
     <header class="page-head"><h1>Appendices</h1></header>
     <article class="prose">
-<p class="lede">The main text (Overview, Primer, Explorer, Findings, Method) is meant to be read on its own. The
-appendices hold the systematic charts, the comparisons with simpler methods and nulls, and the full definitions
-behind them, for a reader checking a claim or looking for a chart the main text does not show.</p>
+<p class="lede">The main text (Overview, Primer, Explorer, Experiments, Method) is meant to be read on its own. The
+appendices hold the construction choices, the checks that the method is sound, the full definitions, the charts the
+experiments do not show, and how to reproduce the site.</p>
 <ol class="appx-list" type="A">
-<li><a href="#measurements"><b>Measurements</b></a>: every comparison statistic as charts over sites and training
-(agreement with the final checkpoint and between sites, class make-up, vehicles against animals, image statistics,
-gradients, decodability). The figures in Findings are drawn from here.</li>
-<li><a href="#baselines"><b>Baselines and nulls</b></a>: the same numbers from simpler methods (PCA, k-means, spectral
-clustering, ...) and from null data, construction ablations, planted benchmarks and the transfer-operator pilot.</li>
-<li><a href="#method-details"><b>Method details</b></a>: the kernel sweep, average versus product, exact definitions of
-every statistic, baseline and null, and how to reproduce the site.</li>
-<li{{ALIGNMENT_TAB_HIDDEN}}><a href="#alignment"><b>Alignment</b></a>: distances between snapshots of one network and
-across networks, by depth and over training.</li>
+<li><a href="#choices"><b>Construction choices</b></a>: the kernel rules and the sweep behind them, the cosine
+versus dot-product kernel, the average versus the product operator, construction ablations, the choice of $r$ and of
+the cut $k$, layouts, and variants of the construction.</li>
+<li><a href="#baselines"><b>Is the method sound? Baselines, nulls and stability</b></a>: the same numbers from
+simpler methods and from null data, agreement between sources, forced extraction, stability, planted benchmarks and
+the robustness of the distances.</li>
+<li><a href="#method-details"><b>Definitions and statistics</b></a>: defaults, every comparison statistic, null and
+ceiling, and the definitions behind each experiment.</li>
+<li><a href="#measurements"><b>Reference charts</b></a>: training curves, class decodability, class make-up tables,
+and every chart the experiments moved out of the main text, grouped by experiment.</li>
+<li><a href="#reproduce"><b>Reproduce</b></a>: data, commands and the release build.</li>
 </ol>
     </article>
   </section>
-  <section class="tab-panel appendix" id="tab-measurements" data-tab="measurements" hidden>
+  <section class="tab-panel appendix" id="tab-choices" data-tab="choices" hidden>
     <nav class="appx-nav" aria-label="Appendices"><a href="#appendices" data-tab="appendices">All appendices</a><span aria-hidden="true">·</span>
-      <a href="#measurements" data-tab="measurements">A. Measurements</a>
+      <a href="#choices" data-tab="choices">A. Construction choices</a>
       <a href="#baselines" data-tab="baselines">B. Baselines and nulls</a>
-      <a href="#method-details" data-tab="method-details">C. Method details</a>
-      <a href="#alignment" data-tab="alignment"{{ALIGNMENT_TAB_HIDDEN}}>D. Alignment</a></nav>
-    <header class="page-head"><h1>Appendix A. Measurements</h1></header>
+      <a href="#method-details" data-tab="method-details">C. Definitions and statistics</a>
+      <a href="#measurements" data-tab="measurements">D. Reference charts</a>
+      <a href="#reproduce" data-tab="reproduce">E. Reproduce</a></nav>
+    <header class="page-head"><h1>Appendix A. Construction choices</h1></header>
     <article class="prose">
-{{CONTENT_MEASUREMENTS}}
+{{CONTENT_CHOICES}}
     </article>
   </section>
   <section class="tab-panel appendix" id="tab-baselines" data-tab="baselines" hidden>
     <nav class="appx-nav" aria-label="Appendices"><a href="#appendices" data-tab="appendices">All appendices</a><span aria-hidden="true">·</span>
-      <a href="#measurements" data-tab="measurements">A. Measurements</a>
+      <a href="#choices" data-tab="choices">A. Construction choices</a>
       <a href="#baselines" data-tab="baselines">B. Baselines and nulls</a>
-      <a href="#method-details" data-tab="method-details">C. Method details</a>
-      <a href="#alignment" data-tab="alignment"{{ALIGNMENT_TAB_HIDDEN}}>D. Alignment</a></nav>
-    <header class="page-head"><h1>Appendix B. Baselines and nulls</h1></header>
+      <a href="#method-details" data-tab="method-details">C. Definitions and statistics</a>
+      <a href="#measurements" data-tab="measurements">D. Reference charts</a>
+      <a href="#reproduce" data-tab="reproduce">E. Reproduce</a></nav>
+    <header class="page-head"><h1>Appendix B. Is the method sound? Baselines, nulls and stability</h1></header>
     <article class="prose">
 {{CONTENT_BASELINES}}
     </article>
   </section>
   <section class="tab-panel appendix" id="tab-method-details" data-tab="method-details" hidden>
     <nav class="appx-nav" aria-label="Appendices"><a href="#appendices" data-tab="appendices">All appendices</a><span aria-hidden="true">·</span>
-      <a href="#measurements" data-tab="measurements">A. Measurements</a>
+      <a href="#choices" data-tab="choices">A. Construction choices</a>
       <a href="#baselines" data-tab="baselines">B. Baselines and nulls</a>
-      <a href="#method-details" data-tab="method-details">C. Method details</a>
-      <a href="#alignment" data-tab="alignment"{{ALIGNMENT_TAB_HIDDEN}}>D. Alignment</a></nav>
-    <header class="page-head"><h1>Appendix C. Method details</h1></header>
+      <a href="#method-details" data-tab="method-details">C. Definitions and statistics</a>
+      <a href="#measurements" data-tab="measurements">D. Reference charts</a>
+      <a href="#reproduce" data-tab="reproduce">E. Reproduce</a></nav>
+    <header class="page-head"><h1>Appendix C. Definitions and statistics</h1></header>
     <article class="prose">
 {{CONTENT_METHOD_DETAILS}}
     </article>
   </section>
-  <section class="tab-panel appendix" id="tab-alignment" data-tab="alignment" hidden>
+  <section class="tab-panel appendix" id="tab-measurements" data-tab="measurements" hidden>
     <nav class="appx-nav" aria-label="Appendices"><a href="#appendices" data-tab="appendices">All appendices</a><span aria-hidden="true">·</span>
-      <a href="#measurements" data-tab="measurements">A. Measurements</a>
+      <a href="#choices" data-tab="choices">A. Construction choices</a>
       <a href="#baselines" data-tab="baselines">B. Baselines and nulls</a>
-      <a href="#method-details" data-tab="method-details">C. Method details</a>
-      <a href="#alignment" data-tab="alignment"{{ALIGNMENT_TAB_HIDDEN}}>D. Alignment</a></nav>
-    <header class="page-head"><h1>Appendix D. Alignment of layers, checkpoints and networks</h1></header>
+      <a href="#method-details" data-tab="method-details">C. Definitions and statistics</a>
+      <a href="#measurements" data-tab="measurements">D. Reference charts</a>
+      <a href="#reproduce" data-tab="reproduce">E. Reproduce</a></nav>
+    <header class="page-head"><h1>Appendix D. Reference charts</h1></header>
     <article class="prose">
-{{CONTENT_ALIGNMENT}}
+{{CONTENT_MEASUREMENTS}}
+    </article>
+  </section>
+  <section class="tab-panel appendix" id="tab-reproduce" data-tab="reproduce" hidden>
+    <nav class="appx-nav" aria-label="Appendices"><a href="#appendices" data-tab="appendices">All appendices</a><span aria-hidden="true">·</span>
+      <a href="#choices" data-tab="choices">A. Construction choices</a>
+      <a href="#baselines" data-tab="baselines">B. Baselines and nulls</a>
+      <a href="#method-details" data-tab="method-details">C. Definitions and statistics</a>
+      <a href="#measurements" data-tab="measurements">D. Reference charts</a>
+      <a href="#reproduce" data-tab="reproduce">E. Reproduce</a></nav>
+    <header class="page-head"><h1>Appendix E. Reproduce</h1></header>
+    <article class="prose">
+{{CONTENT_REPRODUCE}}
     </article>
   </section>
 </main>
