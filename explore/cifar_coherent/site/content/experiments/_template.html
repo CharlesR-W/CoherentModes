@@ -1,0 +1,88 @@
+<!--
+TEMPLATE for one experiment (EXPERIMENTS_PLAN.md section 4). Copy to content/experiments/<id>.html, replace every
+ID with your experiment id (e.g. markov) and delete these comments. The worked example is markov.html (X7).
+
+You own exactly: content/experiments/<id>.html, site/experiments/<id>.py, site/assets/x/<id>.json,
+site/assets/x/<id>.facts.json, site/assets/fig/x_<id>_*.png. Everything else is read-only. Never run build_site.py.
+
+Workflow (from explore/cifar_coherent/):
+  uv run --with numpy --with scipy --with matplotlib python -I site/experiments/<id>.py r20s0b   # writes assets/x/
+  python3 site/check_fragment.py <id>                                                            # 0 errors; clear or justify warnings
+
+Rules (the validator checks the mechanical ones):
+  - Nothing may precede the <section> except this one comment. One <h2>: the question, exactly the title in
+    content/experiments/index.json. The <h3> headings below, in this order, each with an id starting "x-<id>-".
+  - Every number in prose comes from a fact token ("{{" then "fact:NAME}}", no space): your own facts are x.<id>.<name> (from your generator via
+    xlib.Out.fact), shared ones are listed in build_inputs/facts_base.json (q.*, c.*, al.*, bn.*, final_step, ...).
+    Parameters you choose (k = 10, r = 4) go in maths ($k = 10$) or come from facts. Do not quote another experiment's
+    x.* facts; compute what you need.
+  - Captions say only what is plotted: start with <b>Plotted:</b> (each axis, mark, colour and line style as a
+    defined quantity; block, kernel rule, r or k, checkpoint, null), then optionally <b>Values:</b> with facts.
+    No "clear", "persists", "what it shows". Interpretation goes in the Answer, as measured statements.
+  - No qualitative readings ("How I read it", speculation), no set names built from class names. Classes, losses
+    and gradients only colour and validate; they never choose a parameter (block, r, k, rule).
+  - Working language: sites, views, operators, blocks, measured regimes, snapshots, panels. "I" is fine.
+  - One measured answer and one lead figure. Keep another panel inline only if it changes the answer or rules out
+    the strongest alternative, and say which in one line. Everything else goes to App D (Reference charts): put the
+    chart objects in your JSON under "app4" with a "caption" each and list them in your handback.
+  - Charts: use the existing live renderers so every experiment looks the same (DESIGN.md "Live mini-figures"):
+    data-live="lines" / "heatmap" with data-src="assets/x/<id>.json#<key>", built with xlib.lines / xlib.heat.
+    Colours from palette.json (xlib.PALETTE): sets[0], sets[1], ... for categorical series; dashed = control or
+    reference; dotted = scale reference; dots + noline = validation markers. Static PNGs (xlib.mpl_style) only for
+    what the live renderers cannot draw.
+  - Exported "undefined" values (e.g. -1 in markov_summary.json) are gaps (xlib.missing), never values.
+-->
+<section class="experiment" id="x-ID">
+<h2>QUESTION: exactly the title in index.json</h2>
+
+<p class="x-scope">Scope line: network, seed, probe, checkpoints, kernel rule, block, as tested.</p>
+
+<h3 id="x-ID-why">Why it is interesting</h3>
+<p>Accessible: what a reader who has not read the Method would want to know, and what each possible answer would
+mean. No results here.</p>
+
+<h3 id="x-ID-how">How I measure it</h3>
+<p>The operationalization: the quantity (with its definition or a link to Appendix C,
+<a href="#method-details">Definitions and statistics</a>), the data it is computed from, the parameters and why
+each is what it is (label-free reasons only), and the assumptions.</p>
+
+<h3 id="x-ID-controls">Controls and nulls</h3>
+<p>What each control keeps and what it removes, and exactly what a result on it can and cannot show.</p>
+
+<h3 id="x-ID-answer">Answer</h3>
+<p class="x-answer">One sentence of facts: {{fact:x.ID.example}} ...</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/ID.json#lead" data-height="320">
+  <figcaption><b>Plotted:</b> ... <b>Values:</b> ...</figcaption>
+</figure>
+
+<h3 id="x-ID-evidence">Further evidence</h3>
+<p>Each kept panel, with one line on the alternative it rules out.</p>
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/ID.json#second">
+  <figcaption><b>Plotted:</b> ...</figcaption>
+</figure>
+<!-- a static figure:
+<figure class="fig"><img src="assets/fig/x_ID_name.png" alt="..."><figcaption><b>Plotted:</b> ...</figcaption></figure>
+     a disclosure (live figures inside render when opened):
+<details class="more"><summary>The sets' images</summary> ... </details>
+-->
+
+<h3 id="x-ID-caveats">Caveats</h3>
+<ul>
+<li>What was not tested, and the limits of the measure.</li>
+</ul>
+
+<h3 id="x-ID-open">Open checks</h3>
+<ul>
+<li>A check that would sharpen the answer, and whether it was run.</li>
+</ul>
+
+<h3 id="x-ID-explorer">In the explorer</h3>
+<!-- One screenshot and one link line. The screenshot is captured from the built site by
+     python3 site/check_browser.py --capture-explorer ID   (integration or Phase 0 runs it; it reads the href below) -->
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=4"><img src="assets/fig/x_ID_explorer.png" alt="..."></a>
+  <figcaption><b>Plotted:</b> the explorer in the linked state: ...</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=4">Open this view in the explorer</a>: one line on what to change and what it shows.</p>
+</section>

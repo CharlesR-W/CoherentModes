@@ -1,0 +1,180 @@
+<!-- X4 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/blocks.py; data: data/r20s0b/layer_64000.npz and the
+     spectral-alignment cut diagnostics (../spectral_align/data span_0.npy). App D receives assets/x/blocks.json#app4.* (captions inside). -->
+<section class="experiment" id="x-blocks">
+<h2>Which layer's structure does a whole-path block reflect?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0, the {{fact:n_images}}-image probe, final checkpoint (step
+{{fact:final_step}}), kernel rule {{fact:x.blocks.rule}}, the {{fact:x.blocks.n_starts}} averaged blocks that start at
+one site and end at the logits; the other kernel rules under Further evidence.</p>
+
+<h3 id="x-blocks-why">Why it is interesting</h3>
+<p>Each site of the network gives a random walk on the probe images, and the slowest-changing functions of that walk
+say which images the site treats alike. A block averages the walks of a run of consecutive sites, so its slowest
+functions say which images are treated alike <em>along the whole run</em>. The block from a site to the logits asks
+this of everything the network does to an image after that site.</p>
+<p>An average over many layers could come out as a compromise that no single layer draws. It could also come out
+looking like one particular layer, which would mean that the whole-path summary is dominated by one stretch of the network (by resemblance,
+not causation), and that reading that one layer would be almost as good as reading the block. If the layer it resembles is the
+first layer of the block, the block adds little; if it is a later layer, the block is reporting a split that the
+start of the path does not yet draw. This experiment measures which single layer each such block resembles, and how
+closely.</p>
+
+<h3 id="x-blocks-how">How I measure it</h3>
+<p><b>The quantity.</b> For the averaged block $a \to$ logits (the mean of the lazy walks $M_c = (I + P_c)/2$ of the
+sites $c = a, \dots,$ logits) and for each single site $c$, I take the leading $k$ nontrivial eigenvectors of each and
+compute the <b>span overlap</b> $\lVert U_k(\text{block})^\top U_k(c) \rVert_F^2 / k$: the mean $\cos^2$ of the $k$
+principal angles between the two $k$-dimensional spans. It is $1$ when the spans coincide and
+{{fact:x.blocks.chance3}} at $k = 3$ for random spans orthogonal to the constant ($k/(N-1)$). It is the
+complement of the projector distance of <a href="#method-details/dist-projector">Appendix C</a>. The eigenvectors are the stored ones
+(<code>layer_64000.npz</code>, <code>vecs</code> &times; <code>scale</code>); nothing is refitted.</p>
+<p><b>Why spans, and why $k = 1$ and $k = 3$.</b> A single eigenvector is only defined up to rotation when its
+eigenvalue is close to the next one, so a single-mode match ($k = 1$) means something only where the cut between
+modes $1$ and $2$ is resolved. The span of the leading three ($k = 3$) does not depend on how modes inside it are
+rotated, only on the cut after mode $3$. I state the span answer first and the single-mode answer where its cut is
+resolved.</p>
+<p><b>When a cut counts as resolved.</b> For a single site I use the reproducibility score $\mathrm{span}_k$ of the
+spectral-alignment measurement: rebuild the site's operator on two overlapping, label-free subsamples of the probe and
+take the smallest $\cos^2$ principal angle between the two rebuilds' leading-$k$ spans; the cut is resolved when
+$\mathrm{span}_k \geq 0.5$ (definition in <a href="#method-details/cuts">Appendix C</a>). An averaged block was never
+rebuilt on subsamples, so for it I use a proxy fixed before looking at the overlaps: its cut counts as unresolved when
+its eigenvalue gap $\lambda_k - \lambda_{k+1}$ is no larger than the largest gap at which a single site's cut already
+failed ({{fact:x.blocks.gap_thr}}, at {{fact:x.blocks.gap_thr_where}}, $\mathrm{span}$
+{{fact:x.blocks.span_thr_value}}; cuts $k = 1$ to $4$, same checkpoint and rule).</p>
+<p><b>Stated up front, by construction.</b> The block's leading function maximises the mean retention over the sites
+of the block, and site $a$'s own leading function maximises retention at $a$, so the block's leading function retains no more at $a$
+than $a$'s own does (it does at {{fact:x.blocks.n_below}} of {{fact:x.blocks.n_starts}} start sites). That the block
+differs from its start site is therefore expected; the information is in <em>which</em> site it resembles.</p>
+
+<h3 id="x-blocks-controls">Controls and nulls</h3>
+<ul>
+<li><b>Chance</b>: random spans give an overlap of {{fact:x.blocks.chance3}} at $k = 3$, far below every measured
+value, so the comparison between sites, not against chance, carries the answer.</li>
+<li><b>The start site</b> (the diagonal of the figure): how much the block keeps of the layer it starts at.</li>
+<li><b>The medoid of the block</b>: the site of the block whose own span overlaps most, on average, with those of all
+the other sites in the block (unresolved sites are excluded both as candidates and from the average). This is the strongest alternative to "one stretch dominates the resemblance": an
+average could simply land on whichever site is most typical of the run. Where the closest site differs from the
+medoid, the block is not just reporting the most typical site. Disagreement with the medoid does not establish
+which sites dominate the average; it only rules out this one simple description.</li>
+</ul>
+<p>The overlaps carry no sampling bands: no second seed or probe of these blocks is stored. Differences of a few
+hundredths between neighbouring sites should not be read as a ranking.</p>
+
+<h3 id="x-blocks-answer">Answer</h3>
+<p class="x-answer">The leading three-dimensional span of every block starting from {{fact:x.blocks.k3.early_first}}
+to {{fact:x.blocks.k3.early_last}} is closest to {{fact:x.blocks.k3.early_site}}'s (overlap
+{{fact:x.blocks.k3.early_best_lo}} to {{fact:x.blocks.k3.early_best_hi}}, against
+{{fact:x.blocks.k3.early_own_lo}} to {{fact:x.blocks.k3.early_own_hi}} with the start site itself), and that of every
+block starting from {{fact:x.blocks.k3.late_first}} onwards is closest to {{fact:x.blocks.k3.late_sites}} among the
+resolved sites (overlap {{fact:x.blocks.k3.late_best_lo}} to {{fact:x.blocks.k3.late_best_hi}}); the single leading
+eigenvector, whose cut is resolved everywhere here, gives {{fact:x.blocks.k1.best}}.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/x_blocks_lead.png" alt="Two heatmaps of span overlap between each averaged block from a start site to the logits (rows) and each single site (columns), for the leading eigenvector and for the leading three-dimensional span.">
+  <figcaption><b>Plotted:</b> span overlap (mean $\cos^2$ of the $k$ principal angles; colour and printed value)
+  between the leading $k$ nontrivial eigenvectors of the averaged block $a \to$ logits (rows, $a$ = stem to pool) and
+  of the single site $c$ (columns), at the final checkpoint (step {{fact:final_step}}), kernel rule
+  {{fact:x.blocks.rule}}. Left: $k = 1$. Right: $k = 3$. Hatched: the cut $k \,|\, k+1$ is unresolved for the site
+  ($\mathrm{span}_k &lt; 0.5$) or for the block (gap proxy). Orange box: the resolved site of largest overlap in the
+  row. Orange dot: the row's medoid. <b>Values:</b> hatched at $k = 3$: {{fact:x.blocks.k3.unresolved_sites}}
+  ($\mathrm{span}_3$ {{fact:x.blocks.k3.unresolved_span}}); none at $k = 1$ (single-site $\mathrm{span}_1$ at least
+  {{fact:x.blocks.span1_min}}, smallest block gap {{fact:x.blocks.blockgap1_min}}); smallest block gap at $k = 3$
+  {{fact:x.blocks.k3.blockgap_min}} ({{fact:x.blocks.k3.blockgap_min_where}}); $k = 3$ closest sites by row:
+  {{fact:x.blocks.k3.best}}.</figcaption>
+</figure>
+
+<p>The match is not exclusive: for the blocks starting from {{fact:x.blocks.k3.early_first}} to
+{{fact:x.blocks.k3.early_last}} the sites within two hundredths of the closest are {{fact:x.blocks.k3.early_within2}}
+(largest margin over the runner-up {{fact:x.blocks.k3.early_margin_max}}). For the later starts, the raw largest
+overlap is with {{fact:x.blocks.k3.late_raw_site}} (up to {{fact:x.blocks.k3.late_raw_hi}}), whose $3 \,|\, 4$ cut is
+unresolved, so I do not report it as the match. The medoid coincides with the closest site at
+{{fact:x.blocks.k1.n_med_agree}} of {{fact:x.blocks.n_starts}} starts for $k = 1$ but only
+{{fact:x.blocks.k3.n_med_agree}} for $k = 3$: for the early starts the medoid is {{fact:x.blocks.k3.early_med_sites}},
+with overlap {{fact:x.blocks.k3.early_med_lo}} to {{fact:x.blocks.k3.early_med_hi}}, so at $k = 3$ the block is not
+simply its most typical site. This does not say which sites dominate the average.</p>
+
+<h3 id="x-blocks-evidence">Further evidence</h3>
+<p><b>The kernel rule changes the answer.</b> The rule decides how each site's activations become a walk, and so how
+much of each site's leading contrast its walk retains. Repeating the measurement under each of the {{fact:x.blocks.n_rules}} kernel rules
+moves the closest site for the block stem $\to$ logits: at $k = 3$, {{fact:x.blocks.rules.k3.stem}}; at $k = 1$,
+{{fact:x.blocks.rules.k1.stem}}. Under {{fact:x.blocks.rule3}} the walks at stem to b9 retain much less of their
+leading mean-zero contrast than pool and logits do: their leading lazy eigenvalues are
+{{fact:x.blocks.rule3.lam_early_lo}} to {{fact:x.blocks.rule3.lam_early_hi}}, against
+{{fact:x.blocks.rule3.lam_pool}} and {{fact:x.blocks.rule3.lam_logits}}. Every site stays put with the same
+probability ($\tfrac12$); a lazy eigenvalue near $0.5$ means the non-lazy part of the walk keeps almost none of that
+contrast after one step, and near $1$ that it persists. As a limiting illustration only: a site whose lazy walk
+retained every mean-zero function at exactly $0.5$ would add the same amount to every candidate's mean retention and
+could not change which function the average ranks first. The early sites here are near that limit, not at it, so
+this is consistent with the change of answer under this rule but does not show that the late sites determine the
+block's leading mode. Under rule
+{{fact:x.blocks.rule}} the early sites' leading eigenvalues are {{fact:x.blocks.rule0.lam_early_lo}} to
+{{fact:x.blocks.rule0.lam_early_hi}}. Which layer a block reflects is therefore a property of the network and the
+kernel rule together.</p>
+
+<figure class="fig wide">
+  <img src="assets/fig/x_blocks_rules.png" alt="For each start site, the single site whose span overlaps most with the block from that start to the logits, under each of five kernel rules, for the leading eigenvector and the leading three-dimensional span.">
+  <figcaption><b>Plotted:</b> for each averaged block $a \to$ logits (x, start site $a$), the single site $c$ (y) of
+  largest span overlap, without resolution flags (the reproducibility scores exist for rule {{fact:x.blocks.rule}}
+  only), at the final checkpoint. Left: $k = 1$; right: $k = 3$. Colours: the {{fact:x.blocks.n_rules}} kernel
+  rules (blue with a line: rule {{fact:x.blocks.rule}}, the rule of the lead figure); markers offset sideways to
+  avoid overlap. Dotted: $c = a$, the start site.</figcaption>
+</figure>
+
+<details class="more"><summary>A worked example: the block b1 &rarr; logits against b1, and its retention profile</summary>
+<p>The block b1 &rarr; logits has leading eigenvalue {{fact:q.f5.b1_vs_b1-logits.final.block_lambda1}}. Its leading
+eigenvector has $|\cos|$ {{fact:q.f5.b1_vs_b1-logits.final.abs_cos_psi1}} with b1's own and
+{{fact:q.f5.b1_vs_b1-logits.final.block_psi1_best_static_abs_cos}} with
+{{fact:q.f5.b1_vs_b1-logits.final.block_psi1_best_static_site}}'s.</p>
+<figure class="fig wide">
+  <img src="assets/fig/static_dynamic.png" alt="The leading eigenfunction of the single-snapshot block b1 and of the layer block b1 to logits, each painted on five sites, with their retention at every site.">
+  <figcaption><b>Plotted:</b> step {{fact:final_step}}, kernel rule {{fact:default_mode}}. Top row: $\psi_1$ of the
+  single site b1; bottom row: $\psi_1$ of the averaged block b1 &rarr; logits; each painted on the UMAP layouts of b1,
+  b3, b6, b9 and logits (red positive, blue negative, scaled by $\max_i |\psi_1(i)|$). Right: retention
+  $\rho_c(\psi_1) = \psi_1^\top M_c \psi_1$ of each at every site, block shaded; dashed lines are the means over the
+  block. <b>Values:</b> single-site $\psi_1$: {{fact:q.f5.b1_vs_b1-logits.final.static_ret_own}} at b1,
+  {{fact:q.f5.b1_vs_b1-logits.final.static_ret_b9}} at b9, mean
+  {{fact:q.f5.b1_vs_b1-logits.final.static_ret_block_mean}}; block $\psi_1$: retention
+  {{fact:q.f5.b1_vs_b1-logits.final.block_ret_own}} at b1 and {{fact:q.f5.b1_vs_b1-logits.final.block_ret_pool}} at
+  pool.</figcaption>
+</figure>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/blocks.json#retention" data-height="300">
+  <figcaption><b>Plotted:</b> retention $\psi_1^\top M_c \psi_1$ (lazy scale; y) at each site $c$ (x) of the leading
+  eigenvector $\psi_1$ of the averaged blocks stem, b2, b4, b6, b8 and pool $\to$ logits (solid, light to dark by start
+  site), and each site's own leading lazy eigenvalue $\lambda_1(c)$, the largest retention any function can have at
+  $c$ (dashed); final checkpoint, kernel rule {{fact:x.blocks.rule}}.</figcaption>
+</figure>
+</details>
+
+<h3 id="x-blocks-caveats">Caveats</h3>
+<ul>
+<li>The block's resolution is a proxy (an eigenvalue gap calibrated on single sites), not a subsample rebuild of the
+block; a gap and a reproducibility score do not track each other closely across single sites (see the cut
+diagnostics in Appendix D).</li>
+<li>The answer depends on the kernel rule (Further evidence); the resolution flags exist for rule
+{{fact:x.blocks.rule}} only.</li>
+<li>Only blocks ending at the logits, the averaged (not product) operator, the final checkpoint, one seed and one
+probe. The comparison of the averaged and product operators is in <a href="#choices">Appendix A</a>.</li>
+<li>No sampling band: the overlaps of neighbouring late sites differ by a few hundredths, below any resolution this
+measurement has shown.</li>
+</ul>
+
+<h3 id="x-blocks-open">Open checks</h3>
+<ul>
+<li>Rebuild the averaged blocks on the same two label-free subsamples as the single sites, to replace the gap proxy
+with $\mathrm{span}_k$ for blocks. Not run (needs the activations, which are not stored locally).</li>
+<li>The same overlaps on the second seed and over training. Not run.</li>
+<li>Blocks that end before the logits (every $a \to b$), to see whether the closest site is always inside the run's
+last stage. Not run.</li>
+</ul>
+
+<h3 id="x-blocks-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=1&amp;b=11&amp;m=0&amp;c=eig&amp;r=4&amp;k=1"><img src="assets/fig/x_blocks_explorer.png" alt="The explorer grid with every snapshot coloured by the leading eigenvector of the averaged block b1 to logits at the final checkpoint."></a>
+  <figcaption><b>Plotted:</b> the explorer grid in the linked state: one panel per snapshot (rows: checkpoints, with
+  validation accuracy; columns: sites), each a UMAP layout of the probe images (seed 0), every point coloured by the
+  leading eigenvector $\psi_1$ of the averaged block b1 &rarr; logits at the final checkpoint (outlined), kernel rule
+  {{fact:x.blocks.rule}}.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=1&amp;b=11&amp;m=0&amp;c=eig&amp;r=4&amp;k=1">Open the
+block b1 &rarr; logits in the explorer</a>; set the block to a single site (b1, then b6 or b7) to compare its own
+leading eigenvector.</p>
+</section>

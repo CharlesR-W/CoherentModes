@@ -1,0 +1,187 @@
+<!-- X2 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/when.py; data: assets/questions.json (q_when, q_va,
+     q_classmix), data/r20s0b/curves.json, explore/spectral_align/data (pairs_0.npz, span_0.npy, cells.json).
+     App D receives assets/x/when.json#app4.* (captions inside). -->
+<section class="experiment" id="x-when">
+<h2>When in training does each layer's grouping take its final form?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0 (seed 1 only for the operator floor), the {{fact:n_images}}-image probe,
+{{fact:x.when.n_steps}} checkpoints (steps {{fact:x.when.steps}}), kernel rule {{fact:x.when.rule}}, the
+single-snapshot operator of each of the {{fact:x.when.n_sites}} sites.</p>
+
+<h3 id="x-when-why">Why it is interesting</h3>
+<p>Each site of the trained network sorts the probe images into groups it treats alike. An untrained network does this
+too: its random filters and shortcut connections already respond to differences in colour and brightness between
+images, so its sites have groupings before any learning. Training has to turn the one into the other, and the order in which that happens
+says how the network is built. If a site reaches its final grouping before the network is accurate, the grouping is
+plausibly an early scaffold that later training works within (an interpretation, not something this
+measurement shows); if it changes until the end, the grouping is still being tuned
+when accuracy is nearly saturated. If deep sites settle first, the network organises its output end before its input
+end; if shallow sites settle first, the reverse.</p>
+<p>"Final form" can mean three different things here, and they need not agree: the same groups of images, groups that
+line up with a reference partition of the classes, or the same operator. I measure each separately and give three
+answers.</p>
+
+<h3 id="x-when-how">How I measure it</h3>
+<p><b>(a) Agreement with the final sets (label-free; the headline).</b> For each site and checkpoint I take the $r = 4$
+SEBA sets of that snapshot's operator and score them against the same site's sets at the final checkpoint (step
+{{fact:final_step}}) with the matched Jaccard: pair each set with one final set so that the mean Jaccard overlap is
+largest, and report that mean (<a href="#method-details/stat-jaccard">Appendix C</a>). It is $1$ when the two groupings are the same
+and near the permutation null when they share nothing beyond set sizes. The milestone is the first checkpoint at which
+the agreement exceeds $0.5$ and the null's $97.5$th percentile, and "settled" is the first checkpoint from which this
+holds at every later one. The question is answered by the grouping alone: no label enters. $r = 4$ is the site's
+default resolution, fixed before these results; other $r$ are under Caveats. The final checkpoint is compared with
+itself and scores $1$ by construction.</p>
+<p><b>(b) Alignment with a class reference (validation).</b> The $r = 2$ sets of each snapshot against the
+bipartition {airplane, automobile, ship, truck} / the other six classes. This reference was chosen <em>after</em>
+seeing the final two-set split of the late sites, so it is post hoc: it can show when the sets come to line up with
+it, not that this is the split the network "should" make. The score is the matched Jaccard; the permutation null keeps
+the set sizes; the size ceiling is the largest score any two sets of these sizes could reach. Because the permutation
+test is passed already at step $0$ at every site, it cannot date anything, so the milestone is an effect size: the
+first checkpoint from which the <b>normalised excess</b> (score − null mean) / (ceiling − null mean) stays at or above
+$0.5$. That is half of the excess over chance that the set sizes allow, not half of the site's final alignment.</p>
+<p><b>(c) Distance to the final operator (label-free).</b> For the site's operator at a checkpoint and at the end, the
+projector distance $d_k = 1 - \lVert U_k(A)^\top U_k(B) \rVert_F^2 / k$ between the spans of their leading $k$
+non-constant eigenvectors ($0$ = same span; chance {{fact:x.when.c.chance}} at $k = 4$). It is read against the
+<b>seed floor</b>: $d_k$ between seed 0 and seed 1 at the same site at the final checkpoint: the observed distance between
+two training runs that differ only in their random seed. It is one pair of seeds, a reference for scale, not a
+measured spread of run-to-run variation. A site has settled from the first checkpoint after which its distance to
+its own final operator stays at or below its floor. A leading-$k$ span is only well defined when the eigenvalue cut
+$k \mid k+1$ is reproducible on resampled probes; I use $k = 4$, whose cut is resolved in
+{{fact:x.when.c.resolved_share_k4}} of the seed $0$ snapshots (against {{fact:x.when.c.resolved_share_k9}} at $k = 9$),
+and drop distances at unresolved cuts.</p>
+
+<h3 id="x-when-controls">Controls and nulls</h3>
+<ul>
+<li><b>Permutation nulls</b> for (a) and (b): the earlier grouping's labels shuffled over the images, sizes and the
+number of unassigned images kept. They say what agreement set sizes alone produce. In (a) the null's
+$97.5$th percentile is at most {{fact:x.when.a.null_hi_max}} before the final checkpoint, so the $0.5$ threshold is
+the binding condition.</li>
+<li><b>Step $0$</b>, the untrained network, is a control in all three: any agreement there comes from the
+architecture, the random initialization and the images, not from learning.</li>
+<li><b>Pixel statistics</b> for (b): the strongest alternative to "the sets line up with the classes" is that they line
+up with colour or brightness, which differ between these classes in the probe. For every snapshot and each of twelve
+pixel statistics, in both orientations, I put the images at the top of the ranking into one set and those at the
+bottom into the other, with the same set sizes as the SEBA sets, and leave the middle unassigned (the same unassigned
+count). Each split is scored against the reference and the best is kept. This is the best of the tested two-tail
+splits, not of all splits by one statistic, and it is chosen with the labels, so it is a reference rather than a
+null.</li>
+<li><b>Seed floor</b> for (c), defined above.</li>
+</ul>
+
+<h3 id="x-when-answer">Answer</h3>
+<p class="x-answer">(a) Each site's $r = 4$ sets first agree with its final sets at {{fact:x.when.a.first}}, and stay
+above the threshold from then on except {{fact:x.when.a.settled_diff}}; there is no depth order. (b) The $r = 2$ sets
+reach half of the possible excess over chance against the class reference from {{fact:x.when.b.half}}: deep sites
+first. (c) The leading four-mode spans come within the observed between-seed distance (and stay there) from
+{{fact:x.when.c.settled_before}}; at {{fact:x.when.c.only_final}} the distance falls below it only at the final
+checkpoint, and the floor cut is
+unresolved at {{fact:x.when.c.unresolved_floor}}.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/when.json#lead" data-height="340">
+  <figcaption><b>Plotted:</b> matched Jaccard (y) between each site's $r = 4$ SEBA sets at a checkpoint and the same
+  site's sets at step {{fact:final_step}}, against training step (x, symmetric-log axis), kernel rule
+  {{fact:x.when.rule}}; one line per site, light (stem) to dark (logits). Grey band: the envelope over sites of the
+  permutation null's $2.5$th to $97.5$th percentile. Grey line: the milestone threshold $0.5$. Dotted black: validation
+  accuracy on the ten classes at the same checkpoints (display only). <b>Values:</b> step $0$, {{fact:x.when.a.step0_min}}
+  to {{fact:x.when.a.step0_max}} (above the null's $97.5$th percentile at {{fact:x.when.a.step0_above_null}} of
+  {{fact:x.when.n_sites}} sites); step $25{,}600$, {{fact:x.when.a.step25600_min}} to
+  {{fact:x.when.a.step25600_max}}; validation accuracy {{fact:x.when.acc.step1024}} at step $1{,}024$,
+  {{fact:x.when.acc.step2560}} at step $2{,}560$, {{fact:x.when.acc.final}} at the end.</figcaption>
+</figure>
+<p>The first milestone falls at the checkpoints where validation accuracy is {{fact:x.when.acc.step1024}} and
+{{fact:x.when.acc.step2560}}, well before it saturates. At step $25{,}600$, the last measured checkpoint before the
+end, agreement with the final sets was {{fact:x.when.a.step25600_min}} to {{fact:x.when.a.step25600_max}}. Some sites
+dipped along the way, and sites that fell back below the threshold after first passing it are:
+{{fact:x.when.a.dips}}. The final value of $1$ is a self-comparison, and nothing was measured between steps
+$25{,}600$ and {{fact:final_step}} (the interval that contains the learning-rate drops at steps
+{{fact:x.when.c.lr_drops}}), so I did not measure when the remaining differences disappeared within it.</p>
+
+<h3 id="x-when-evidence">Further evidence</h3>
+<p><b>(b) Alignment with the class reference.</b> At step $0$ every site already beats the maximum of its
+permutation null ({{fact:x.when.b.step0_beat_max}} of {{fact:x.when.n_sites}} sites), but with a normalised excess of
+only {{fact:x.when.b.step0_nexc_min}} to {{fact:x.when.b.step0_nexc_max}}. At the final checkpoint it ranges from
+{{fact:x.when.b.never_final_nexc}} at {{fact:x.when.b.never}}, which never reach the milestone, up to
+{{fact:x.when.b.final_nexc_max}}.</p>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/when.json#nexc" data-height="320">
+  <figcaption><b>Plotted:</b> normalised excess (score − null mean) / (ceiling − null mean) (y) of each site's $r = 2$
+  SEBA sets against the bipartition {airplane, automobile, ship, truck} / other six, against training step (x,
+  symmetric-log axis), kernel rule {{fact:x.when.rule}}; one line per site, light (stem) to dark (logits); $0$ = the
+  permutation-null mean, $1$ = the size ceiling. Grey line: the milestone threshold $0.5$. <b>Values:</b> step $0$,
+  {{fact:x.when.b.step0_nexc_min}} to {{fact:x.when.b.step0_nexc_max}}; final, {{fact:x.when.b.final_nexc_min}} to
+  {{fact:x.when.b.final_nexc_max}}.</figcaption>
+</figure>
+<p><b>Is it a simple pixel statistic?</b> This panel tests the strongest single-statistic alternative: the best of the tested two-tail splits by one pixel
+statistic, with the same set sizes and unassigned count as the sets (other pixel information is not tested). At step
+$0$ that split matches the reference at least as well as the sets do at {{fact:x.when.b.step0_pixel_wins}} of
+{{fact:x.when.n_sites}} sites (at b9, {{fact:x.when.b.b9.step0.pixel}} against {{fact:x.when.b.b9.step0.score}}). The
+sets score above it at every later checkpoint from {{fact:x.when.b.above_pixel}}; at b9 they end at
+{{fact:x.when.b.b9.final.score}} against {{fact:x.when.b.b9.final.pixel}}.</p>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/when.json#pixel_b9" data-height="300">
+  <figcaption><b>Plotted:</b> for site b9, matched Jaccard (y) with the bipartition {airplane, automobile, ship,
+  truck} / other six against training step (x, symmetric-log axis): the $r = 2$ SEBA sets (blue), the permutation null
+  mean (grey dashed; shaded: its $2.5$th to $97.5$th percentile), the size ceiling (grey dotted), and the best of the tested
+  two-tail splits by one of twelve pixel statistics (either orientation; top and bottom of the ranking at the SEBA sets'
+  sizes, the middle unassigned with the same unassigned count; orange dashed; chosen with the labels).
+  <b>Values:</b> step $0$: sets {{fact:x.when.b.b9.step0.score}}, null mean {{fact:x.when.b.b9.step0.null_mean}},
+  ceiling {{fact:x.when.b.b9.step0.ceiling}}, pixel split {{fact:x.when.b.b9.step0.pixel}}; final: sets
+  {{fact:x.when.b.b9.final.score}}, null mean {{fact:x.when.b.b9.final.null_mean}}, ceiling
+  {{fact:x.when.b.b9.final.ceiling}}, pixel split {{fact:x.when.b.b9.final.pixel}}.</figcaption>
+</figure>
+<p>Where the reference ranks: among all $511$ ways of splitting the ten classes in two, ordered by their match with
+the $r = 2$ sets, it is first at {{fact:x.when.b.rank_final_n1}} of {{fact:x.when.n_sites}} sites at the final
+checkpoint and between {{fact:x.when.b.rank_step0_min}}th and {{fact:x.when.b.rank_step0_max}}th at step $0$. This
+describes the post-hoc reference; it is not a test that it was the split to look for, and it is not corrected for
+having been picked after seeing the sets (chart in Appendix D).</p>
+
+<p><b>(c) Distance to the final operator.</b> At step $0$ every operator is far from its final form
+({{fact:x.when.c.step0_min}} to {{fact:x.when.c.step0_max}}). At step $25{,}600$ the sites that settle only at the end
+are at {{fact:x.when.c.late_step25600_min}} to {{fact:x.when.c.late_step25600_max}}, against seed floors of
+{{fact:x.when.c.late_floor_min}} to {{fact:x.when.c.late_floor_max}}: each is still farther from its final operator
+than the two seeds are from each other.</p>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/when.json#operator" data-height="320">
+  <figcaption><b>Plotted:</b> projector distance $d_4$ (y) between each site's operator at a checkpoint and the same
+  site's operator at step {{fact:final_step}}, against training step (x, symmetric-log axis), kernel rule
+  {{fact:x.when.rule}}; one line per site, light (stem) to dark (logits). Grey band: the seed floor ($d_4$ between seeds
+  $0$ and $1$ at the final checkpoint), from its lowest to its highest value over the sites whose floor cut is resolved
+  ({{fact:x.when.c.floor_min}} to {{fact:x.when.c.floor_max}}; unresolved at {{fact:x.when.c.unresolved_floor}}).
+  Gaps: the cut $4 \mid 5$ is unresolved at the checkpoint or at the end ({{fact:x.when.c.n_unresolved_points}} of
+  {{fact:x.when.c.n_points}} points: {{fact:x.when.c.unresolved_list}}).</figcaption>
+</figure>
+
+<h3 id="x-when-caveats">Caveats</h3>
+<ul>
+<li>Only {{fact:x.when.n_steps}} checkpoints were measured, a factor of two and a half to four apart, so every
+milestone is "between the previous checkpoint and this one". The learning-rate drops (steps
+{{fact:x.when.c.lr_drops}}) both fall between the last two checkpoints.</li>
+<li>The thresholds ($0.5$ in (a) and (b), the seed floor in (c)) are conventions; the charts show the whole
+trajectories.</li>
+<li>Milestone (a) depends on the resolution: the first-milestone step ranges over sites from
+{{fact:x.when.a.r2.first_range}} at $r = 2$, {{fact:x.when.a.r3.first_range}} at $r = 3$,
+{{fact:x.when.a.r6.first_range}} at $r = 6$ and {{fact:x.when.a.r8.first_range}} at $r = 8$.</li>
+<li>(c) at $k = 3$, the span the $r = 4$ sets are cut from (cut resolved in {{fact:x.when.c.resolved_share_k3}} of the
+snapshots): {{fact:x.when.c.k3.settled}}.</li>
+<li>The seed floor uses one other seed at one checkpoint; a site whose distance stays just above it may be within the
+spread of more seeds.</li>
+<li>The class reference in (b) is post hoc and is used only to validate; the two-tail pixel-statistic split is chosen with
+the labels and is a reference, not a null; splits other than the tested two-tail ones were not searched.</li>
+</ul>
+
+<h3 id="x-when-open">Open checks</h3>
+<ul>
+<li>Place the milestones more finely, from the checkpoints saved between the measured ones. Not run.</li>
+<li>Repeat (a) and (b) on a second seed, to see whether the absence of a depth order in (a) and the deep-first order
+in (b) reproduce. Not run.</li>
+</ul>
+
+<h3 id="x-when-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=4"><img src="assets/fig/x_when_explorer.png" alt="The explorer grid with every snapshot coloured by b9's four SEBA sets at the final checkpoint."></a>
+  <figcaption><b>Plotted:</b> the explorer grid in the linked state: one panel per snapshot (rows: checkpoints, with
+  validation accuracy; columns: sites), each a UMAP layout of the probe images (seed 0), every point coloured by its
+  $r = 4$ SEBA set of b9's single-snapshot operator at the final checkpoint (outlined), kernel rule
+  {{fact:x.when.rule}}.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=4">Open b9's
+final sets in the explorer</a>; move the block to an earlier checkpoint of the same site to see the sets this
+experiment compares with them.</p>
+</section>

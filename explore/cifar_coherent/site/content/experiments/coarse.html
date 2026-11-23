@@ -1,0 +1,216 @@
+<!-- X6 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/coarse.py; data: data/r20s0b/coarse_summary.json
+     (coarse_summary.py, SPEC_COARSE.md sections 1-2). App D receives assets/x/coarse.json#app4.* (captions inside). -->
+<section class="experiment" id="x-coarse">
+<h2>How much of each layer's walk can k groups keep, and does the spectrum prefer a k?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0, the {{fact:n_images}}-image probe, final checkpoint (step
+{{fact:final_step}}) unless stated, kernel rule {{fact:x.coarse.rule}}; single snapshots at every site and the
+{{fact:x.coarse.gap.chains_n}} layer chains; $k = 2, \dots, 32$ groups. Other rules and checkpoints under Caveats.</p>
+
+<h3 id="x-coarse-why">Why it is interesting</h3>
+<p>The method turns each site of the network into a random walk on the probe images: from an image, step to an
+image the site treats as similar, or stay put. Chaining sites gives a walk from one layer to a later one. The
+simplest description of such a walk is a partition: sort the images into $k$ groups and keep only which group the
+walk starts in and which group it ends in. A partition with few groups is easy to read; the question is what it costs.</p>
+<p>This experiment asks two things. First, how much of the dependence between where the walk starts and where it
+ends survives when only $k$ groups are kept, measured against all the dependence there is, against the most that any
+$k$ groups could keep, and against what arbitrary groups keep. Second, whether the walk itself points to a number of
+groups: if its spectrum has a clear gap after $k$ modes, a $k$-group description is singled out by the operator,
+without anyone choosing $k$. If there is no such gap, any $k$ is a choice of resolution, and the first answer gives
+its cost.</p>
+
+<h3 id="x-coarse-how">How I measure it</h3>
+<p><b>The coupling.</b> Every operator here is doubly stochastic, so it defines a joint distribution of a start image
+$X$ and an end image $Y$: for a single snapshot $M = (I + P)/2$, $X$ is an image and $Y$ where one step of the lazy walk
+takes it; for a layer chain $Q = M_b \cdots M_a$, $X$ is the image at site $a$ and $Y$ the image the chained walk
+reaches at site $b$. With uniform weight on the images, the dependence between $X$ and $Y$ is measured by the
+$\chi^2$ mutual information
+$$ I(X;Y) = \lVert Q \rVert_F^2 - 1 = \sum_{i \ge 2} \sigma_i^2 ,$$
+where $\sigma_1 = 1 \ge \sigma_2 \ge \dots$ are the singular values of $Q$ (near independence it is proportional to Shannon's
+mutual information: to leading order the Shannon value in nats is half of it). Everything below is exact, from the operators
+(<code>SPEC_COARSE.md §1–2</code>; tests in <code>test_coarse.py</code>).</p>
+<ul>
+<li><b>Retained information.</b> For a partition $c$ of the start images, the one-sided value $I(c(X); Y)$ is the
+dependence left when only the start group is known. For a chain with partitions $c$ at site $a$ and $c'$ at site $b$,
+the two-sided value $I(c(X); c'(Y))$ is the dependence between start group and end group: the information a $k$-group
+description of both layers keeps. Single snapshots use the one-sided value (the operator is symmetric, so both sides
+agree); chains use the two-sided value, because the question for a chain is whether groups at one layer map to
+groups at the other.</li>
+<li><b>Ceiling.</b> No partition into $k$ nonempty groups keeps more than
+$F_k = \sigma_2^2 + \dots + \sigma_k^2$ (Eckart&ndash;Young: the grouped operator has rank at most $k$); the same holds
+two-sided with $k$ the smaller number of groups. Every partition is compared with the ceiling at its own number of
+nonempty groups $k_\text{eff}$, which can be smaller than the number asked for.</li>
+<li><b>Why spectral $k$-means is the candidate.</b> For a partition of the start images, the one-sided information it
+loses is exactly the within-group variance of the full spectral embedding
+$\Psi(x) = \sqrt N\,(\sigma_2 v_2(x), \sigma_3 v_3(x), \dots)$ (an identity, not an approximation). $k$-means on the
+top $k - 1$ coordinates of $\Psi$ is the truncated version of that problem: the direct attempt to keep the most
+one-sided information, not guaranteed to reach the ceiling. For chains it is a heuristic: each end is clustered
+separately on its own truncated embedding (right singular vectors at the start, left at the end), and the two
+partitions are then scored as a pair; the identity does not cover that two-sided score. It is compared with SEBA (sparse bases of the leading singular vectors, at the
+ranks $r \in \{2, 3, 4, 6, 8, 10, 12, 16\}$ stored in the coarse archive, each image assigned to its largest SEBA
+value) and with PCA $k$-means (on the top principal components of the activations; no operator involved).</li>
+<li><b>Headline quantity.</b> The retained information as a share of the total $I(X;Y)$, shown with the ceiling and
+the random null at the same $k$. The ratio $I / F_{k_\text{eff}}$ (efficiency) is shown only as a tightness check, for
+the reason under Controls.</li>
+<li><b>The gap criterion</b> (<code>coarse_summary.block_gap</code>, fixed before these results and never fitted to
+labels). A gap after $k$ modes (constant included) points to $k$ groups. For chains the size of a gap is
+$\sigma_k / \sigma_{k+1}$. For single snapshots it is $(1 - \sigma_{k+1}) / (1 - \sigma_k)$, because the lazy half
+squeezes every $\sigma$ towards one, so ratios of $\sigma$ say little; $1 - \sigma$ is the decay rate of the mode, and
+ratios of rates are unchanged by the laziness. Over $k = 2, \dots, 32$ the largest ratio is a clear gap if it is at
+least $1.15$ and more than $1.1$ times the runner-up; otherwise there is no clear gap.</li>
+</ul>
+<p>$k$ is not chosen here: every chart runs over $k$. The value $k = 10$ quoted in the Answer is where the chains
+that pass the gap criterion below have their largest ratio, and the classes, which also number ten, are scored there only as validation.</p>
+
+<h3 id="x-coarse-controls">Controls and nulls</h3>
+<ul>
+<li><b>Random balanced partitions</b> (mean of four draws) give what $k$ arbitrary groups keep. In a single snapshot
+they keep a nonzero amount, most of it from the stay-put half of $M$ (an image that stays put is always in its own
+group). For chains they are <b>independent balanced endpoint partitions</b>, drawn separately at the two ends; they
+keep almost nothing two-sided, but only because their two ends share no membership, so they do not control for what
+two matching partitions keep through the stay-put path alone.</li>
+<li><b>The lazy uniform chain</b> $U^L$ (for chains; $U = \tfrac12\left(I + \tfrac{1}{N-1}(J - I)\right)$, one factor
+per site of the chain, as <code>coarse.uniform_lazy</code>), scored with the <em>same</em> spectral partitions at
+both ends. It keeps the stay-put path and the overlap between the two end partitions and removes all geometry, so
+what the real chain keeps above it is not explained by shared membership and laziness. At $k = 10$ it reaches a
+median {{fact:x.coarse.unif.share_med}} of the real chain's two-sided value over all chains, and at most
+{{fact:x.coarse.unif.share_max}}, for a pair of adjacent sites.</li>
+<li><b>The total and the ceiling</b> bound the retained information from above. Most of a single snapshot's total is
+out of reach of any small partition: the stay-put half alone gives every snapshot $I(X;Y) \ge N/4 - 1$
+= {{fact:x.coarse.lazy_floor}}.</li>
+<li><b>Why efficiency is only a tightness check.</b> On the lazy uniform walk, where every other image is equally
+likely and there is no geometry at all, every partition attains the ceiling exactly (a test in
+<code>test_coarse.py</code>). A ratio near one therefore says that a partition is tight for this operator, not that the
+operator has groups; the retained amount against the total and the null is what answers the question.</li>
+<li><b>Classes and predictions</b> are scored as validation partitions at their $k_\text{eff}$. They never choose
+$k$, a mode or a rule.</li>
+</ul>
+
+<h3 id="x-coarse-answer">Answer</h3>
+<p class="x-answer">With ten groups at the final checkpoint, spectral $k$-means keeps
+{{fact:x.coarse.cell.spec_pct}} of the b9 snapshot's total (ceiling {{fact:x.coarse.cell.ceil_pct}}, random
+{{fact:x.coarse.cell.rand_pct}}) and, two-sided, {{fact:x.coarse.chain.spec_pct}} of the chain b9&rarr;logits'
+total (ceiling {{fact:x.coarse.chain.ceil_pct}}; in absolute terms {{fact:x.coarse.chain.spec}}, against
+{{fact:x.coarse.chain.unif}} for the same partitions on the lazy uniform chain and {{fact:x.coarse.chain.rand}} for
+independent balanced endpoint partitions); {{fact:x.coarse.gap.chains10_n}} chains,
+{{fact:x.coarse.gap.chains10}}, pass the stated gap criterion at $k = 10$, all at the final checkpoint, while the single snapshots' clearest gap is after the first nontrivial mode at
+{{fact:x.coarse.gap.cells_k2}} of {{fact:x.coarse.gap.cells_n}} sites.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#lead_cell" data-height="300">
+  <figcaption><b>Plotted:</b> single snapshot of b9, final checkpoint, kernel rule {{fact:x.coarse.rule}}: one-sided
+  retained $\chi^2$ information $I(c(X); Y)$ as % of the total $I(X;Y)$ (y) against the number of groups $k$ (x).
+  Dotted: the ceiling $F_k$. Blue: spectral $k$-means. Dashed grey: random balanced partitions (mean of four draws).
+  Orange markers: SEBA at each stored rank. Dark and pink markers: the classes and the network's predictions
+  (validation). Every partition is placed at its number of nonempty groups. <b>Values:</b> total
+  {{fact:x.coarse.cell.total}}; at $k = 10$ spectral $k$-means {{fact:x.coarse.cell.spec}} against a ceiling of
+  {{fact:x.coarse.cell.ceil}}; classes {{fact:x.coarse.cell.labels_pct}}, predictions
+  {{fact:x.coarse.cell.pred_pct}}; ceiling at $k = 32$ {{fact:x.coarse.cell.ceil32_pct}}.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/coarse.json#lead_chain" data-height="300">
+  <figcaption><b>Plotted:</b> layer chain b9&rarr;logits, same checkpoint and rule: two-sided retained $\chi^2$
+  information $I(c(X); c'(Y))$ as % of the chain's total $I(X;Y)$ (y) against $k$ (x), with partitions of the same
+  kind at both ends. Lines and markers as in the left panel, except: dashed grey is independent balanced endpoint
+  partitions, and dashed blue is the same spectral partitions scored on the lazy uniform chain $U^L$ (reference;
+  stored partitions exist for $k \le 16$ only). The ceiling uses the smaller number of nonempty groups of the two
+  ends. <b>Values:</b> total {{fact:x.coarse.chain.total}}; at $k = 10$ spectral $k$-means
+  {{fact:x.coarse.chain.spec}} against a ceiling of {{fact:x.coarse.chain.ceil}} and
+  {{fact:x.coarse.chain.unif}} on $U^L$; classes
+  {{fact:x.coarse.chain.labels_pct}}, predictions {{fact:x.coarse.chain.pred_pct}}; ceiling at $k = 32$
+  {{fact:x.coarse.chain.ceil32_pct}}.</figcaption>
+</figure>
+</div>
+
+<h3 id="x-coarse-evidence">Further evidence</h3>
+<p><b>Does the spectral partition come close to the ceiling at every site, or only at b9?</b> This is the tightness
+check, kept because the lead shows one site. At $k = 10$ the efficiency of spectral $k$-means ranges from
+{{fact:x.coarse.tight.spec_min}} to {{fact:x.coarse.tight.spec_max}} over the single snapshots, against
+{{fact:x.coarse.tight.rand_min}} to {{fact:x.coarse.tight.rand_max}} for random partitions; the ceiling itself is
+only {{fact:x.coarse.cells.ceil_pct_min}} to {{fact:x.coarse.cells.ceil_pct_max}} of the total at every site.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/coarse.json#tight" data-height="280">
+  <figcaption><b>Plotted:</b> efficiency $I(c(X); Y) / F_{k_\text{eff}}$ (y) of each partition at $k = 10$ for the
+  single snapshot at each site (x), final checkpoint, kernel rule {{fact:x.coarse.rule}}. Blue: spectral $k$-means;
+  orange: SEBA at $r = 10$; green: PCA $k$-means (baseline); dashed grey: random balanced partitions; dark and pink
+  markers: classes and predictions (validation). A tightness diagnostic: on the lazy uniform walk every partition has
+  efficiency one.</figcaption>
+</figure>
+
+<p><b>Where and when does the spectrum have a clear gap?</b> This answers the second half of the question across all
+blocks, not only the worked example. Over all {{fact:x.coarse.gap.cells_all_n}} single snapshots (sites by
+checkpoints) the clearest gap is after the first nontrivial mode in {{fact:x.coarse.gap.cells_all_k2}}, elsewhere in
+{{fact:x.coarse.gap.cells_all_other}}, and there is no clear gap in {{fact:x.coarse.gap.cells_all_none}}. At the
+final checkpoint, the runner-up position is ten at {{fact:x.coarse.gap.cells_runner10}}. Among the
+{{fact:x.coarse.gap.chains_n}} chains at the final checkpoint, {{fact:x.coarse.gap.chains10_n}} have a clear gap
+after ten, {{fact:x.coarse.gap.chains_k2}} after the first nontrivial mode, and {{fact:x.coarse.gap.chains_none}}
+have none; a chain with a clear gap after ten occurs only at step {{fact:x.coarse.gap.chains10_steps}}.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="heatmap" data-src="assets/x/coarse.json#gap_cells">
+  <figcaption><b>Plotted:</b> for the single snapshot at each site (rows) and checkpoint (columns), kernel rule
+  {{fact:x.coarse.rule}}: the number of groups $k$ after which the spectrum has a clear gap on the $1 - \sigma$
+  scale (colour); grey where the criterion finds no clear gap.</figcaption>
+</figure>
+<figure class="fig live" data-live="heatmap" data-src="assets/x/coarse.json#gap_chains">
+  <figcaption><b>Plotted:</b> for each layer chain from start site $a$ (rows) to end site $b$ (columns), kernel rule
+  {{fact:x.coarse.rule}}: the number of groups $k$ after which $\sigma_k / \sigma_{k+1}$ has a clear gap (colour);
+  grey where there is no clear gap and below the diagonal. The slider steps through the checkpoints (initially the
+  final one).</figcaption>
+</figure>
+</div>
+
+<p><b>Is the gap after ten a threshold effect?</b> A smoothly decaying spectrum can cross a fixed ratio at many
+places. In each chain on the list the ratio at ten is the largest by a margin, while the ratios at other $k$ stay near
+one: for b9&rarr;logits, $\sigma_{10}$ =
+{{fact:x.coarse.gap.chain.s10}} against $\sigma_{11}$ = {{fact:x.coarse.gap.chain.s11}}, a ratio of
+{{fact:x.coarse.gap.chain.ratio}}, with the runner-up {{fact:x.coarse.gap.chain.ratio2}} (after
+{{fact:x.coarse.gap.chain.k2}}). The same drop is the bend in the ceiling of the right lead panel.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/coarse.json#ratio" data-height="280">
+  <figcaption><b>Plotted:</b> the ratio of consecutive singular values $\sigma_k / \sigma_{k+1}$ (y) against $k$ (x),
+  for each chain with a clear gap after ten at the final checkpoint, kernel rule {{fact:x.coarse.rule}} (one colour per
+  chain; b9&rarr;logits thicker). Horizontal line: the threshold $1.15$ of the gap criterion (the criterion also asks
+  for more than $1.1$ times the runner-up).</figcaption>
+</figure>
+
+<h3 id="x-coarse-caveats">Caveats</h3>
+<ul>
+<li>The single-snapshot shares are small partly by construction: the stay-put half of $M$ puts at least
+{{fact:x.coarse.lazy_floor}} of each total (here {{fact:x.coarse.cells.total_min}} to
+{{fact:x.coarse.cells.total_max}}) into which exact image the walk is at, which no partition into few groups can keep;
+at most {{fact:x.coarse.cells.ceil32_pct_max}} of any snapshot's total is within reach of $32$ groups. Scored on
+$P = 2M - I$ (no stay-put half), the same partitions of the b9 snapshot keep {{fact:x.coarse.cell.p.spec_pct}}
+against a ceiling of {{fact:x.coarse.cell.p.ceil_pct}} and {{fact:x.coarse.cell.p.rand_pct}} for random partitions.</li>
+<li>Chain totals shrink with length, so shares are not comparable across lengths: the median adjacent chain has total
+{{fact:x.coarse.adj.total}} with ten groups within reach of {{fact:x.coarse.adj.ceil_pct}}; stem&rarr;logits has total
+{{fact:x.coarse.full.total}} with {{fact:x.coarse.full.ceil_pct}} within reach.</li>
+<li>The gap verdicts depend on the kernel rule. Across the {{fact:x.coarse.gap.rules_n}} rules at the final
+checkpoint, {{fact:x.coarse.gap.rules.chains10_lo}} to {{fact:x.coarse.gap.rules.chains10_hi}} chains have a clear gap
+after ten; b9&rarr;logits has one under {{fact:x.coarse.gap.rules.chain_clear}} of them. The single snapshots' gap
+after the first nontrivial mode holds at {{fact:x.coarse.gap.rules.cells_k2_lo}} to
+{{fact:x.coarse.gap.rules.cells_k2_hi}} of the sites, depending on the rule.</li>
+<li>$\chi^2$ information weights fine structure more than Shannon information; the two rank partitions alike near
+independence but give different values. The gap thresholds are fixed conventions. One network, one seed, one probe.</li>
+</ul>
+
+<h3 id="x-coarse-open">Open checks</h3>
+<ul>
+<li>The same measures with Shannon mutual information on the same partitions, to see whether the shares change
+order. Not run.</li>
+<li>A null for the gap statistic itself (the largest consecutive ratio of a spectrum from a kernel on shuffled or
+Gaussian activations of the same size). Not run.</li>
+<li>The gap search on a second seed and on the dot-product kernel. Not run.</li>
+</ul>
+
+<h3 id="x-coarse-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=11&amp;m=0&amp;op=start&amp;c=km&amp;km=10"><img src="assets/fig/x_coarse_explorer.png" alt="The explorer grid with every snapshot coloured by the spectral k-means partition into ten groups of the start side of the chain b9 to logits at the final checkpoint."></a>
+  <figcaption><b>Plotted:</b> the explorer in the linked state: one panel per snapshot (rows: checkpoints, with
+  validation accuracy; columns: sites), each a UMAP layout of the probe images (seed 0), every point coloured by its
+  group in the spectral $k$-means partition with $k = 10$ of the start side of the chain b9&rarr;logits at the final
+  checkpoint (outlined), kernel rule {{fact:x.coarse.rule}}.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=11&amp;m=0&amp;op=start&amp;c=km&amp;km=10">Open
+the chain b9&rarr;logits in the explorer</a>; in its coarse-graining card, switch between start side, end side and
+two-sided, click a $k$ to colour the grid by that partition, and select a single snapshot to see its curve.</p>
+</section>

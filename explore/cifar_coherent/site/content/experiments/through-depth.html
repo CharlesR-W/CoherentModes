@@ -1,0 +1,558 @@
+<!-- Through-depth operator (SPEC_SPACETIME.md). Generator: site/experiments/through-depth.py; data:
+     data/r20s0b/spacetime/st_<step>_<rule>.npz (spacetime_stage.compute). No Appendix D panels: secondary views sit in
+     "More views" disclosures. -->
+<section class="experiment" id="x-through-depth">
+<h2>What does one operator over images and sites find when its functions may change from site to site?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0, the {{fact:n_images}}-image probe, all {{fact:n_sites}} sites from stem
+to logits as one chain, all {{fact:n_checkpoints}} checkpoints (figures: the final checkpoint, step
+{{fact:final_step}}). Kernel rule {{fact:x.through-depth.rule}} ("the kNN rule") throughout; kernel rule
+{{fact:x.through-depth.rule_alt}} ("the perplexity rule") as a robustness check. Six couplings per checkpoint, two
+unit conventions, and the matrix of the source paper.</p>
+
+<h3 id="x-through-depth-why">Why it is interesting</h3>
+<p><b>The question.</b> Can one spectral construction describe all twelve sites at once, with a grouping of the
+probe images that is allowed to change from site to site but is not redrawn from scratch at every site? The other
+experiments read the network one block of sites at a time. A block <b>average</b> gives one function on the probe
+images for a whole run of sites: it is rigid, the same grouping at every site. Single snapshots give twelve unrelated
+bases, one per site, which have to be matched to each other after the fact. This experiment tests a construction in
+between: one function per site, all chosen jointly, with neighbouring sites' functions tied together by a price on
+change rather than forced to be equal.</p>
+<p>The idea comes from <a href="https://doi.org/10.1063/5.0228419" target="_blank" rel="noopener">Trower,
+Djurdjevac Conrad and Klus</a>, who cluster graphs that change over time. Here "time" is depth: the vertices are the
+probe images, and the graph at step $l$ is site $l$'s walk. If the construction's leading functions stay spread over
+all sites, depth can be read as one continuing description. If they pile onto a few sites, those sites dominate
+whatever is read from them. If image groupings read off them change little between neighbouring sites while keeping
+most of what each site's own grouping keeps, the construction is a better compromise than block averages.</p>
+<p><b>The short answer</b> (final checkpoint, the kNN rule; details and scope below). Group the images into $k$ sets
+(here $k$ counts sets, not the kNN graph's neighbours) with a fitted readout of the construction, at the default
+coupling. At $k = 5$ the sets change between neighbouring sites {{fact:x.through-depth.sets.k5.churn_ratio}} times
+less often than sets from four blocks of three sites, and keep almost as much of each site's walk:
+{{fact:x.through-depth.sets.k5.info_cost}} less, on a scale where one is a spectral upper bound on what any grouping
+into $k$ sets can keep about the walk's next step (shape-aligned readout, relative units, default coupling). At $k = 10$ they keep {{fact:x.through-depth.sets.k10.info_cost}} less than the three-site
+blocks, and only {{fact:x.through-depth.sets.k10.info_over_avg}} more than the rigid twelve-site average. Underneath
+the sets: with each site's roughness put on a common scale, the construction's first $K = 16$ functions spread over
+all twelve sites ({{fact:x.through-depth.rel.fstar.occ_min}} to {{fact:x.through-depth.rel.fstar.occ_max}} of their
+weight per site). On the walks' own scale they pile onto b9, pool and logits as the coupling weakens. The depth profile
+of the leading function is approximately reproduced, in most settings, by the twelve sites' spectral gaps alone, so on
+its own it is weak evidence about sets forming or dissolving.</p>
+
+<h3 id="x-through-depth-how">How I measure it</h3>
+<p><b>What the operator charges for.</b> A function $f = (f_0, \dots, f_{11})$ has one <b>slice</b> $f_l$ per site: a
+value for each probe image at site $l$. Its energy is</p>
+$$E_t(f) = \sum_{l} f_l^{\top} H_l\, f_l \;+\; t \sum_{l} \lVert f_{l+1} - f_l \rVert^2, \qquad H_l = (I - M_l)/c_l ,$$
+<p>where $M_l$ is site $l$'s lazy walk, the same walk the explorer uses, and $c_l$ is a per-site scale (below). The
+first term is the <b>roughness</b> of each slice on its own site's walk: it is small when images the walk connects get
+similar values. The second is the <b>change</b> of the slice from one site to the next, comparing image $i$ at site
+$l$ with the same image $i$ at site $l+1$. The modes are the eigenvectors of
+$L_t = \mathrm{blockdiag}(H_l) + t\,(D_{\text{path}} \otimes I)$, where $D_{\text{path}}$ is the Laplacian of the
+chain of sites with free ends. Low modes are functions that are smooth on each site's walk and, depending on $t$,
+change slowly along depth; I read their joint span, the <b>low space</b> (first $K = 16$ modes), rather than single
+modes. Everything is solved on functions whose every slice has mean zero. That excludes the slice-constant
+("temporal") modes, which say nothing about the images; the paper illustrates filtering them by inspection.</p>
+<p>All {{fact:x.through-depth.n_units}} stored units pass the stage's numerical gates (largest residual
+{{fact:x.through-depth.max_resid}}). The specification is <code>SPEC_SPACETIME.md</code>; the code is
+<code>spacetime.py</code> and <code>spacetime_stage.py</code>.</p>
+<p><b>How it differs from a block average.</b> As $t \to \infty$ every slice is forced to be the same function, and
+the low modes tend to those of the average $\tfrac{1}{12}\sum_l H_l$. In native units ($c_l = 1$) that is exactly the
+twelve-site block average of the other experiments; in the default relative units it is the average of the rescaled
+site operators, a different operator. As $t \to 0$ the sites decouple and the modes can be chosen site by site, each
+site's own eigenvectors. In between, a slice may differ from its neighbours' at a price.</p>
+<p><b>How it differs from the paper's matrix.</b> In ordinary words: the paper's construction links image $i$ at
+site $l$ to the images that site $l$'s walk steps to from $i$, placed at site $l+1$, which is a random neighbour (or,
+with the lazy walk's self-step, $i$ itself). Across neighbouring sites, this page's operator links image $i$ only to itself (within a site, the walk's edges
+remain). For these symmetric
+walks the paper's matrix has an exact energy (<code>SPEC_SPACETIME.md</code>, statement <code>S2</code>): for an
+eigenvector $f$ of its matrix with eigenvalue $\lambda$, normalised so that $\sum_l b_l \lVert f_l \rVert^2 = 1$ with
+$b = (1, 2, \dots, 2, 1)$,
+$1 - \lambda = \sum_{l=0}^{10} \sum_{i,j} (M_l)_{ij}\, \big(f_l(i) - f_{l+1}(j)\big)^2$. Roughness and change are
+both charged through that one walk step, with no separate coefficient between them. In building the paper's matrix, site $l$'s walk is used for both slices $l$ and $l+1$, and the last site's walk does
+not enter (it is still used to score the fitted sets below). The two constructions are different graphs on the same
+vertices, not one energy at two exchange rates. The paper's matrix is shown beside the results with the same readings
+(its slices weighted by $\sqrt{b_l}$ so that they are orthonormal in the same sense) and the same fitted set readouts;
+the paper's own clustering step, $k$-means on the stacked rows, is not reproduced.</p>
+<p><b>Why there is a coupling slider.</b> The paper calls its construction parameter-free: its graph has no coupling
+coefficient (the number of clusters still has to be chosen). With the identity link nothing fixes the rate.
+Roughness is measured in units of each walk and change in squared norm, so $t$ is a free choice, and I show six
+values instead of picking one. They are fixed multiples of a <b>balance coupling</b> $t^*$ (Algorithm $1$ of
+<a href="https://arxiv.org/abs/2409.11984" target="_blank" rel="noopener">Froyland, Kalia and Koltai</a>). The
+excluded slice-constant modes serve only as a reference here: the first nonzero one has eigenvalue
+$t \cdot 4\sin^2(\pi/24)$, which grows with $t$, and $t^*$ is the coupling at which it equals the first eigenvalue on
+mean-zero slices. It balances two eigenvalues, not two energy terms, and it is a ruler, not an optimum. The six
+couplings are $t = t^* \times \tfrac{1}{64}, \tfrac{1}{16}, \tfrac14, 1, 4, 16$; at the final checkpoint that is
+{{fact:x.through-depth.rel.t_list}} in relative units ($t^* =$ {{fact:x.through-depth.rel.tstar}}) and
+{{fact:x.through-depth.nat.t_list}} in native units ($t^* =$ {{fact:x.through-depth.nat.tstar}}).</p>
+<p><b>Two unit conventions.</b> In <b>native walk units</b> $c_l = 1$. In <b>relative site units</b> (the default),
+$c_l$ is the mean of site $l$'s first eight nontrivial values of $1 - \lambda$, which is the least mean roughness any
+eight orthonormal mean-zero functions can have at that site; dividing by it sets that quantity to one at every site. It
+does not equalise cuts or gaps. The choice matters here because the late sites' walks are much smoother: $c_l$ is
+{{fact:x.through-depth.scale_mid_lo}} to {{fact:x.through-depth.scale_mid_hi}} at b1 to b8 but
+{{fact:x.through-depth.scale_pool}} at pool and {{fact:x.through-depth.scale_logits}} at logits, so smooth functions
+are about {{fact:x.through-depth.scale_ratio}} times cheaper at logits in native units.</p>
+<p><b>Readings of the low space</b>, all closed form and unchanged by any rotation of its basis. $G_l$ is the
+$N \times K$ matrix of the first $K$ modes' slices at site $l$.</p>
+<ul>
+<li><b>Occupancy</b> $\operatorname{tr}(G_l^{\top} G_l)/K$: the share of the low space at site $l$ (it sums to one
+over the sites).</li>
+<li><b>Image directions</b>: the eigenvalues of $R = \sum_l G_l G_l^{\top}$ (trace $K$), and how many of them are
+needed for $90\%$ of the trace. $K$ depth envelopes of one image function give one direction, not $K$.</li>
+<li><b>Local strengths</b> at site $l$: the eigenvalues of $G_l^{\top} G_l$, one per distinct image direction present
+there. <b>Neighbour frames</b>: the mean $\cos^2$ of the principal angles between the leading four local directions
+(left singular vectors of $G_l$) at neighbouring sites.</li>
+<li><b>Trade-off</b>: $A = \sum_l \operatorname{tr}(G_l^{\top} H_l G_l)$, the total roughness, and
+$B = \sum_l \lVert G_{l+1} - G_l \rVert_F^2$, the total change. The first $K$ modes minimise $A + tB$ over
+orthonormal $K$-frames of mean-zero functions, so as $t$ grows, $B$ cannot rise and $A$ cannot fall.</li>
+</ul>
+
+<h3 id="x-through-depth-controls">Controls and nulls</h3>
+<ul>
+<li><b>Gap-only control.</b> Let $g_l$ be the smallest eigenvalue of $H_l$ on mean-zero functions. The
+$12 \times 12$ matrix $\mathrm{diag}(g_l) + t\,D_{\text{path}}$ keeps the twelve per-site gaps and the chain, and
+removes which image function is cheap at which site. Its smallest eigenvalue is a lower bound on the operator's first
+eigenvalue, and its squared ground vector is the depth profile mode $1$ would have if every site's cheapest direction
+were the same function. Where mode $1$'s profile is close to it, the gaps alone reproduce that profile; it does not
+recover the image function or the eigenvalue.</li>
+<li><b>Independent relabelling at every site</b> (one random draw; final checkpoint, relative units, the real chain's
+$t^*$). Every site's spectrum and the gap-only bound are unchanged; the correspondence "image $i$ here is image $i$
+there" is destroyed.</li>
+<li><b>Scale rank</b> $4$ and $16$ instead of $8$ in $c_l$, each at its own $t^*$: the normalised overlap of the two
+settings' sixteen-mode spaces.</li>
+<li><b>Changing the end of the chain</b>: drop pool, drop logits, or count logits twice, each at its own recalibrated
+$t^*$. Measured on stem to b9: the overlap of the spaces there, and the occupancy there.</li>
+<li><b>For the sets</b>: the exact mean information of a random relabelling with the same set sizes, and four
+reference partitions (described in the sets subsection below).</li>
+</ul>
+
+<h3 id="x-through-depth-answer">Answer</h3>
+<p class="x-answer">At the final checkpoint (the kNN rule), the low space occupies every site in relative units: from
+{{fact:x.through-depth.rel.fstar.occ_min}} ({{fact:x.through-depth.rel.fstar.occ_argmin}}) to
+{{fact:x.through-depth.rel.fstar.occ_max}} ({{fact:x.through-depth.rel.fstar.occ_argmax}}) per site at $t^*$, against
+an even share of {{fact:x.through-depth.even_share}}. In native units, b9, pool and logits hold
+{{fact:x.through-depth.nat.f0.occ_tail}} of it at $t^*/64$ and {{fact:x.through-depth.nat.fstar.occ_tail}} at $t^*$.
+Mode $1$'s depth profile is approximately the gap-only control's (median total-variation distance
+{{fact:x.through-depth.tv.all.median}} over {{fact:x.through-depth.tv.all.n}} settings, maximum
+{{fact:x.through-depth.tv.all.max}}). Coupling buys an exact trade: in relative units, from $t^*/64$ to $16t^*$, the
+total change of the sixteen-mode space falls {{fact:x.through-depth.rel.b_ratio}}-fold while its roughness rises
+{{fact:x.through-depth.rel.a_ratio}}-fold. The fitted sets (shape-aligned readout, relative units, $t^*$) churn less
+than three-site blocks at $k = 5$ on every checkpoint under both kernel rules, while the blocks keep at most
+{{fact:x.through-depth.train.r1.k5.cost_hi}} of the ceiling more; at $k = 10$ the sets keep less information than the
+blocks on every checkpoint, by {{fact:x.through-depth.train.r0.k10.cost_lo}} to
+{{fact:x.through-depth.train.r0.k10.cost_hi}} under the kNN rule.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#occ_rel" data-height="300">
+  <figcaption><b>Plotted:</b> occupancy $\operatorname{tr}(G_l^{\top}G_l)/K$ of the first $K = 16$ modes (y) at each
+  site (x), <b>relative site units</b>, final checkpoint, the kNN rule. One line per coupling, light ($t^*/64$) to
+  dark ($16t^*$), the thick line at $t^*$; dashed black: the paper's matrix (no coupling); grey rule: the even share
+  $1/12$. Same y axis as the right panel.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#occ_nat" data-height="300">
+  <figcaption><b>Plotted:</b> as left, <b>native walk units</b> ($c_l = 1$). <b>Values:</b> b9, pool and logits
+  together hold {{fact:x.through-depth.nat.f0.occ_tail}} ($t^*/64$), {{fact:x.through-depth.nat.f2.occ_tail}}
+  ($t^*/4$), {{fact:x.through-depth.nat.fstar.occ_tail}} ($t^*$) and {{fact:x.through-depth.nat.f5.occ_tail}}
+  ($16t^*$); the paper's matrix {{fact:x.through-depth.paper.occ_tail}}.</figcaption>
+</figure>
+</div>
+
+<h3 id="x-through-depth-evidence">Further evidence</h3>
+<p>The subsections follow the argument: where the space lives and what shapes it, how many image directions it holds,
+what coupling trades, the controls, then the fitted sets and the other checkpoints.</p>
+
+<h4 id="x-through-depth-where">Where the low space lives, and what shapes its depth profile</h4>
+<p>In relative units the space spreads further as the coupling grows: at $16t^*$ every site holds between
+{{fact:x.through-depth.rel.f5.occ_min}} and {{fact:x.through-depth.rel.f5.occ_max}}. At $t^*$, stem to b3 hold
+{{fact:x.through-depth.rel.fstar.occ_head}} of it and b9 to logits {{fact:x.through-depth.rel.fstar.occ_tail}}. In
+native units at $t^*/64$, {{fact:x.through-depth.nat.f0.n_empty}} of the twelve sites hold under a thousandth of it
+each. Much of the native-units picture is the late walks being smoother; relative units remove that one scale per site
+and keep everything else.</p>
+<p><b>Mode $1$ against the gap-only control.</b> Mode $1$'s depth weight (the share of its squared norm at each site)
+is close to the gap-only profile in most settings: their total-variation distance is below $0.05$ in
+{{fact:x.through-depth.tv.all.n_below_05}} of {{fact:x.through-depth.tv.all.n}} settings (eight checkpoints, two
+kernel rules, two unit conventions, six couplings). The largest, {{fact:x.through-depth.tv.all.max}}, is at
+{{fact:x.through-depth.tv.all.max_where}}. At the default setting (final checkpoint, relative units, $t^*$) it is
+{{fact:x.through-depth.tv.rel.fstar}}, against {{fact:x.through-depth.tvu.rel.fstar}} between mode $1$ and an even
+profile; there mode $1$ leans further toward the late sites than the gap-only profile. In native units at $t^*/64$ the
+distance is {{fact:x.through-depth.tv.nat.f0}}, for a profile {{fact:x.through-depth.tvu.nat.f0}} away from even: the
+gaps alone reproduce mode $1$'s concentration on the late sites. The first eigenvalue at the default setting is
+{{fact:x.through-depth.rel.fstar.lam1}}, against the gap-only lower bound
+{{fact:x.through-depth.rel.fstar.scalar_energy}}. A single mode's depth profile is therefore weak evidence of a set
+forming or dissolving.</p>
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#mode1_rel" data-height="300">
+  <figcaption><b>Plotted:</b> depth weight of mode $1$ (solid) and the squared ground vector of the gap-only control
+  $\mathrm{diag}(g_l) + t D_{\text{path}}$ (dashed, same colour) at each site (x), at $t^*/4$, $t^*$ and $4t^*$;
+  relative units, final checkpoint, the kNN rule; grey rule: even share.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#mode1_tv" data-height="300">
+  <figcaption><b>Plotted:</b> total-variation distance (half the summed absolute difference over the twelve sites)
+  between mode $1$'s depth weight and the gap-only profile (solid with dots), and between mode $1$ and an even profile
+  (dotted, for scale), at each of the six couplings (x); blue relative units, orange native units; final checkpoint,
+  the kNN rule.</figcaption>
+</figure>
+</div>
+<details class="more"><summary>More views: mode $1$ against the gap-only control in native units</summary>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/through-depth.json#mode1_nat" data-height="300">
+  <figcaption><b>Plotted:</b> as the left panel above, native walk units.</figcaption>
+</figure>
+</details>
+
+<h4 id="x-through-depth-directions">How many image directions the space holds</h4>
+<p>Sixteen modes need not be sixteen image functions: different modes, or one mode at several sites, can reuse the
+same image function. Pooled over the sites, $90\%$ of the space's weight lies in {{fact:x.through-depth.rel.n90.f0}}
+image directions at $t^*/64$, {{fact:x.through-depth.rel.n90.f3}} at $t^*$ and {{fact:x.through-depth.rel.n90.f5}} at
+$16t^*$ in relative units ({{fact:x.through-depth.nat.n90.f0}}, {{fact:x.through-depth.nat.n90.f3}} and
+{{fact:x.through-depth.nat.n90.f5}} in native units; the paper's matrix {{fact:x.through-depth.paper.n90}}). So at weak
+coupling the sixteen modes are not sixteen separate findings about the images. The count does not say at which sites
+the shared directions recur.</p>
+<p>Neighbouring sites' leading four local directions largely agree: the mean $\cos^2$ averaged over the links is
+{{fact:x.through-depth.rel.frame.mean_lo}} to {{fact:x.through-depth.rel.frame.mean_hi}} across the six couplings in
+relative units ({{fact:x.through-depth.paper.frame.mean}} for the paper's matrix). The low values are sensitive to
+small gaps between local strengths. All {{fact:x.through-depth.frame.n_weak}} links under $0.5$ (of
+{{fact:x.through-depth.frame.n_links_all}} across both unit conventions and six couplings) have, at one of their two
+sites, a gap between the fourth and fifth local strengths of about {{fact:x.through-depth.frame.weak_tie_max}} or
+less of the fourth, so which four directions lead is decided by small differences. The lowest value at $t^*$ in
+relative units, {{fact:x.through-depth.rel.frame.fstar.min}}
+at {{fact:x.through-depth.rel.frame.fstar.min_at}}, has fourth and fifth strengths
+{{fact:x.through-depth.rel.frame.fstar.min_s45}}. Across the {{fact:x.through-depth.frame.n_untied}} links where both
+sites have a gap above {{fact:x.through-depth.frame.tie_cut}}, the lowest value is
+{{fact:x.through-depth.frame.untied_min}}.</p>
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#directions" data-height="280">
+  <figcaption><b>Plotted:</b> number of eigenvalues of $R = \sum_l G_l G_l^{\top}$ needed for $90\%$ of its trace
+  $K = 16$ (y) at each of the six couplings (x); blue relative units, orange native units; grey rule: the paper's
+  matrix. Final checkpoint, the kNN rule.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#frames" data-height="280">
+  <figcaption><b>Plotted:</b> mean $\cos^2$ of the principal angles between the leading four local directions of
+  $G_l$ and $G_{l+1}$ (y) for each adjacent pair of sites (x); one line per coupling, light to dark, thick at $t^*$;
+  dashed black: the paper's matrix. Relative units, final checkpoint.</figcaption>
+</figure>
+</div>
+<details class="more"><summary>More views: neighbour frames in native units</summary>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/through-depth.json#frames_nat" data-height="280">
+  <figcaption><b>Plotted:</b> as the right panel above, native walk units, without the paper's matrix.</figcaption>
+</figure>
+</details>
+
+<h4 id="x-through-depth-tradeoff">The exact trade-off</h4>
+<p>For the first $K$ modes, $A + tB$ equals the sum of the first $K$ eigenvalues, and the modes minimise it, so the
+curve below can only move up and to the left as $t$ grows. That is a property of the construction, not a finding; the
+data add the rates. In relative units, from $t^*/64$ to $16t^*$, the sixteen-mode space's total change $B$ falls from
+{{fact:x.through-depth.rel.f0.b16}} to {{fact:x.through-depth.rel.f5.b16}} while its roughness $A$ rises from
+{{fact:x.through-depth.rel.f0.a16}} to {{fact:x.through-depth.rel.f5.a16}}. At $t^*$ the two are
+{{fact:x.through-depth.rel.fstar.a16}} and {{fact:x.through-depth.rel.fstar.b16}}: compared with $t^*/64$, the change
+has dropped by a share of {{fact:x.through-depth.rel.fstar.b_drop}} for {{fact:x.through-depth.rel.fstar.a_rise}}
+times the roughness. Change then makes up {{fact:x.through-depth.rel.fstar.share16}} of the energy $A + t^*B$
+({{fact:x.through-depth.nat.fstar.share16}} in native units).</p>
+<figure class="fig wide">
+  <img src="assets/fig/x_through-depth_tradeoff.png" alt="Two log-log panels of total roughness A against total between-site change B for the first 4, 8 and 16 modes, one point per coupling from t*/64 to 16 t*, relative units left and native units right.">
+  <figcaption><b>Plotted:</b> total within-site roughness $A$ (y, log) against total between-site change $B$ (x, log)
+  of the first $K = 4, 8, 16$ modes (blue, orange, green), one point per coupling ($t^*/64$ at the lower right to
+  $16t^*$ at the upper left; large point: $t^*$; couplings labelled on the $K = 16$ curve). Left: relative units
+  ($A$ includes the division by $c_l$); right: native units. Final checkpoint, the kNN rule.</figcaption>
+</figure>
+<details class="more"><summary>More views: the between-site share of the energy</summary>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/through-depth.json#tradeoff_share" data-height="280">
+  <figcaption><b>Plotted:</b> $tB/(A + tB)$ for the first $K = 4, 8, 16$ modes (blue, orange, green) at each of the six
+  couplings (x); solid with dots: relative units, dashed: native units. Final checkpoint, the kNN rule.</figcaption>
+</figure>
+</details>
+
+<h4 id="x-through-depth-control-results">The controls, with numbers</h4>
+<p>All at the final checkpoint, the kNN rule, relative units. <b>Destroying the image correspondence raises the
+low-mode energy.</b> With images relabelled independently at every site (one draw, at the real chain's $t^*$), the
+first eigenvalue is {{fact:x.through-depth.ctrl.shuffle_l1}} instead of {{fact:x.through-depth.ctrl.base_l1}}; the
+gap-only lower bound, the same for both, is {{fact:x.through-depth.ctrl.bound}}. The real chain's first eigenvalue sits
+{{fact:x.through-depth.ctrl.base_excess}} above the bound, the relabelled chain's
+{{fact:x.through-depth.ctrl.shuffle_excess}}. The relabelled chain's own balance coupling is
+{{fact:x.through-depth.ctrl.shuffle_tstar}} instead of {{fact:x.through-depth.rel.tstar}}. At the shared coupling its
+sixteen-mode space is rougher ($A$ = {{fact:x.through-depth.ctrl.shuffle_a}} against
+{{fact:x.through-depth.ctrl.base_a}}) and changes more ($B$ = {{fact:x.through-depth.ctrl.shuffle_b}} against
+{{fact:x.through-depth.ctrl.base_b}}). Its neighbouring unit slices are as similar as the real ones (mean cosine
+{{fact:x.through-depth.ctrl.shuffle_adjcos}} against {{fact:x.through-depth.ctrl.base_adjcos}}), so slice cosine on
+its own does not show that the correspondence was used.</p>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/through-depth.json#ctrl_vals" data-height="280">
+  <figcaption><b>Plotted:</b> the first sixteen eigenvalues on mean-zero slices (y) by mode number (x): the operator
+  (solid) and the same chain with the images relabelled independently at every site (dashed, one draw); grey rule:
+  the gap-only lower bound on the first eigenvalue, the same for both. Final checkpoint, the kNN rule, relative units,
+  $t = t^*$ of the real chain.</figcaption>
+</figure>
+<table class="data">
+<thead><tr><th>change to the construction</th><th class="num">its own $t^*$</th><th class="num">overlap of the
+sixteen-mode space with the default</th><th class="num">occupancy on stem to b9</th></tr></thead>
+<tbody>
+<tr><td>default: scale rank $8$, all twelve sites</td><td class="num">{{fact:x.through-depth.ctrl.rank8.tstar}}</td><td class="num">(reference)</td><td class="num">{{fact:x.through-depth.ctrl.base.occ_body}}</td></tr>
+<tr><td>scale rank $4$</td><td class="num">{{fact:x.through-depth.ctrl.rank4.tstar}}</td><td class="num">{{fact:x.through-depth.ctrl.rank4.share}}</td><td class="num"></td></tr>
+<tr><td>scale rank $16$</td><td class="num">{{fact:x.through-depth.ctrl.rank16.tstar}}</td><td class="num">{{fact:x.through-depth.ctrl.rank16.share}}</td><td class="num"></td></tr>
+<tr><td>pool dropped</td><td class="num">{{fact:x.through-depth.ctrl.drop_pool.tstar}}</td><td class="num">{{fact:x.through-depth.ctrl.drop_pool.share}} (stem to b9)</td><td class="num">{{fact:x.through-depth.ctrl.drop_pool.occ_body}}</td></tr>
+<tr><td>logits dropped</td><td class="num">{{fact:x.through-depth.ctrl.drop_logits.tstar}}</td><td class="num">{{fact:x.through-depth.ctrl.drop_logits.share}} (stem to b9)</td><td class="num">{{fact:x.through-depth.ctrl.drop_logits.occ_body}}</td></tr>
+<tr><td>logits counted twice</td><td class="num">{{fact:x.through-depth.ctrl.dup_logits.tstar}}</td><td class="num">{{fact:x.through-depth.ctrl.dup_logits.share}} (stem to b9)</td><td class="num">{{fact:x.through-depth.ctrl.dup_logits.occ_body}}</td></tr>
+</tbody>
+</table>
+<p>The overlap is the normalised projector overlap, $\lVert Q_a^{\top} Q_b \rVert_F^2 / K$ for orthonormal bases of
+the two spaces (one for identical spaces). Scale rank $4$ leaves the space nearly unchanged
+({{fact:x.through-depth.ctrl.rank4.share}}); rank $16$ gives an overlap of {{fact:x.through-depth.ctrl.rank16.share}},
+so the scale rank is not irrelevant. Changing the end of the chain moves $t^*$ but leaves the space on stem to b9
+nearly where it was. For the last three rows each space is first restricted to stem to b9 and given an orthonormal
+basis there; the restrictions are well conditioned (smallest singular value
+{{fact:x.through-depth.ctrl.dup_logits.smin}} or more).</p>
+
+<h4 id="x-through-depth-sets">Sets through depth: a fitted readout</h4>
+<p><b>This is a post-hoc fit, not part of the construction.</b> Sets are read off the first eight modes with
+$k$-means, one fit for all sites together. Only sites holding more than a thousandth of an even share of the rank-$8$
+space take part. Each such site's $N \times 8$ block $G_l$ is scaled by one number so that its rows have mean squared
+norm one. Then one $k$-means with centroids shared by all participating sites labels every (image, site) pair there. Two readouts answer different questions.
+<b>Shared coordinates</b> fits the scaled rows as they are: did this image change its joint spectral coordinates?
+<b>Shape-aligned</b> first maps each site onto the already aligned previous site, by the orthogonal transformation
+(reflections allowed) that best superimposes the same images (Procrustes, an SVD), so the transformations compose along
+the chain and restart after a site without labels; it then asks about changes that such a transformation cannot
+absorb. The transformation is poorly determined where the cross matrix of two sites is
+nearly singular: at the default setting, {{fact:x.through-depth.sets.link_n_below_01}} of the
+{{fact:x.through-depth.n_links}} links have a smallest-to-largest singular value ratio under $0.01$ (smallest
+{{fact:x.through-depth.sets.link_min}}, at {{fact:x.through-depth.sets.link_min_at}}). The readout's rank, $8$, is part
+of the readout and was fixed in advance. On the specification's toy (one group planted to merge at the late sites), at
+rank $12$ to $16$ the late sites' noise directions are rescaled to full size and the merged group is cut at
+random.</p>
+<p><b>Scores</b>, the same for every partition. <b>Information kept</b> at site $l$: the $\chi^2$ information between
+an image's set at site $l$ and the image that site $l$'s non-lazy walk $2M_l - I$ steps to next, as a share of its
+<b>ceiling</b>, a spectral upper bound for partitions into up to $k$ sets that a partition need not reach (the $k-1$
+largest squared nontrivial eigenvalues of that walk). A fit may occupy fewer than $k$ sets at some sites (as few as
+{{fact:x.through-depth.sets.k10.a.fstar.groups_min}} at the default with $k = 10$). The null is the exact mean
+information of a random relabelling with the realised set sizes; averaged over sites it is
+{{fact:x.through-depth.sets.k5.null_lo}} to {{fact:x.through-depth.sets.k5.null_hi}} of the ceiling across the
+partitions plotted at $k = 5$. <b>Churn</b> is the share of images whose set changes between neighbouring sites, after
+the best relabelling of each link. Information is averaged over the labelled sites, churn over the links with both ends labelled
+({{fact:x.through-depth.n_links}} links when all sites are labelled). <b>References</b>, each $k$-means on
+eight unweighted eigenvectors of its own operator and scored the same way: each site independently (labels matched
+along the chain), four blocks of three sites (each block's average operator), the twelve-site block average, and its
+relative-units version. The paper's matrix gets the same two readouts.</p>
+<p><b>At $k = 5$</b> (final checkpoint, the kNN rule, relative units, shape-aligned, $t^*$) the sets keep
+{{fact:x.through-depth.sets.k5.a.f3.info}} with churn {{fact:x.through-depth.sets.k5.a.f3.churn}}. The three-site
+blocks keep {{fact:x.through-depth.sets.k5.thirds.info}} with churn {{fact:x.through-depth.sets.k5.thirds.churn}},
+all of it at the three block boundaries ({{fact:x.through-depth.sets.k5.thirds.boundary_churn}} there on average).
+Independent sites keep {{fact:x.through-depth.sets.k5.site.info}} with churn
+{{fact:x.through-depth.sets.k5.site.churn}}, and the twelve-site average {{fact:x.through-depth.sets.k5.avg.info}}
+with none. The sets thus churn {{fact:x.through-depth.sets.k5.churn_ratio}} times less than the three-site blocks for
+{{fact:x.through-depth.sets.k5.info_cost}} of the ceiling. At $t^*/4$ they keep
+{{fact:x.through-depth.sets.k5.a.f2.info}} with churn {{fact:x.through-depth.sets.k5.a.f2.churn}}.</p>
+<p><b>At $k = 10$</b> the comparison turns. At $t^*$ the sets keep {{fact:x.through-depth.sets.k10.a.f3.info}}
+(churn {{fact:x.through-depth.sets.k10.a.f3.churn}}), against {{fact:x.through-depth.sets.k10.thirds.info}}
+(churn {{fact:x.through-depth.sets.k10.thirds.churn}}) for the three-site blocks and
+{{fact:x.through-depth.sets.k10.avg.info}} for the rigid average: {{fact:x.through-depth.sets.k10.info_cost}} less than
+the blocks and {{fact:x.through-depth.sets.k10.info_over_avg}} more than the average. The coupling that keeps the
+most, {{fact:x.through-depth.sets.k10.a.best_f}}, reaches {{fact:x.through-depth.sets.k10.a.best_info}} with churn
+{{fact:x.through-depth.sets.k10.a.best_churn}}, still well below the blocks.</p>
+<p>The two readouts are close at strong coupling. In relative units, shared coordinates keeps more than shape-aligned in
+{{fact:x.through-depth.sets.s_ahead_total}} of {{fact:x.through-depth.sets.n_settings_final}} settings at the final
+checkpoint (both kernel rules, both $k$, six couplings), by at most {{fact:x.through-depth.sets.s_lead_max}}, all at
+$4t^*$ or $16t^*$. At weak coupling it collapses: {{fact:x.through-depth.sets.k5.s.f0.info}} at $t^*/64$ with
+$k = 5$, where at least one site uses only {{fact:x.through-depth.sets.k5.s.f0.groups_min}} of the five sets. The
+paper's matrix with the shape-aligned readout lands at {{fact:x.through-depth.sets.k5.paper_a.info}} and
+{{fact:x.through-depth.sets.k5.paper_a.churn}} ($k = 5$), and {{fact:x.through-depth.sets.k10.paper_a.info}} and
+{{fact:x.through-depth.sets.k10.paper_a.churn}} ($k = 10$).</p>
+<figure class="fig wide">
+  <img src="assets/fig/x_through-depth_sets.png" alt="Two scatter panels, k = 5 and k = 10: churn against information kept for the through-depth sets along the six couplings in both readouts, the four reference partitions and the paper's matrix, with the random-relabelling range shaded.">
+  <figcaption><b>Plotted:</b> churn (y; share of images whose set changes between neighbouring sites after the best
+  relabelling, mean over the links) against information kept (x; $\chi^2$ information about the next step of
+  $2M_l - I$ as a share of the ceiling, mean over the sites). Lines: the through-depth sets along the six couplings,
+  shape-aligned (blue) and shared coordinates (orange); large point: $t^*$. Square: each site independently; diamond:
+  four blocks of three sites; filled and hollow triangles: the twelve-site block average and its relative-units
+  version; star and cross: the paper's matrix, shape-aligned and shared coordinates. Grey band: the range of the
+  site-averaged random-relabelling null over all plotted partitions. Left $k = 5$, right $k = 10$; final checkpoint,
+  the kNN rule, relative units.</figcaption>
+</figure>
+<p><b>Native units: full-chain averages are not comparable at weak coupling</b> (final checkpoint, the kNN rule,
+shape-aligned readout). There the rank-$8$ space sits on a few late sites
+(labelled sites at the six couplings: {{fact:x.through-depth.sets.k5.nat.nlive}}), the other sites get no labels, and
+the means run over the late sites only, where every partition keeps more. At $t^*/16$ the native-units sets
+({{fact:x.through-depth.sets.k5.nat.f1.nlive}} sites, {{fact:x.through-depth.sets.k5.nat.f1.first_live}} to logits)
+keep {{fact:x.through-depth.sets.k5.a.nat.f1.info}} with churn {{fact:x.through-depth.sets.k5.a.nat.f1.churn}} at
+$k = 5$; on the same sites and links the three-site blocks keep {{fact:x.through-depth.sets.k5.thirds.nat_f1_sites.info}}
+with churn {{fact:x.through-depth.sets.k5.thirds.nat_f1_sites.churn}}. At $k = 10$ the figures are
+{{fact:x.through-depth.sets.k10.a.nat.f1.info}} and {{fact:x.through-depth.sets.k10.a.nat.f1.churn}} against
+{{fact:x.through-depth.sets.k10.thirds.nat_f1_sites.info}} and
+{{fact:x.through-depth.sets.k10.thirds.nat_f1_sites.churn}}. In relative units every site is labelled in every
+setting.</p>
+<details class="more"><summary>More views: the scores site by site, and the perplexity rule</summary>
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#sets_site_info_k5" data-height="280">
+  <figcaption><b>Plotted:</b> information kept as a share of the ceiling (y) at each site (x), $k = 5$: the
+  through-depth sets at $t^*$ (blue shape-aligned, orange shared coordinates), each site independently (green), four
+  blocks of three sites (yellow), the twelve-site average (grey); dotted blue: the random-relabelling null of the
+  shape-aligned sets. Final checkpoint, the kNN rule, relative units.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#sets_site_churn_k5" data-height="280">
+  <figcaption><b>Plotted:</b> churn after the best relabelling (y) for each adjacent pair of sites (x), $k = 5$,
+  same partitions and colours as left (the twelve-site average has none).</figcaption>
+</figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#sets_site_info_k10" data-height="280">
+  <figcaption><b>Plotted:</b> as above, $k = 10$.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#sets_site_churn_k10" data-height="280">
+  <figcaption><b>Plotted:</b> as above, $k = 10$.</figcaption>
+</figure>
+</div>
+<figure class="fig wide">
+  <img src="assets/fig/x_through-depth_sets_rule1.png" alt="The churn against information figure for the perplexity kernel rule at the final checkpoint.">
+  <figcaption><b>Plotted:</b> as the churn-against-information figure above, kernel rule
+  {{fact:x.through-depth.rule_alt}}, final checkpoint, relative units.</figcaption>
+</figure>
+</details>
+<p><b>The flow of membership</b> for one setting ($k = 5$, shape-aligned, $t^*$, relative units, final checkpoint)
+shows what the churn number summarises. Set sizes run from {{fact:x.through-depth.flow.sizes_stem}} at stem to
+{{fact:x.through-depth.flow.sizes_logits}} at logits (sets numbered by total size over the sites, as in the
+explorer). A share of {{fact:x.through-depth.flow.never_change}} of the images never change set, and
+{{fact:x.through-depth.flow.same_end_to_end}} end in the set they start in. As validation only, the normalised mutual
+information between the sets and the CIFAR classes is {{fact:x.through-depth.flow.nmi_stem}} at stem,
+{{fact:x.through-depth.flow.nmi_b9}} at b9 and {{fact:x.through-depth.flow.nmi_logits}} at logits; each site's own
+independent partition reaches {{fact:x.through-depth.flow.nmi_site_logits}} at logits.</p>
+<figure class="fig wide">
+  <img src="assets/fig/x_through-depth_flow.png" alt="An alluvial diagram of five sets across the twelve sites, with flows between neighbouring sites, above the same nodes split by CIFAR-10 class.">
+  <figcaption><b>Plotted:</b> top, one column per site; each node is a set ($k = 5$; numbered by total size over the
+  sites; height = number of images, given at stem and logits), and each band between neighbouring columns carries the
+  images that go from one set to another, coloured by the set at the left site. Bottom, the same nodes, each split by
+  CIFAR-10 class (validation only). Shape-aligned readout of the rank-$8$ low space, $t = t^*$, relative units, final
+  checkpoint, the kNN rule.</figcaption>
+</figure>
+<details class="more"><summary>More views: the same flow at $k = 10$</summary>
+<figure class="fig wide">
+  <img src="assets/fig/x_through-depth_flow_k10.png" alt="The alluvial diagram and class split for ten sets across the twelve sites.">
+  <figcaption><b>Plotted:</b> as the flow figure above, $k = 10$.</figcaption>
+</figure>
+</details>
+
+<h4 id="x-through-depth-training">Across training, and the perplexity rule</h4>
+<p><b>The balance coupling</b> ends higher than it starts, after a dip at step $64$ in all four series: in relative
+units from {{fact:x.through-depth.train.r0.rel.tstar0}} at step $0$ to {{fact:x.through-depth.train.r0.rel.tstar_fin}}
+at the end (the perplexity rule: {{fact:x.through-depth.train.r1.rel.tstar0}} to
+{{fact:x.through-depth.train.r1.rel.tstar_fin}}); in native units from {{fact:x.through-depth.train.r0.nat.tstar0}} to
+{{fact:x.through-depth.train.r0.nat.tstar_fin}} ({{fact:x.through-depth.train.r1.nat.tstar0}} to
+{{fact:x.through-depth.train.r1.nat.tstar_fin}}). <b>Occupancy</b> at $t^*$ in relative units: stem to b3 hold
+{{fact:x.through-depth.train.rel.occ_head0}} at step $0$ and {{fact:x.through-depth.train.rel.occ_head_fin}} at the
+end, b9 to logits {{fact:x.through-depth.train.rel.occ_tail0}} and {{fact:x.through-depth.train.rel.occ_tail_fin}}
+(the perplexity rule at the end: {{fact:x.through-depth.train.r1.rel.occ_head_fin}} and
+{{fact:x.through-depth.train.r1.rel.occ_tail_fin}}). <b>Image directions</b> for $90\%$ of the trace at $t^*$, over the
+eight checkpoints: {{fact:x.through-depth.train.r0.rel.n90}} (the perplexity rule:
+{{fact:x.through-depth.train.r1.rel.n90}}). <b>The trade-off</b> at $t^*$: change is
+{{fact:x.through-depth.train.r0.rel.share_lo}} to {{fact:x.through-depth.train.r0.rel.share_hi}} of the sixteen-mode
+energy over training in relative units and {{fact:x.through-depth.train.r0.nat.share_lo}} to
+{{fact:x.through-depth.train.r0.nat.share_hi}} in native units (the perplexity rule:
+{{fact:x.through-depth.train.r1.rel.share_lo}} to {{fact:x.through-depth.train.r1.rel.share_hi}} and
+{{fact:x.through-depth.train.r1.nat.share_lo}} to {{fact:x.through-depth.train.r1.nat.share_hi}}). Mode $1$ against
+the gap-only control at the default setting under the perplexity rule: {{fact:x.through-depth.train.r1.tv.rel.fstar}}.</p>
+<p><b>The set comparison has the same shape on every checkpoint, under both kernel rules</b> (shape-aligned, relative
+units, $t^*$). At $k = 5$ the sets churn less than the three-site blocks on
+{{fact:x.through-depth.train.r0.k5.n_less_churn}} of {{fact:n_checkpoints}} checkpoints, the blocks churning
+{{fact:x.through-depth.train.r0.k5.churn_ratio_lo}} to {{fact:x.through-depth.train.r0.k5.churn_ratio_hi}} times as
+much (the perplexity rule: {{fact:x.through-depth.train.r1.k5.n_less_churn}} of {{fact:n_checkpoints}},
+{{fact:x.through-depth.train.r1.k5.churn_ratio_lo}} to {{fact:x.through-depth.train.r1.k5.churn_ratio_hi}} times). The
+blocks keep between {{fact:x.through-depth.train.r0.k5.cost_lo}} and {{fact:x.through-depth.train.r0.k5.cost_hi}} of
+the ceiling more than the sets (a negative value: the sets keep more, at step $0$); under the perplexity rule
+{{fact:x.through-depth.train.r1.k5.cost_lo}} to {{fact:x.through-depth.train.r1.k5.cost_hi}}. At $k = 10$ the sets keep
+less than the blocks on {{fact:x.through-depth.train.r0.k10.n_below_thirds}} of {{fact:n_checkpoints}} checkpoints, by
+{{fact:x.through-depth.train.r0.k10.cost_lo}} to {{fact:x.through-depth.train.r0.k10.cost_hi}} (the perplexity rule:
+{{fact:x.through-depth.train.r1.k10.n_below_thirds}} of {{fact:n_checkpoints}}, by
+{{fact:x.through-depth.train.r1.k10.cost_lo}} to {{fact:x.through-depth.train.r1.k10.cost_hi}}). Their margin over the
+rigid average runs from {{fact:x.through-depth.train.r0.k10.over_avg_lo}} to
+{{fact:x.through-depth.train.r0.k10.over_avg_hi}} ({{fact:x.through-depth.train.r1.k10.over_avg_lo}} to
+{{fact:x.through-depth.train.r1.k10.over_avg_hi}}), and the blocks churn only
+{{fact:x.through-depth.train.r0.k10.churn_ratio_lo}} to {{fact:x.through-depth.train.r0.k10.churn_ratio_hi}} times as
+much as the sets ({{fact:x.through-depth.train.r1.k10.churn_ratio_lo}} to
+{{fact:x.through-depth.train.r1.k10.churn_ratio_hi}}). At the final checkpoint under the perplexity rule: $k = 5$,
+{{fact:x.through-depth.r1.k5.a.fstar.info}} and churn {{fact:x.through-depth.r1.k5.a.fstar.churn}} against
+{{fact:x.through-depth.r1.k5.thirds.info}} and {{fact:x.through-depth.r1.k5.thirds.churn}}; $k = 10$,
+{{fact:x.through-depth.r1.k10.a.fstar.info}} and {{fact:x.through-depth.r1.k10.a.fstar.churn}} against
+{{fact:x.through-depth.r1.k10.thirds.info}} and {{fact:x.through-depth.r1.k10.thirds.churn}} (rigid average
+{{fact:x.through-depth.r1.k10.avg.info}}).</p>
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#train_info" data-height="300">
+  <figcaption><b>Plotted:</b> information kept as a share of the ceiling, mean over sites (y), against training step
+  (x, symlog): through-depth sets at $t^*$ (blue; shape-aligned, relative units), four blocks of three sites (yellow),
+  twelve-site block average (grey); solid $k = 5$, dashed $k = 10$. The kNN rule.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#train_churn" data-height="300">
+  <figcaption><b>Plotted:</b> churn after the best relabelling, mean over the links (y), against training step (x,
+  symlog), same partitions and line styles as left (the twelve-site average has none). The kNN rule.</figcaption>
+</figure>
+</div>
+<details class="more"><summary>More views: balance coupling, occupancy and trade-off over training; the set comparison under the perplexity rule</summary>
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#train_tstar" data-height="260">
+  <figcaption><b>Plotted:</b> balance coupling $t^*$ in relative units (y) against training step (x, symlog); solid
+  the kNN rule, dashed the perplexity rule.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#train_tstar_nat" data-height="260">
+  <figcaption><b>Plotted:</b> as left, native units.</figcaption>
+</figure>
+</div>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/through-depth.json#train_occ" data-height="280">
+  <figcaption><b>Plotted:</b> occupancy of the first sixteen modes at $t^*$ (y) at each site (x), one line per
+  checkpoint (light: step $0$, dark: the final checkpoint); relative units, the kNN rule; grey rule: even
+  share.</figcaption>
+</figure>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/through-depth.json#train_occ_nat" data-height="280">
+  <figcaption><b>Plotted:</b> as above, native units.</figcaption>
+</figure>
+<figure class="fig wide live" data-live="lines" data-src="assets/x/through-depth.json#train_share" data-height="280">
+  <figcaption><b>Plotted:</b> between-site share $tB/(A + tB)$ of the first sixteen modes at $t^*$ (y) against
+  training step (x, symlog); blue relative units, orange native units; solid the kNN rule, dashed the perplexity
+  rule.</figcaption>
+</figure>
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#train_info_r1" data-height="300">
+  <figcaption><b>Plotted:</b> as the information panel above, the perplexity rule.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/through-depth.json#train_churn_r1" data-height="300">
+  <figcaption><b>Plotted:</b> as the churn panel above, the perplexity rule.</figcaption>
+</figure>
+</div>
+</details>
+
+<h3 id="x-through-depth-caveats">Caveats</h3>
+<ul>
+<li>One network, one seed.</li>
+<li>The probe is class-stratified ({{fact:n_images}} test images, the same number from each class), so the labels chose
+the vertices, although no label enters any operator or basis. Classes appear here only as validation (the flow's class
+split and the mutual information).</li>
+<li>One recorded site is one unit of depth and one unit of mass, a convention. Sites are not evenly spaced in the
+network (pool and logits are single operations, b1 to b9 are residual blocks), and every number here depends on that
+spacing.</li>
+<li>The default coupling $t^*$ balances two eigenvalues. It is a ruler for placing the six couplings, not an optimum
+of anything measured here; the set comparison changes along the couplings, and the page shows all six.</li>
+<li>The set readout is a fit: $k$-means on a rank of $8$ fixed in advance, and the rank is part of the readout (on the
+specification's toy it degrades at rank $12$ to $16$). The shape-aligned readout's rotations are poorly determined at
+several links (see the sets subsection).</li>
+<li>Mode numbers are local to one setting. They are not matched across couplings, unit conventions, checkpoints or
+kernel rules, so "mode $1$" in two settings need not be the same function. Mode $1$ is read separately in each
+setting; the comparisons of the whole space use the rotation-invariant readings.</li>
+<li>In native units at the three weakest couplings, some sites get no set labels, and set scores averaged over sites
+are not comparable with the references (see the sets subsection).</li>
+<li>Neighbour-frame similarity is sensitive where a site's fourth and fifth local strengths are close; every value
+under $0.5$ on this page sits at such a near-tie.</li>
+</ul>
+
+<h3 id="x-through-depth-open">Open checks</h3>
+<p>None of these has been run.</p>
+<ul>
+<li>A second seed, and a probe drawn without class stratification.</li>
+<li>A coupling that differs between links (for example scaled by each pair of sites' gaps), instead of one $t$ for the
+whole chain.</li>
+<li>The set readout at ranks other than $8$ on the real network, and a readout that does not force every image into a
+set.</li>
+<li>Matching modes across couplings and checkpoints by subspace overlap, so that a single mode could be followed.</li>
+</ul>
+
+<h3 id="x-through-depth-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;c=depth&amp;dv=own&amp;dt=3&amp;dm=sets&amp;dk=5&amp;dr=a"><img src="assets/fig/x_through-depth_explorer.png" alt="The explorer grid with the final checkpoint's row coloured by the through-depth sets, k = 5, shape-aligned readout, relative units, at the balance coupling."></a>
+  <figcaption><b>Plotted:</b> the explorer in the linked state: the final checkpoint's row, one panel per site (UMAP
+  layout of the probe images, seed $0$), each point coloured by its set at that site in the through-depth sets of this
+  experiment ($k = 5$, shape-aligned readout, relative units, $t = t^*$), the kNN rule; other rows grey.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;c=depth&amp;dv=own&amp;dt=3&amp;dm=sets&amp;dk=5&amp;dr=a">Open
+the through-depth sets in the explorer</a>; move the coupling slider and the fitted labels change less between neighbouring sites at the strong end.
+<a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;c=depth&amp;dv=none&amp;dt=0&amp;dm=1">Mode $1$ in native
+units at $t^*/64$</a> puts {{fact:x.through-depth.mode1.nat.f0.tail}} of its squared norm on b9, pool and logits.</p>
+</section>

@@ -1,0 +1,167 @@
+<!-- X7 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/markov.py; data: data/r20s0b/markov_summary.json
+     (markov_summary.py, SPEC_COARSE.md section 6). App D receives assets/x/markov.json#app4.* (captions inside). -->
+<section class="experiment" id="x-markov">
+<h2>Is the constructed walk through the layers approximately Markov under the tested partitions?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0, the {{fact:n_images}}-image probe, final checkpoint (step
+{{fact:final_step}}), kernel rule {{fact:x.markov.rule}}, $k = 10$ blocks per site; other rules and $k = 4$ under
+Caveats.</p>
+
+<h3 id="x-markov-why">Why it is interesting</h3>
+<p>The method turns each site of the network into a random walk on the probe images: from an image, step to an image
+the site treats as similar, or stay put. Chaining the sites gives one walk through the whole network, and that walk is
+Markov by construction: where it goes at the next site depends only on the image it is at now.</p>
+<p>Now record only which of $k$ groups the walk is in at each site. If the current group were enough to predict the
+next group, the network's depth would have a small, readable description: a $k \times k$ table of transition
+probabilities between groups for each pair of neighbouring sites, instead of one operator on all
+{{fact:n_images}} images per site. If the exact image still matters once its group is known, the groups leave out
+something the walk uses to move images on. This experiment measures how far the tested groupings are from such a
+description, and checks how much of that distance a walk with no geometry at all would also produce.</p>
+
+<h3 id="x-markov-how">How I measure it</h3>
+<p><b>The process.</b> $Z_s$ is the image the walk is at after site $s$; it starts uniform over the probe and moves by
+the site's lazy walk $M_s = (I + P_s)/2$, so the pair $(Z_s, Z_{s+1})$ has coupling $M_{s+1}/N$. Each site carries a
+partition $c_s$ of the images into $k$ blocks, and the <b>coarse process</b> is $C_s = c_s(Z_s)$. Every quantity
+below is exact, computed from the operators, in nats (specification: <code>SPEC_COARSE.md §6</code>; tests in
+<code>test_markov.py</code>).</p>
+<ul>
+<li><b>One-step defect fraction</b> $\delta_s / I(Z_s; C_{s+1})$ with
+$\delta_s = I(Z_s; C_{s+1} \mid C_s)$: of the information the exact image carries about the next block, the share that
+the current block does not carry. It is zero exactly when every image in a block of $c_s$ has the same distribution
+over next blocks (strong lumpability of the step $s \to s+1$), which is the condition for that step to be a closed
+$k$-state transition. A positive defect rules out closure of the step; on its own it does not show that earlier blocks
+would improve the prediction. Dividing by $I(Z_s; C_{s+1})$ makes pairs of sites with different amounts of next-block
+information comparable; because the denominator differs between walks too, the unnormalised defect (in nats) is
+reported beside the fraction. Where the denominator is zero the fraction is undefined and is drawn as a gap.</li>
+<li><b>Chapman&ndash;Kolmogorov (CK) error</b>, the standard check for Markov state models: for sites $a < b$ the true
+coarse transition $P(C_b \mid C_a)$ against the product of the one-step coarse transitions from $a$ to $b$, as a
+mass-weighted total-variation distance. It is shown beside the distance of the true transition from independence
+($P(C_b)$ for every starting block), which is how much there is to get wrong. Values are averaged over the start sites
+$a$ with the same horizon $h = b - a$. A nonzero CK error rules out exact first-order Markov behaviour of the
+coarse process.</li>
+<li><b>Coarse memory</b> $I(C_{s+2}; C_s \mid C_{s+1}) / H(C_{s+2} \mid C_{s+1})$: the share of the uncertainty about
+the next block, given the current block, that the previous block removes. A positive value shows that the coarse
+process is not exactly first-order Markov: the past block improves the prediction.</li>
+</ul>
+<p><b>The partitions.</b> (i) <b>Each site's own partition</b>: spectral $k$-means of that site's single-snapshot
+operator, the method's own coarse description of each site. (ii) <b>One shared partition</b>: b9's spectral
+$k$-means used at every site, fixed in the specification before any result. It separates "the partition changes from
+site to site" from "the walk moves images between blocks". (iii) The CIFAR <b>classes</b> used as the partition at
+every site, for validation only. PCA $k$-means and random partitions are in Appendix D.</p>
+<p><b>Why $k = 10$.</b> At the final checkpoint the chains {{fact:x.markov.gap_chains}} have a clear spectral gap after
+$k = 10$ modes (the gap criterion in <a href="#method-details/coarse-gap">Appendix C</a>), so $k = 10$ is the number of blocks
+the late operators' spectra single out. It is not chosen from the labels; that the classes also number ten is what
+lets them serve as a validation partition at the same $k$.</p>
+
+<h3 id="x-markov-controls">Controls and nulls</h3>
+<p><b>The lazy uniform walk</b> $U = \tfrac12\left(I + \tfrac{1}{N-1}(J - I)\right)$ at every site, with exactly the
+same partitions. It <b>keeps</b> one mechanism of the constructed walk: an image stays put with probability
+$\tfrac12$ at each site. It <b>removes</b> the geometry of the moves that leave an image: on $U$ every other image is
+equally likely.</p>
+<ul>
+<li>With partitions that differ from site to site, the stay-put mechanism alone produces a defect: images of one
+current block that stay put land in whichever next blocks the next site's partition assigns them. The comparison is
+of fractions with different denominators: the image carries a median {{fact:x.markov.own.real.info_nats}} nats about
+the next block on the constructed walk and {{fact:x.markov.own.uniform.info_nats}} on the control, and the median
+defect is {{fact:x.markov.own.real.defect_nats}} against {{fact:x.markov.own.uniform.defect_nats}} nats. A similar
+defect fraction on the control therefore shows that this mechanism alone loses a similar <em>fraction</em> of the
+next-block information, not a similar amount. It does not split the real defect into a stay-put part and a geometry
+part; the two walks are different processes and the quantities do not add across them.</li>
+<li>With one partition shared by every site the control is exactly zero, by construction: on $U$ the distribution of
+the next block depends only on the current block. A nonzero defect with a shared partition therefore comes from the
+constructed walk sending images of one block to the other blocks in different proportions.</li>
+</ul>
+<p>The three measures answer two questions. The one-step defect asks whether each step is closed on the blocks
+(lumpability). Coarse memory and the CK error ask whether the coarse process, as it is, behaves as a first-order
+Markov chain; positive values rule that out. Only adjacent triples and pairwise transitions are tested, so values near
+zero would not certify either property.</p>
+
+<h3 id="x-markov-answer">Answer</h3>
+<p class="x-answer"><b>Closure.</b> No tested step is closed on the blocks. With each site's own partition the
+median defect fraction over the {{fact:x.markov.n_pairs}} adjacent pairs is {{fact:x.markov.own.real.defect}}
+({{fact:x.markov.own.real.defect_nats}} nats) on the constructed walk and {{fact:x.markov.own.uniform.defect}}
+({{fact:x.markov.own.uniform.defect_nats}} nats) on the control; with b9's partition at every site it is
+{{fact:x.markov.shared.real.defect}} ({{fact:x.markov.shared.real.defect_nats}} nats; range
+{{fact:x.markov.shared.real.defect_min}} to {{fact:x.markov.shared.real.defect_max}}), where the control is exactly
+zero.<br><b>Markov behaviour.</b> Neither tested coarse process is exactly first-order Markov: the previous block
+removes a median {{fact:x.markov.own.real.mem}} of the remaining uncertainty with the own partitions (control
+{{fact:x.markov.own.uniform.mem}}) and {{fact:x.markov.shared.real.mem}} with b9's partition (control exactly zero),
+and the CK error two sites ahead is {{fact:x.markov.h2.own.real.ck}} and {{fact:x.markov.h2.shared.real.ck}}. The
+shared partition reduces every measured error but removes none.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/markov.json#lead" data-height="320">
+  <figcaption><b>Plotted:</b> the one-step defect fraction $\delta_s / I(Z_s; C_{s+1})$ (y) for each adjacent pair
+  of sites $s \to s+1$ (x, stem&rarr;b1 to pool&rarr;logits), at the final checkpoint (step {{fact:final_step}}),
+  kernel rule {{fact:x.markov.rule}}, $k = 10$. Blue: each site's own spectral $k$-means partition. Orange: b9's
+  spectral $k$-means partition at every site. Solid: the constructed walk. Dashed: the lazy uniform walk $U$ with the
+  same partitions (control; the orange dashed line is zero at every pair). Dark dots: the classes as the partition at
+  every site, constructed walk (validation). Undefined values would be gaps; there are none here.
+  <b>Values:</b> own partitions {{fact:x.markov.own.real.defect_min}} to {{fact:x.markov.own.real.defect_max}}
+  (control {{fact:x.markov.own.uniform.defect_min}} to {{fact:x.markov.own.uniform.defect_max}}); at b9&rarr;pool and
+  pool&rarr;logits {{fact:x.markov.own.real.defect_last2}} (control {{fact:x.markov.own.uniform.defect_last2}});
+  classes median {{fact:x.markov.labels.real.defect}}.</figcaption>
+</figure>
+
+<h3 id="x-markov-evidence">Further evidence</h3>
+<p><b>Do small one-step defects add up over many sites?</b> A one-step defect says nothing directly about how wrong
+the chained coarse model is between distant sites, and a large chained error could simply reflect a transition that
+is far from independence. The CK error answers the first, and the distance from independence gives its scale. Chaining
+each site's own one-step coarse transitions misses the true transition two sites ahead by
+{{fact:x.markov.h2.own.real.ck}} in total variation (distance from independence {{fact:x.markov.h2.own.real.ckind}};
+control {{fact:x.markov.h2.own.uniform.ck}}), and from stem to logits, {{fact:x.markov.h_max}} sites apart, by
+{{fact:x.markov.h11.own.real.ck}} against a distance from independence of {{fact:x.markov.h11.own.real.ckind}}
+(control {{fact:x.markov.h11.own.uniform.ck}}). With
+b9's partition at every site the errors are {{fact:x.markov.h2.shared.real.ck}} and
+{{fact:x.markov.h11.shared.real.ck}} (distances from independence {{fact:x.markov.h2.shared.real.ckind}} and
+{{fact:x.markov.h11.shared.real.ckind}}; control exactly zero).</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/markov.json#ck" data-height="300">
+  <figcaption><b>Plotted:</b> Chapman&ndash;Kolmogorov error (solid and dashed) and the distance of the true coarse
+  transition from independence (dotted), both as mass-weighted total variation (y), against the horizon $h = b - a$
+  in sites (x), each the mean over the start sites $a$ with that horizon (one pair at the largest $h$); final
+  checkpoint, kernel rule {{fact:x.markov.rule}}, $k = 10$. Blue: each site's own spectral $k$-means partition;
+  orange: b9's partition at every site. Dashed blue: CK error on the lazy uniform walk with the own partitions
+  (control). The control for b9's partition is zero at every horizon and is not drawn.</figcaption>
+</figure>
+
+<p>Memory and defect against $k$ and over training are in Appendix D.</p>
+
+<h3 id="x-markov-caveats">Caveats</h3>
+<ul>
+<li>The stay-put mechanism is part of the constructed walk ($M_s = (I + P_s)/2$), so every absolute value includes
+it. The control shows what fraction of the next-block information it alone loses with the own partitions; it is
+not subtracted.</li>
+<li>Neighbouring own partitions agree only partly (median normalised mutual information {{fact:x.markov.own.nmi}}),
+which is what the stay-put mechanism turns into a defect.</li>
+<li>Figures use kernel rule {{fact:x.markov.rule}}. Across the {{fact:x.markov.n_rules}} kernel rules the median
+defect fraction ranges from {{fact:x.markov.rules.own.real.defect_lo}} to
+{{fact:x.markov.rules.own.real.defect_hi}} with the own partitions (control
+{{fact:x.markov.rules.own.uniform.defect_lo}} to {{fact:x.markov.rules.own.uniform.defect_hi}}) and from
+{{fact:x.markov.rules.shared.real.defect_lo}} to {{fact:x.markov.rules.shared.real.defect_hi}} with b9's
+partition.</li>
+<li>At $k = 4$ the median defect fraction is {{fact:x.markov.k4.own.real.defect}} with the own partitions (control
+{{fact:x.markov.k4.own.uniform.defect}}) and {{fact:x.markov.k4.shared.real.defect}} with b9's partition.</li>
+<li>Only adjacent triples and pairwise transitions are tested; a process can pass these and still have longer
+memory. One network, one seed, one probe, the final checkpoint.</li>
+</ul>
+
+<h3 id="x-markov-open">Open checks</h3>
+<ul>
+<li>Choose the partitions jointly across sites to minimise the measured defect, rather than one site at a time, and
+compare that optimum with b9's partition. Not run.</li>
+<li>Histories longer than one step back (memory of order two and more). Not run.</li>
+<li>The same measures on the product operator and on a second seed. Not run.</li>
+</ul>
+
+<h3 id="x-markov-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=km&amp;km=10"><img src="assets/fig/x_markov_explorer.png" alt="The explorer grid with every snapshot coloured by b9's spectral k-means partition into ten blocks at the final checkpoint."></a>
+  <figcaption><b>Plotted:</b> the explorer grid in the linked state: one panel per snapshot (rows: checkpoints,
+  with validation accuracy; columns: sites), each a UMAP layout of the probe images (seed 0), every point coloured by
+  its block in the spectral $k$-means partition of b9's single-snapshot operator at the final checkpoint (outlined),
+  $k = 10$, kernel rule {{fact:x.markov.rule}}: the shared partition of this experiment.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=km&amp;km=10">Open b9's
+partition in the explorer</a>; change the block's site to see each site's own partition, the sequence this experiment
+tests.</p>
+</section>

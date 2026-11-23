@@ -1,0 +1,138 @@
+<!-- X3 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/depth.py; data: assets/questions.json (q_carry),
+     explore/spectral_align/data (pairs_0.npz, span_0.npy, eig_0.npy, cells.json), data/r20s0b/layer_*.npz (check only).
+     App D receives assets/x/depth.json#app4.* (captions inside) and the live al-w1 matrix. -->
+<section class="experiment" id="x-depth">
+<h2>Where along depth does the network redraw its grouping?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0 (seed 1 only for the floor), the {{fact:n_images}}-image probe, the final
+checkpoint (step {{fact:final_step}}) and step $0$, kernel rule {{fact:x.depth.rule}}, the single-snapshot operators of
+neighbouring sites ({{fact:x.depth.n_pairs}} adjacent pairs, stem&rarr;b1 to pool&rarr;logits).</p>
+
+<h3 id="x-depth-why">Why it is interesting</h3>
+<p>In a residual network most layers add an update to what they receive, and the shortcut passes the rest through
+unchanged, so neighbouring sites could treat images alike almost everywhere. If most sites carry the grouping forward
+and a few redraw it, those few are where the network changes what counts as similar. That gives a map of the network
+by what it does rather than by how it is drawn. The architecture suggests one candidate answer: the stage boundaries,
+where the feature map is downsampled and the number of channels doubles. If the grouping is redrawn elsewhere, the stage boundaries alone do not explain where; the untrained network
+(step $0$) shows whether the pattern changes with training.</p>
+
+<h3 id="x-depth-how">How I measure it</h3>
+<p>Two measures of change between a site and the next one, drawn on one chart so that they can be compared pair by
+pair.</p>
+<ul>
+<li><b>Sets.</b> The matched Jaccard between the $r = 4$ SEBA sets of the two sites' single-snapshot operators (pair
+each set with one set of the other site so that the mean Jaccard overlap is largest; <a href="#method-details/stat-jaccard">Appendix
+C</a>). It is plotted as $1 - $ matched Jaccard, so that $0$ means the same grouping and larger means more change.</li>
+<li><b>Operators.</b> The projector distance $d_3 = 1 - \lVert U_3(A)^\top U_3(B) \rVert_F^2 / 3$ between the spans of
+the two operators' three leading non-constant eigenvectors ($0$ = same span; chance {{fact:x.depth.op.chance}}). SEBA
+at $r = 4$ rotates the constant and $\psi_1, \psi_2, \psi_3$ into four sets, so $d_3$ compares exactly the spaces the
+sets are cut from, without the hard assignment of images to sets. (The generator checks that the alignment study's
+operators are the archive's: their leading eigenvalues agree at every site.) A span is only well defined when the cut
+$3 \mid 4$ is reproducible on resampled probes; where it is not, the value is drawn as a separate dot and not used.</li>
+</ul>
+<p>The two measures answer the same question at different grain. The sets are what a reader sees in the explorer, but
+they are hard: a set can be cut differently while the span it comes from barely moves. The operator distance has no
+cut into sets. A pair that stands out in both is unlikely to be only an artefact of turning eigenvectors into sets (the two
+measures share the same spectral input, so this does not rule out every artefact).</p>
+
+<h3 id="x-depth-controls">Controls and nulls</h3>
+<ul>
+<li><b>Permutation null</b> (sets): site $s$'s set labels shuffled over the images, sizes and unassigned count kept;
+it gives the agreement that set sizes alone produce (at most {{fact:x.depth.sets.null_hi_max}}, $97.5$th
+percentile).</li>
+<li><b>Step $0$</b> (both): the same measures on the untrained network. It shows what the architecture and the images
+give without training; it does not separate what the shortcuts, the random filters or the image statistics each
+contribute. A pair that changes at step $0$ as much as after training is not evidence of a learned redrawing.</li>
+<li><b>Seed floor</b> (operators): $d_3$ between seeds $0$ and $1$ at the same site and checkpoint, how far two
+training runs that differ only in their seed end up ({{fact:x.depth.op.floor_min}} to {{fact:x.depth.op.floor_max}} at
+the final checkpoint over the sites whose floor cut is resolved; unresolved at {{fact:x.depth.op.floor_unresolved}}).
+It is one observed pair of seeds, a reference for scale rather than a measured range of run-to-run variation.</li>
+<li><b>A second seed</b> (sets): the final $r = 4$ sets of seed $1$ (kernel rule {{fact:x.depth.rule}}), compared
+between neighbouring sites in the same way, and with seed $0$'s sets at the same site.</li>
+</ul>
+
+<h3 id="x-depth-answer">Answer</h3>
+<p class="x-answer">At the final checkpoint, {{fact:x.depth.sets.final.min_pair}} has both the lowest set agreement and
+the largest resolved three-mode projector distance: the sets of neighbouring sites agree least
+at {{fact:x.depth.sets.final.min_pair}} ({{fact:x.depth.sets.final.min}}; range {{fact:x.depth.sets.final.min}} to
+{{fact:x.depth.sets.final.max}} at {{fact:x.depth.sets.final.max_pair}}, null at most {{fact:x.depth.sets.null_hi_max}}), and the operators change most at
+{{fact:x.depth.op.final.max_pair}} ($d_3$ = {{fact:x.depth.op.final.max}}), then at
+{{fact:x.depth.op.final.second_pair}} ({{fact:x.depth.op.final.second}}) and {{fact:x.depth.op.final.third_pair}}
+({{fact:x.depth.op.final.third}}); in the untrained network both single out {{fact:x.depth.sets.step0.min_pair}}
+instead (sets {{fact:x.depth.sets.step0.min}}, $d_3$ = {{fact:x.depth.op.step0.max}}), which after training is the
+pair whose sets agree most ({{fact:x.depth.sets.final.at_step0_min_pair}}) and whose $d_3$ is
+{{fact:x.depth.op.final.at_step0_max_pair}} (cut {{fact:x.depth.op.final.at_step0_max_pair_resolved}}).</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/depth.json#lead" data-height="340">
+  <figcaption><b>Plotted:</b> change between neighbouring sites (y) for each adjacent pair $s \to s+1$ (x), kernel rule
+  {{fact:x.depth.rule}}. Blue: $1 -$ matched Jaccard between the two sites' $r = 4$ SEBA sets; shaded: $1 -$ the
+  permutation null's $97.5$th to $2.5$th percentile at the final checkpoint. Orange: projector distance $d_3$ between
+  the two sites' operators; shaded: the two sites' seed floors ($d_3$ between seeds $0$ and $1$ at the final
+  checkpoint), lower to higher, over the sites whose floor cut is resolved. Solid: final checkpoint (step
+  {{fact:final_step}}); dashed: step $0$ (control); blue dotted: $1 -$ matched Jaccard of seed $1$'s sets at the final
+  checkpoint. Dots: $d_3$ where the cut $3 \mid 4$ is unresolved in either
+  operator, a sensitivity value (orange: final checkpoint, at {{fact:x.depth.op.final.unresolved}}; grey: step $0$, at
+  {{fact:x.depth.op.step0.unresolved}}). The stage boundaries are {{fact:x.depth.stage_bounds}}. <b>Values:</b> mean
+  set agreement over the adjacent pairs {{fact:x.depth.sets.step0.mean}} at step $0$ and
+  {{fact:x.depth.sets.final.mean}} at the end; at the stage boundaries, set agreement
+  {{fact:x.depth.stage_bounds.sets}} and $d_3$ {{fact:x.depth.stage_bounds.op}}.</figcaption>
+</figure>
+
+<p>The two profiles rise and fall together along depth: the Spearman rank correlation between $1 -$ matched Jaccard
+and $d_3$ over the pairs with a resolved cut is {{fact:x.depth.rho.final}} at the final checkpoint
+({{fact:x.depth.rho.final.n}} pairs) and {{fact:x.depth.rho.step0}} at step $0$ ({{fact:x.depth.rho.step0.n}} pairs).
+The largest change after training lies inside a stage ({{fact:x.depth.op.final.max_pair_stage}}), not at a stage
+boundary.</p>
+
+<h3 id="x-depth-evidence">Further evidence</h3>
+<p><b>Against the seed floor.</b> At the final checkpoint, $d_3$ exceeds the seed floors of both sites at
+{{fact:x.depth.op.final.above_floor}} ({{fact:x.depth.op.final.n_above_floor}} of the
+{{fact:x.depth.op.final.n_resolved}} pairs with a resolved cut). At every other resolved pair the neighbouring
+operators differ by no more than the larger of the two sites' seed floors. No further panel is needed: the lead
+figure carries both measures, both checkpoints, the null and the floor.</p>
+<p><b>A second seed.</b> In seed $1$ the least-agreeing adjacent pair of $r = 4$ sets is also
+{{fact:x.depth.seed1.sets.min_pair}} ({{fact:x.depth.seed1.sets.min}}; the others up to
+{{fact:x.depth.seed1.sets.max}}, null at most {{fact:x.depth.seed1.sets.null_hi_max}}). The two seeds' sets at the same
+site agree {{fact:x.depth.xseed.b2}} at b2 and {{fact:x.depth.xseed.b3}} at b3 (range over sites
+{{fact:x.depth.xseed.min}} at {{fact:x.depth.xseed.min_site}} to {{fact:x.depth.xseed.max}} at
+{{fact:x.depth.xseed.max_site}}; null at most {{fact:x.depth.xseed.null_hi_max}}), so within each seed b2 and b3
+differ more than each site differs between the seeds.</p>
+<p><b>The cut.</b> At $k = 4$, where every adjacent cut is resolved at the final checkpoint
+({{fact:x.depth.k4.final.n_resolved}} of {{fact:x.depth.n_pairs}}), the order of the two largest operator changes is
+reversed: {{fact:x.depth.k4.final.max_pair}} ({{fact:x.depth.k4.final.max}}), then
+{{fact:x.depth.k4.final.second_pair}} ({{fact:x.depth.k4.final.second}}); at step $0$ the largest is again
+{{fact:x.depth.k4.step0.max_pair}}. For seed $1$ at $k = 3$ the largest is {{fact:x.depth.seed1.final.max_pair}}
+({{fact:x.depth.seed1.final.max}}), then {{fact:x.depth.seed1.final.second_pair}} (chart in Appendix D).</p>
+
+<h3 id="x-depth-caveats">Caveats</h3>
+<ul>
+<li>The two measures are on different scales; compare where along depth they are high or low, not their heights.</li>
+<li>Only two seeds were measured; one seed pair gives an observed reference, not a spread of run-to-run
+variation.</li>
+<li>The operator ranking uses only the leading three-mode span and excludes pairs whose cut is unresolved (at the final
+checkpoint {{fact:x.depth.op.final.unresolved}}); it says nothing about the rest of the spectrum.</li>
+<li>Which of the operator changes is largest depends on the cut ($k = 3$ against $k = 4$, above). The pair the sets
+single out is among the two largest in both.</li>
+<li>The rank correlation is over {{fact:x.depth.rho.final.n}} pairs and is descriptive.</li>
+<li>Only adjacent sites at two checkpoints are in the lead figure; every pair of sites, every checkpoint and blocks of
+two and three sites are in Appendix D.</li>
+</ul>
+
+<h3 id="x-depth-open">Open checks</h3>
+<ul>
+<li>The harmonicity intervention (<code>harmonic.py</code>, <code>REFRAME_PLAN.md</code>): whether the boundaries of the
+sets mark sharp changes in the downstream computation. Not run.</li>
+</ul>
+
+<h3 id="x-depth-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=3&amp;b=3&amp;m=0&amp;c=seba&amp;r=4"><img src="assets/fig/x_depth_explorer.png" alt="The explorer grid with every snapshot coloured by b3's four SEBA sets at the final checkpoint."></a>
+  <figcaption><b>Plotted:</b> the explorer grid in the linked state: one panel per snapshot (rows: checkpoints, with
+  validation accuracy; columns: sites), each a UMAP layout of the probe images (seed $0$), every point coloured by its
+  $r = 4$ SEBA set of b3's single-snapshot operator at the final checkpoint (outlined), kernel rule
+  {{fact:x.depth.rule}}.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=3&amp;b=3&amp;m=0&amp;c=seba&amp;r=4">Open b3's final
+sets in the explorer</a>; move the block one site back, to b2, to see the grouping this experiment finds most
+different from it.</p>
+</section>

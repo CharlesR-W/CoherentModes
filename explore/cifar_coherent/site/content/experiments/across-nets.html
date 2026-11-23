@@ -1,0 +1,223 @@
+<!-- X8 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/across-nets.py; data: explore/spectral_align/analysis/data
+     (analyze.py, from explore/spectral_align/data; SPEC.md). The data-live="al-c1" figure is drawn by js/alignment.js from
+     d/al/ and needs a build with --alignment (a --release build fails without d/al/index.json). App D receives
+     assets/x/across-nets.json#app4.* (captions inside) and the live al-c2, al-c3, al-c5 figures. -->
+<section class="experiment" id="x-across-nets">
+<h2>In the tested ResNets, do different seeds and depths go through matching sequences of operators?</h2>
+
+<p class="x-scope">Tested: ResNet-20, ResNet-32 and ResNet-56, two training seeds each ({{fact:x.across-nets.n_nets}}
+networks, one recipe), the {{fact:al.n_images}}-image probe, the eight checkpoints (steps {{fact:al.steps}}), kernel
+rule {{fact:x.across-nets.rule}}, single-site operators, cuts $k = 3$ and $k = 9$; the other kernel rule under
+Caveats.</p>
+
+<h3 id="x-across-nets-why">Why it is interesting</h3>
+<p>The method turns every site of a network (the stem, each residual block's output, the pooled features, the logits)
+into an operator on the same probe images: a walk that says which images that site treats as similar. Going through a
+network is then a sequence of operators, one per site. Two networks trained from different random seeds, or
+ResNet-20 and ResNet-56, have different weights and, for different depths, different numbers of sites. They
+can still pass the images through the same sequence of operators, with the deeper network taking more sites for each
+step of it.</p>
+<p>If they do, that sequence is reproducible across the tested runs (one recipe, one probe, one architecture family) rather than a
+property of one run, and the
+operators of one network describe the others too. Where they do not, individual runs have freedom: two equally
+accurate networks can organise the images differently along depth. This experiment measures how closely the tested
+networks' sequences match, against how closely two seeds of the same network match and against what matching a
+scrambled order of sites would give.</p>
+
+<h3 id="x-across-nets-how">How I measure it</h3>
+<p><b>Distance between two snapshots.</b> A snapshot is one site of one network at one checkpoint; its operator is
+the explorer's lazy walk $M = (I+P)/2$ (<a href="#method">Method</a>). Every network sees the same probe images, so two
+operators can be compared directly, with no matching of images. The <b>projector distance</b>
+$d_k(A,B) = 1 - \|U_k(A)^\top U_k(B)\|_F^2 / k$ compares the spans of the two operators' leading $k$ eigenfunctions
+after the constant one: it is zero when the spans are equal and close to one for unrelated spans (definitions in
+<a href="#method-details/dist-projector">Appendix C</a>).</p>
+<p><b>Matching two sequences.</b> For two networks at one checkpoint, $D$ is the site&nbsp;&times;&nbsp;site matrix
+of $d_k$. Dynamic time warping (DTW) finds the monotone path from (stem, stem) to (logits, logits) that minimises the
+summed distance along it, allowing one site of one network to match several consecutive sites of the other. The
+<b>DTW cost</b> is that minimum divided by the total step weight, the same for every path, so it is the average distance
+along the best monotone path. A low cost is a low average distance along that path; it does not establish that every
+site has a close counterpart, since a few poorly matched sites can sit under a low average. DTW is a comparison tool used on these distances, not part of the construction.</p>
+<p><b>Is the order found or imposed?</b> DTW returns a monotone path whatever the matrix. Beside it I take, for every
+site, its nearest site in the other network with no order constraint; the <b>inversion fraction</b> is the share of
+site pairs whose nearest matches come in strictly the opposite order. Repeated matches are allowed and do not count
+as inversions (all sites matched to one site would score zero), so I also report how many distinct sites the nearest
+matches reach. Few strict reversals together with many distinct targets mean the unconstrained matches themselves
+run in order.</p>
+<p><b>Which cut, and how reliable it is.</b> A leading-$k$ span is only well defined when the eigenvalues $k$ and
+$k+1$ are separated. For every snapshot the operator was rebuilt on two overlapping two-thirds subsets of the images
+(no labels used) and $\mathrm{span}_k$ is the smallest $\cos^2$ principal angle between the two rebuilds'
+leading-$k$ spans; the cut is <b>unresolved</b> for a pair of snapshots when $\mathrm{span}_k &lt; 0.5$ in either.
+At an unresolved cut, $d_k$ depends on how near-equal modes happen to be split. Every DTW cost below is given with
+the <b>share of its path whose cut is unresolved</b>. I report two cuts. $k = 3$ is the largest cut in the grid
+resolved in at least nine tenths of the {{fact:x.across-nets.n_final_snapshots}} final-checkpoint snapshots
+({{fact:x.across-nets.resolved_share.k3}}). $k = 9$ is the cut the alignment figures open at; it is resolved at
+pool and logits in every network, but in only {{fact:x.across-nets.resolved_share.k9}} of all final snapshots. The
+diffusion-kernel distance $h_{16}$, which weights every mode by $\lambda^{16}$ instead of cutting, is the cut-free
+check.</p>
+<p><b>Which pairs.</b> Two seeds of one depth form a pair of their own (three pairs). Across depth, each depth pair has
+four seed pairings; summaries use the two <b>different-seed</b> pairings only, because networks trained with the
+same seed draw the initial weights of the stem and first blocks identically (six pairings in all). Same-seed
+pairings are in Appendix D.</p>
+
+<h3 id="x-across-nets-controls">Controls and nulls</h3>
+<ul>
+<li><b>Block-permutation null.</b> The optimal DTW cost recomputed after randomly permuting the residual-block sites
+of one network, with stem, pool and logits fixed ({{fact:al.n_perm}} permutations). It keeps every distance value
+and the fixed endpoints and removes the order of the blocks. A cost below the null's fifth percentile shows an advantage over globally shuffled blocks. Because the shuffle
+also moves blocks between stages, it does not by itself separate the order of the stages from a finer
+correspondence within each stage, and it does not show that individual sites correspond one to one.</li>
+<li><b>Stage-preserving shuffle.</b> The same re-optimisation after shuffling the residual blocks of the deeper
+network only within their own stage ({{fact:x.across-nets.n_stage_perm}} draws, computed for this experiment from
+the stored distance matrices, cross-depth pairings at the final checkpoint). It keeps which stage every block is in
+and removes the order of blocks inside a stage, so a cost below it shows that the within-stage order matters too.</li>
+<li><b>Seed floor.</b> The DTW cost between the two seeds of one depth at the same checkpoint. A cross-depth cost at
+the floor means that changing depth moves the sequence about as much as changing the seed does. With two seeds per
+depth the floor is one value, not a distribution.</li>
+<li><b>Constant-matrix reference.</b> On a matrix whose every entry is the mean of $D$, every path costs that mean.
+It says how much of the cost any path would get.</li>
+<li><b>Untrained reference.</b> The same comparison at the first checkpoint, before any training, so that order produced by the architecture before any
+training is not attributed to learning.</li>
+<li>The CKA distance on the centred-cosine Grams is a standard baseline, not an output of the method; it is in
+Appendix D.</li>
+</ul>
+
+<h3 id="x-across-nets-answer">Answer</h3>
+<p class="x-answer">At the final checkpoint, with $k = 3$, the DTW cost across depth is
+{{fact:x.across-nets.k3.depth.cost_lo}} to {{fact:x.across-nets.k3.depth.cost_hi}} over the
+{{fact:x.across-nets.n_cross_diff}} different-seed pairings, against seed floors of
+{{fact:x.across-nets.k3.seed.cost_lo}} to {{fact:x.across-nets.k3.seed.cost_hi}} (at most
+{{fact:x.across-nets.k3.depth.ratio_max}} times the larger floor of the two depths) and null fifth percentiles of
+{{fact:x.across-nets.k3.depth.null05_lo}} to {{fact:x.across-nets.k3.depth.null05_hi}}, with
+{{fact:x.across-nets.k3.depth.unres_lo}} to {{fact:x.across-nets.k3.depth.unres_hi}} of each path at an unresolved
+cut (two seeds of one depth: {{fact:x.across-nets.k3.seed.unres_lo}} to {{fact:x.across-nets.k3.seed.unres_hi}}); with $k = 9$ it is {{fact:x.across-nets.k9.depth.cost_lo}} to {{fact:x.across-nets.k9.depth.cost_hi}} against
+floors of {{fact:x.across-nets.k9.seed.cost_lo}} to {{fact:x.across-nets.k9.seed.cost_hi}} and null fifth
+percentiles of {{fact:x.across-nets.k9.depth.null05_lo}} to {{fact:x.across-nets.k9.depth.null05_hi}}, with
+{{fact:x.across-nets.k9.depth.unres_lo}} to {{fact:x.across-nets.k9.depth.unres_hi}} of each path unresolved. At both
+cuts every one of the {{fact:x.across-nets.n_compared}} different-seed comparisons, across seeds and across depth, is
+below its null's fifth percentile from step {{fact:x.across-nets.below_from.both_cuts}} on; at the final
+checkpoint none of the {{fact:al.n_perm}} null draws of any of them reaches the observed cost.</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#lead" data-height="300">
+  <figcaption><b>Plotted:</b> normalised DTW cost (y) against training step (x, symmetric-log), ResNet-20 against
+  ResNet-56, projector distance $d_3$, kernel rule {{fact:x.across-nets.rule}}. Solid blue and orange: the two
+  different-seed pairings ({{fact:x.across-nets.lead_pairings}}), each with its block-permutation null as a band
+  (fifth to ninety-fifth percentile). Dashed: the seed floors of ResNet-20 and ResNet-56. <b>Values</b> (step
+  {{fact:al.final_step}}): costs {{fact:x.across-nets.lead.k3.cost}}; null fifth percentiles
+  {{fact:x.across-nets.lead.k3.null05}}; seed floors {{fact:x.across-nets.lead.k3.floors}}. Before training (step $0$): costs
+  {{fact:x.across-nets.lead.k3.step0.cost}}, null fifth percentiles {{fact:x.across-nets.lead.k3.step0.null05}}.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/across-nets.json#lead_unres" data-height="300">
+  <figcaption><b>Plotted:</b> share of each DTW path on the left whose cut is unresolved in either snapshot (y)
+  against training step (x, symmetric-log), same pairings and colours; solid $k = 3$, dashed $k = 9$.
+  <b>Values</b> (step {{fact:al.final_step}}): {{fact:x.across-nets.lead.k3.unres}} at $k = 3$,
+  {{fact:x.across-nets.lead.k9.unres}} at $k = 9$.</figcaption>
+</figure>
+</div>
+
+<p>Before training (step $0$), {{fact:x.across-nets.k3.step0.n_below}} of the {{fact:x.across-nets.n_compared}} comparisons are already
+below their null's fifth percentile at $k = 3$ ({{fact:x.across-nets.k9.step0.n_below}} at $k = 9$): a cost below the null is
+not by itself evidence of training, which is why the step from which every comparison stays below it is the quantity
+reported. The pairs of ResNet-20 with ResNet-32 are below the null in both pairings from
+step {{fact:x.across-nets.k3.below_from.20_32}} on, those with ResNet-56 from step
+{{fact:x.across-nets.k3.below_from.20_56}}, and ResNet-32 with ResNet-56 from step
+{{fact:x.across-nets.k3.below_from.32_56}}.</p>
+
+<h3 id="x-across-nets-evidence">Further evidence</h3>
+<p><b>Does the answer depend on the small cut?</b> A cut of three modes compares only the coarsest part of each
+operator, and the match could be weaker in more modes. At $k = 9$ the cost across depth is at most
+{{fact:x.across-nets.k9.depth.ratio_max}} times the larger seed floor, but most of each path crosses an unresolved
+cut, so these are sensitivity values. The cut-free diffusion-kernel
+distance $h_{16}$ gives {{fact:x.across-nets.h16.depth.cost_lo}} to {{fact:x.across-nets.h16.depth.cost_hi}} across
+depth against seed floors of {{fact:x.across-nets.h16.seed.cost_lo}} to {{fact:x.across-nets.h16.seed.cost_hi}} and
+null fifth percentiles of {{fact:x.across-nets.h16.depth.null05_lo}} to {{fact:x.across-nets.h16.depth.null05_hi}}
+(at most {{fact:x.across-nets.h16.depth.ratio_max}} times the larger floor), below the null in every comparison from
+step {{fact:x.across-nets.h16.below_from.depth_max}} on.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/across-nets.json#k9" data-height="300">
+  <figcaption><b>Plotted:</b> as the left panel of the lead figure (ResNet-20 against ResNet-56, different-seed
+  pairings, null bands from the fifth to the ninety-fifth percentile, seed floors dashed, kernel rule
+  {{fact:x.across-nets.rule}}) with the projector distance $d_9$. <b>Values</b> (step {{fact:al.final_step}}): costs
+  {{fact:x.across-nets.lead.k9.cost}}; null fifth percentiles {{fact:x.across-nets.lead.k9.null05}}; seed floors
+  {{fact:x.across-nets.lead.k9.floors}}; unresolved share of the paths {{fact:x.across-nets.lead.k9.unres}}.</figcaption>
+</figure>
+
+<p><b>Is the order imposed by DTW?</b> A monotone path exists for any matrix, so a low cost alone could come from DTW
+forcing an order onto distances that have none. The unconstrained nearest matches give an order check that does not assume monotonicity: at the final
+checkpoint their inversion fraction (strict reversals only) is at most {{fact:x.across-nets.k3.depth.inv_hi}} at
+$k = 3$ and {{fact:x.across-nets.k9.depth.inv_hi}} at $k = 9$ in every cross-depth pairing. The shallower network's
+sites have nearest matches on distinct sites of the deeper one for {{fact:x.across-nets.k3.match.ab_lo}} to
+{{fact:x.across-nets.k3.match.ab_hi}} of them at $k = 3$ ({{fact:x.across-nets.k9.match.ab_lo}} to
+{{fact:x.across-nets.k9.match.ab_hi}} at $k = 9$), and the deeper network's nearest matches reach
+{{fact:x.across-nets.k3.match.ba_lo}} to {{fact:x.across-nets.k3.match.ba_hi}} of the shallower network's sites
+({{fact:x.across-nets.k9.match.ba_lo}} to {{fact:x.across-nets.k9.match.ba_hi}}). Against the stage-preserving
+shuffle, the DTW cost is below the fifth percentile ({{fact:x.across-nets.k3.stage_null.null05_lo}} to
+{{fact:x.across-nets.k3.stage_null.null05_hi}} at $k = 3$, {{fact:x.across-nets.k9.stage_null.null05_lo}} to
+{{fact:x.across-nets.k9.stage_null.null05_hi}} at $k = 9$) in {{fact:x.across-nets.k3.stage_null.n_below}} of the
+{{fact:x.across-nets.n_cross_diff}} pairings at $k = 3$ and {{fact:x.across-nets.k9.stage_null.n_below}} at $k = 9$,
+and no draw reaches the observed cost: the order of blocks within each stage contributes to the match, not only the
+order of the stages. The DTW cost is well below the
+constant-matrix reference ({{fact:x.across-nets.k3.depth.const_lo}} to {{fact:x.across-nets.k3.depth.const_hi}} at
+$k = 3$). The path passes through all three stage ends (the last block of each stage) in {{fact:x.across-nets.k3.depth.n_all_ends}} of the
+{{fact:x.across-nets.n_cross_diff}} pairings at $k = 3$ ({{fact:x.across-nets.k9.depth.n_all_ends}} at $k = 9$) and
+through at least {{fact:x.across-nets.k3.depth.ends_lo}} in each; its mean gap from the stage-proportional reference
+is {{fact:x.across-nets.k3.depth.gap_lo}} to {{fact:x.across-nets.k3.depth.gap_hi}} stage units at $k = 3$ (zero would
+be a match proportional to block index within every stage).</p>
+
+<figure class="fig wide live" data-live="al-c1">
+  <figcaption><b>Plotted:</b> the distance $D_{ij}$ between site $i$ of network A (columns) and site $j$ of network B
+  (rows), from light ($0$) to dark ($1$); orange line: the DTW path; black diamonds: the stage-proportional reference;
+  open circles: each site of A's nearest site of B; crosses: each site of B's nearest site of A; grey lines: stage
+  boundaries; hatched cells: unresolved cut. It opens at ResNet-20 seed 0 against ResNet-56 seed 1, step
+  {{fact:al.final_step}}, projector distance $d_9$, kernel rule {{fact:x.across-nets.rule}}; the controls change the
+  networks, checkpoint, distance and cut (choose $k = 3$ for the cut of the answer). The line under the matrix gives
+  the cost, the null, the floors and the reference gap of the comparison shown.</figcaption>
+</figure>
+
+<h3 id="x-across-nets-caveats">Caveats</h3>
+<ul>
+<li>Two seeds per depth: each seed floor is a single comparison, and the cross-depth costs are compared with it, not
+with a spread of floors. Three depths of one architecture family, trained with one recipe, on one probe.</li>
+<li>The DTW cost is a mean along the path. A few sites that match poorly can sit under a low mean; the distance at
+each point of the path against the floor at the same sites is in Appendix D.</li>
+<li>At $k = 9$ most of every path, across depth and across seeds alike ({{fact:x.across-nets.k9.seed.unres_lo}} to
+{{fact:x.across-nets.k9.seed.unres_hi}} for the seed pairs), crosses an unresolved cut; those costs measure how
+sensitive the comparison is, not a property of the sites. At $k = 3$ every cut up to three is resolved in at least
+{{fact:x.across-nets.resolved_share.k_lo_min}} of the final snapshots, but three modes are a coarse summary of each
+operator.</li>
+<li>Kernel rule {{fact:x.across-nets.rule1}}: at the final checkpoint, $k = 3$, the cost across depth is
+{{fact:x.across-nets.r1.k3.depth.cost_lo}} to {{fact:x.across-nets.r1.k3.depth.cost_hi}} against seed floors of
+{{fact:x.across-nets.r1.k3.seed.cost_lo}} to {{fact:x.across-nets.r1.k3.seed.cost_hi}} and null fifth percentiles of
+{{fact:x.across-nets.r1.k3.depth.null05_lo}} to {{fact:x.across-nets.r1.k3.depth.null05_hi}}
+({{fact:x.across-nets.r1.k3.depth.unres_lo}} to {{fact:x.across-nets.r1.k3.depth.unres_hi}} unresolved). This rule
+could not be built for {{fact:al.missing.rule1.snapshots}} early ResNet-56 snapshots, so
+{{fact:x.across-nets.r1.n_missing_cross}} cross-network comparisons are missing under it.</li>
+<li>Only single-site operators are compared; blocks of several sites are not.</li>
+<li>The CKA baseline gives costs of {{fact:x.across-nets.cka.depth.cost_lo}} to
+{{fact:x.across-nets.cka.depth.cost_hi}} across depth against floors of {{fact:x.across-nets.cka.seed.cost_lo}} to
+{{fact:x.across-nets.cka.seed.cost_hi}}, with inversion fraction at most {{fact:x.across-nets.cka.depth.inv_hi}}: a
+standard similarity measure also finds an ordered match, so its existence is not specific to the spectral
+construction.</li>
+</ul>
+
+<h3 id="x-across-nets-open">Open checks</h3>
+<ul>
+<li>More seeds per depth, so that the seed floor is a distribution and a cross-depth cost can be tested against it.
+Not run.</li>
+<li>Other architectures on the same probe (the comparison needs only the shared images). Not run.</li>
+<li>Which modes and which images two matched sites share (the mode-overlap view in Appendix D), turned into a
+summary over all matched pairs. Not run.</li>
+</ul>
+
+<h3 id="x-across-nets-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=4&amp;src=I3"><img src="assets/fig/x_across-nets_explorer.png" alt="The explorer grid of ResNet-20 seed 0 with every point coloured by the sets of the same site in ResNet-20 seed 1."></a>
+  <figcaption><b>Plotted:</b> the explorer in the linked state: one panel per snapshot of ResNet-20 seed 0 (rows:
+  checkpoints, with validation accuracy; columns: sites), each a UMAP layout of the probe images, every point
+  coloured by its set ($r = 4$) in b9's single-snapshot operator of ResNet-20 seed 1 at the final checkpoint
+  (source "other training seed"), kernel rule {{fact:x.across-nets.rule}}.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=9&amp;b=9&amp;m=0&amp;c=seba&amp;r=4&amp;src=I3">Open
+seed 1's b9 sets on seed 0's layout</a>; change the source back to the method to compare them with seed 0's own sets
+at the same site.</p>
+</section>

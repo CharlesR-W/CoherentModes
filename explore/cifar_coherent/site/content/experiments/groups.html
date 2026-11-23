@@ -1,0 +1,224 @@
+<!-- X1 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/groups.py; data: data/r20s0b/layer_64000.npz
+     (seba_label, retention_seba, vals), data/r20s0c/reps.json (b7-b9 null spectra). App D receives
+     assets/x/groups.json#app4.* (captions inside). -->
+<section class="experiment" id="x-groups">
+<h2>What groups of images does the last stage of the network treat alike at the end of training?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0, the {{fact:n_images}}-image probe, final checkpoint (step
+{{fact:final_step}}), kernel rule {{fact:x.groups.rule}}, layer block b7..pool read at $r = 4$; the null test is on
+the representative block b7..b9 (see Controls). Other ranks under Further evidence, other rules under Caveats.</p>
+
+<h3 id="x-groups-why">Why it is interesting</h3>
+<p>The method looks for groups of inputs that a network processes the same way, without being told what the inputs
+are. Each site of the network defines a random walk on the probe images: from an image, step to an image the site
+places nearby. A set of images that the walk rarely leaves, at every site of a stretch of layers, is a group that this
+stretch of the network keeps together. Such a set describes the network's similarity structure on this probe (under the chosen kernel rule), not a property
+of the images alone: it is what the layers treat alike.</p>
+<p>The last stage of the network (blocks b7 to b9, then the pooled features that a single linear map turns into the
+ten class scores) is the closest the network comes to its decision, so it is the natural first place to look. Three
+things are worth knowing: how many images the groups hold and how many fit no group, whether the groups hold across
+all the stage's layers or only at one of them, and how they sit against the ten classes the network was trained to
+output. If the groups were exactly the classes, the method would only rediscover the labels; if they were unrelated to
+the classes, the last stage would be organised by something other than its training target; anything in between says
+how the stage arranges the classes.</p>
+
+<h3 id="x-groups-how">How I measure it</h3>
+<p><b>The block.</b> b7..pool is the layer block of the four snapshots b7, b8, b9 and pool at the final checkpoint:
+the average of their four lazy walks $M_c = (I + P_c)/2$, each built from cosine similarities of that site's
+activations with kernel rule {{fact:x.groups.rule}} (the construction is in the Method). It stops at pool, the input
+of the final linear map.</p>
+<p><b>The sets.</b> SEBA rotates the constant vector and the leading $r - 1$ eigenvectors of the block operator into
+$r$ sparse non-negative vectors, one per set; an image belongs to the set whose vector is largest there, and is
+<b>unassigned</b> where all $r$ vectors are zero. Membership is read from the stored labels.</p>
+<p><b>Why $r = 4$.</b> $r$ is a resolution, not a number the spectrum picks out. The eigenvalue gaps at which $r = 2$,
+$3$ and $4$ cut the spectrum are {{fact:x.groups.gap_r2}}, {{fact:x.groups.gap_r3}} and {{fact:x.groups.gap_r4}}
+(on the $\lambda_P = 2\lambda_M - 1$ scale), and the largest of the first seven gaps, {{fact:x.groups.gap_max}}, is
+after {{fact:x.groups.gap_max_after}}; no gap dominates. The answer is given at $r = 4$, and Further evidence shows how
+the sets at $r$ = {{fact:x.groups.ranks}} relate, so that the answer does not rest on the choice.</p>
+<p><b>Persistence.</b> For each set's SEBA vector $f$ and each snapshot $c$ of the block, the retention
+$f^\top M_c f / f^\top f$, the one-step autocorrelation of the soft SEBA vector under that snapshot's walk. It is
+high when one step of the walk mostly moves weight between images where $f$ is large. Only for a binary indicator
+$f = \mathbf 1_A$ would it equal the probability that one step from a uniformly chosen member of $A$ stays in $A$; for
+the soft vector, how the walk mixes weight inside the support also changes it, so it is not read as the persistence of
+the hard set. Its reference is the mean retention of the same vector after relabelling the images
+at random, which for a walk that is doubly stochastic with zero diagonal (rule {{fact:x.groups.rule}}) is exactly
+$\tfrac12 + (S_1^2 - S_2)/(2(N-1)S_2)$ with $S_1 = \sum_i f_i$, $S_2 = \sum_i f_i^2$, the same at every snapshot.</p>
+<p><b>The classes, for validation only.</b> The matched Jaccard of the sets against the ten classes
+(<a href="#method-details/stat-jaccard">Appendix C</a>): the mean Jaccard index of the best one-to-one pairing of sets with classes.
+Four sets cannot match ten classes, so it is read against the <b>size ceiling</b>, the largest value any four sets of
+these sizes could reach, and against a label-permutation null. The classes play no part in building the sets or in
+choosing the block, the rule or $r$.</p>
+
+<h3 id="x-groups-controls">Controls and nulls</h3>
+<p><b>Spectrum nulls on b7..b9.</b> The stored null draws exist for a fixed set of representative blocks chosen before
+any class outcome (<a href="#baselines">Appendix B</a>); in the last stage that block is b7..b9, which shares three of
+b7..pool's four snapshots. <b>b7..pool has no stored null draws, so no null claim is made about it.</b> On b7..b9:</p>
+<ul>
+<li>the <b>trajectory shuffle</b> ({{fact:x.groups.null.n3.n}} draws) keeps every snapshot's walk exactly and leaves
+b7 unshuffled; it removes the fact that row $i$ is the same image in every snapshot. Leading eigenvalues above its band depend on the images corresponding across the block's snapshots, as far as
+this shuffled reference can show.</li>
+<li>the <b>spectrum-matched Gaussian</b> ({{fact:x.groups.null.n2a.n}} draws) keeps each snapshot's feature-covariance
+spectrum in expectation; it removes higher moments and every link between snapshots. Leading eigenvalues above its band
+are not what data with those covariances give anyway.</li>
+</ul>
+<p>Neither null says anything about which images are grouped; they test whether the block operator has leading
+structure beyond what these surrogates produce.</p>
+<p><b>Label permutation</b> ({{fact:x.groups.n_perm}} draws) for the matched Jaccard against the classes: permutes the
+set labels among the assigned images only, so it keeps the set sizes and which images are unassigned, and removes
+which assigned image is in which set.</p>
+<p><b>Retention reference</b>: the random-relabelling mean above, per set.</p>
+
+<h3 id="x-groups-answer">Answer</h3>
+<p class="x-answer">At $r = 4$ the last stage holds four sets of {{fact:x.groups.set1.size}},
+{{fact:x.groups.set2.size}}, {{fact:x.groups.set3.size}} and {{fact:x.groups.set4.size}} images, with
+{{fact:x.groups.n_unassigned}} unassigned; each set's soft vector has a one-step autocorrelation (retention) between {{fact:x.groups.retention_min}}
+and {{fact:x.groups.retention_max}} in every snapshot of the block (random-relabelling reference
+{{fact:x.groups.retention_ref_min}} to {{fact:x.groups.retention_ref_max}}); against the ten classes the sets reach a
+matched Jaccard of {{fact:x.groups.vs_classes}}, of a size ceiling of {{fact:x.groups.vs_classes_ceiling}}
+(label-permutation null {{fact:x.groups.vs_classes_null_mean}}), and {{fact:x.groups.n_classes_majority}} of the
+{{fact:x.groups.n_classes}} classes have a majority of their images in a single set.</p>
+
+<figure class="fig wide live" data-live="heatmap" data-src="assets/x/groups.json#lead">
+  <figcaption><b>Plotted:</b> the number of probe images (colour, $0$ to {{fact:x.groups.per_class}}, the images per
+  class) in each SEBA set of layer block b7..pool (rows: sets in reliability order, then the unassigned images) that
+  belong to each CIFAR class (columns, validation only); step {{fact:final_step}}, kernel rule
+  {{fact:x.groups.rule}}, $r = 4$. <b>Values:</b> set sizes {{fact:x.groups.set1.size}},
+  {{fact:x.groups.set2.size}}, {{fact:x.groups.set3.size}}, {{fact:x.groups.set4.size}};
+  {{fact:x.groups.n_unassigned}} unassigned; matched Jaccard with the classes {{fact:x.groups.vs_classes}} (size
+  ceiling {{fact:x.groups.vs_classes_ceiling}}; permutation null mean {{fact:x.groups.vs_classes_null_mean}}, $97.5$th
+  percentile {{fact:x.groups.vs_classes_null_q975}}).</figcaption>
+</figure>
+
+<details class="more"><summary>The sets' images</summary>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="0" data-n="22">
+  <figcaption><b>Plotted:</b> set $1$ of layer block b7..pool, step {{fact:final_step}}, kernel rule
+  {{fact:x.groups.rule}}, $r = 4$: the {{fact:x.groups.grid_n}} members with the largest SEBA value.
+  <b>Values:</b> {{fact:x.groups.set1.size}} images.</figcaption>
+</figure>
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="1" data-n="22">
+  <figcaption><b>Plotted:</b> set $2$, same block and settings. <b>Values:</b> {{fact:x.groups.set2.size}}
+  images.</figcaption>
+</figure>
+</div>
+<div class="fig-row">
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="2" data-n="22">
+  <figcaption><b>Plotted:</b> set $3$, same block and settings. <b>Values:</b> {{fact:x.groups.set3.size}}
+  images.</figcaption>
+</figure>
+<figure class="fig live" data-live="images" data-fam="layer" data-t="7" data-a="7" data-b="10" data-m="0" data-r="4" data-j="3" data-n="22">
+  <figcaption><b>Plotted:</b> set $4$, same block and settings. <b>Values:</b> {{fact:x.groups.set4.size}}
+  images.</figcaption>
+</figure>
+</div>
+</details>
+
+<h3 id="x-groups-evidence">Further evidence</h3>
+<p><b>Is the leading structure what shuffled data would give?</b> This is the strongest alternative to reading the sets
+as structure of the network. On b7..b9, the null-tested block, all eight leading eigenvalues
+({{fact:x.groups.null_blk.lam1}} down to {{fact:x.groups.null_blk.lam8}}) lie above the $95$th percentiles of the
+trajectory shuffle (at most {{fact:x.groups.null.n3.q95_max}}) and of the spectrum-matched Gaussian (at most
+{{fact:x.groups.null.n2a.q95_max}}), each by at least {{fact:x.groups.null_blk.min_excess}}. This null-tested claim is
+about b7..b9. The spectrum of b7..pool ({{fact:x.groups.main.lam1}} down to {{fact:x.groups.main.lam8}}) is drawn on
+the same scale beside it, with no bands because it has no draws; b7..b9's own $r = 4$ sets match b7..pool's at matched
+Jaccard {{fact:x.groups.vs_null_blk}} (label-permutation $97.5$th percentile {{fact:x.groups.vs_null_blk_null_q975}}).</p>
+
+<div class="fig-row">
+<figure class="fig live" data-live="lines" data-src="assets/x/groups.json#spectrum_main" data-height="280">
+  <figcaption><b>Plotted:</b> the eight leading non-trivial eigenvalues of the block operator of layer block
+  b7..pool (dots, x: $\lambda_1$ to $\lambda_8$), written as $\lambda_P = 2\lambda_M - 1$ from the stored lazy values
+  $\lambda_M$ (y, $0$ to $1$); step {{fact:final_step}}, kernel rule {{fact:x.groups.rule}}. No null draws exist for
+  this block.</figcaption>
+</figure>
+<figure class="fig live" data-live="lines" data-src="assets/x/groups.json#spectrum_null" data-height="280">
+  <figcaption><b>Plotted:</b> the same quantity on the same axes for the representative block b7..b9 (black), and the
+  median (dashed) with the $5$th to $95$th percentile (band) over the draws of the trajectory shuffle (blue,
+  {{fact:x.groups.null.n3.n}} draws) and the spectrum-matched Gaussian (orange, {{fact:x.groups.null.n2a.n}} draws);
+  step {{fact:final_step}}, kernel rule {{fact:x.groups.rule}}.</figcaption>
+</figure>
+</div>
+
+<p><b>Is "four" doing the work?</b> If the sets at different ranks were unrelated, the answer at $r = 4$ would be one
+arbitrary cut. Following every image across $r$ = {{fact:x.groups.ranks}}: on the images assigned at both of two
+neighbouring ranks ({{fact:x.groups.rank.cover_min}} to {{fact:x.groups.rank.cover_max}} of the probe), the sets at
+the coarser rank leave {{fact:x.groups.rank.both_min}} to {{fact:x.groups.rank.both_max}} of their entropy once the
+finer sets are known; counting the unassigned images as one more category, {{fact:x.groups.rank.all_min}} to
+{{fact:x.groups.rank.all_max}}, against at least {{fact:x.groups.rank.perm_min}} when the finer labels are permuted. Every finer set except one has
+at least {{fact:x.groups.rank.nest_others_min}} of its images that are assigned at the next coarser rank inside a
+single coarser set; the exception is {{fact:x.groups.rank.nest_worst}}, with {{fact:x.groups.rank.nest_worst_share}}
+inside one set at {{fact:x.groups.rank.nest_worst_coarse}}. From $r = 3$ to $r = 4$, {{fact:x.groups.r3to4.src}} at
+$r = 3$ divides into {{fact:x.groups.r3to4.parts}}. The finer set with the largest share of images unassigned at the
+coarser rank is {{fact:x.groups.rank.most_from_unassigned}}: {{fact:x.groups.rank.most_from_unassigned_share}} of its
+images are unassigned at {{fact:x.groups.rank.most_from_unassigned_coarse}}.</p>
+
+<figure class="fig wide"><img src="assets/fig/x_groups_ranks.png" alt="Alluvial diagram of the stored SEBA sets of block b7..pool at ranks 2, 3, 4, 6 and 8, with ribbons coloured by each image's set at rank 4.">
+  <figcaption><b>Plotted:</b> the stored SEBA sets of layer block b7..pool at $r$ = {{fact:x.groups.ranks}} (columns;
+  step {{fact:final_step}}, kernel rule {{fact:x.groups.rule}}). Each bar is one set (number: its reliability order;
+  u, grey: unassigned), its height the number of images; each ribbon carries the images in one set at $r$ and one set
+  at the next rank, coloured by the image's set at $r = 4$ (grey: unassigned at $r = 4$). Within a column, sets are
+  ordered by the mean $r = 4$ set index of their members, unassigned last. <b>Values:</b> unassigned images at each
+  rank {{fact:x.groups.r2.n_unassigned}}, {{fact:x.groups.r3.n_unassigned}}, {{fact:x.groups.r4.n_unassigned}},
+  {{fact:x.groups.r6.n_unassigned}}, {{fact:x.groups.r8.n_unassigned}}.</figcaption>
+</figure>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/groups.json#rank_entropy" data-height="260">
+  <figcaption><b>Plotted:</b> $H(\text{sets at } r \mid \text{sets at } r') / H(\text{sets at } r)$ (y) for each
+  pair of neighbouring ranks $r &lt; r'$ (x), from the stored SEBA labels of layer block b7..pool, step
+  {{fact:final_step}}, kernel rule {{fact:x.groups.rule}}. Blue: every image, unassigned as its own category. Orange:
+  only the images assigned at both ranks. Dotted grey: the $2.5$th percentile of the blue quantity over random
+  permutations of the finer labels (scale reference). Zero means every finer set lies inside one coarser set.
+  <b>Values:</b> orange {{fact:x.groups.rank.both_min}} to {{fact:x.groups.rank.both_max}} (largest at
+  {{fact:x.groups.rank.both_max_pair}}); blue {{fact:x.groups.rank.all_min}} to
+  {{fact:x.groups.rank.all_max}}.</figcaption>
+</figure>
+
+<h3 id="x-groups-caveats">Caveats</h3>
+<ul>
+<li>The null-tested block is b7..b9, not b7..pool; the transfer to b7..pool rests on their shared snapshots and on the
+agreement of their sets, not on a test.</li>
+<li>The within-class trajectory shuffle on b7..b9 (a validation null: it uses the labels to keep each image's class
+across snapshots) keeps $\lambda_1$ at a median of {{fact:x.groups.null.n4.lam1_median}} over
+{{fact:x.groups.null.n4.n}} draws, against {{fact:x.groups.null_blk.lam1}} for the real block. The trajectory-shuffle
+test shows that the leading values need the images to correspond across snapshots; it does not show that they need
+more than each image's class to correspond (<a href="#baselines">Appendix B</a>).</li>
+<li>The block includes pool, one linear map away from the class scores. The sets match b9's own time block over the last
+four checkpoints at matched Jaccard {{fact:q.f1.b7_pool.final.r4.vs_b9_time_late}} and b9's single
+snapshot at {{fact:q.f1.b7_pool.final.r4.vs_b9_alone}}; this readout comparison and its null are in
+<a href="#choices">Appendix A</a>.</li>
+<li>Kernel rule: the same block under the other rules gives sets matching these at
+{{fact:q.f1.b7_pool.final.r4.vs_rule1}}, {{fact:q.f1.b7_pool.final.r4.vs_rule2}} and
+{{fact:q.f1.b7_pool.final.r4.vs_rule3}}, and {{fact:q.f1.b7_pool.final.r4.vs_rule4}} under the half-mass rule
+(<a href="#choices">Appendix A</a>).</li>
+<li>Seed: the same block, rule and rank on a second training seed (seed 1, final checkpoint, same probe) gives sets of
+{{fact:x.groups.seed1.sizes}} images with {{fact:x.groups.seed1.n_unassigned}} unassigned, matching these at matched
+Jaccard {{fact:x.groups.vs_seed1}} (label-permutation $97.5$th percentile {{fact:x.groups.vs_seed1_null_q975}}). Only
+the sets were compared; the null spectra and retention were not recomputed for seed 1.</li>
+<li>Retention measures the soft vectors, not the hard sets; the hard sets' own stay-in-set probabilities were not
+computed (they need the snapshot operators, which are not in the local archive).</li>
+<li>The retention reference is exact only for a doubly stochastic walk with zero diagonal, which is how rule
+{{fact:x.groups.rule}} builds each snapshot's walk; it is a mean over relabellings, not a band.</li>
+<li>One network, one seed, one probe, the final checkpoint. The set sizes depend on $r$; the unassigned count is part
+of the result, not noise to be removed.</li>
+</ul>
+
+<h3 id="x-groups-open">Open checks</h3>
+<ul>
+<li>Trajectory-shuffle and Gaussian null draws on b7..pool itself, so the null claim no longer has to go through
+b7..b9. Not run.</li>
+<li>Null spectra on the second seed's b7..pool, so the seed check covers more than the sets. Not run.</li>
+<li>Whether the boundaries between these sets mark sharp changes in what the later layers compute (the harmonicity
+intervention). Not run.</li>
+</ul>
+
+<h3 id="x-groups-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=7&amp;b=10&amp;m=0&amp;c=seba&amp;r=4"><img src="assets/fig/x_groups_explorer.png" alt="The explorer grid with every snapshot coloured by the SEBA sets of layer block b7..pool at the final checkpoint, r = 4."></a>
+  <figcaption><b>Plotted:</b> the explorer grid in the linked state: one panel per snapshot (rows: checkpoints, with
+  validation accuracy; columns: sites), each a UMAP layout of the probe images (seed 0), every point coloured by its
+  SEBA set of layer block b7..pool at the final checkpoint (outlined), $r = 4$, kernel rule
+  {{fact:x.groups.rule}}; grey: unassigned.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=7&amp;b=10&amp;m=0&amp;c=seba&amp;r=4">Open
+b7..pool's sets in the explorer</a>; set $r$ to $3$, $6$ or $8$ to follow the sets across ranks, or colour by class to
+compare them with the labels.</p>
+</section>

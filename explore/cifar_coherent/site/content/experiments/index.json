@@ -1,0 +1,12 @@
+[
+ {"id": "groups", "title": "What groups of images does the last stage of the network treat alike at the end of training?"},
+ {"id": "when", "title": "When in training does each layer's grouping take its final form?"},
+ {"id": "depth", "title": "Where along depth does the network redraw its grouping?"},
+ {"id": "blocks", "title": "Which layer's structure does a whole-path block reflect?"},
+ {"id": "training-signal", "title": "Do the images grouped alike in activations also have similar loss gradients?"},
+ {"id": "coarse", "title": "How much of each layer's walk can k groups keep, and does the spectrum prefer a k?"},
+ {"id": "markov", "title": "Is the constructed walk through the layers approximately Markov under the tested partitions?"},
+ {"id": "across-nets", "title": "In the tested ResNets, do different seeds and depths go through matching sequences of operators?"},
+ {"id": "image-stats", "title": "How does the association of the leading eigenfunctions with twelve pixel statistics change over training?"},
+ {"id": "through-depth", "title": "What does one operator over images and sites find when its functions may change from site to site?"}
+]

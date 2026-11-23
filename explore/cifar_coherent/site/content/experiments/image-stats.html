@@ -1,0 +1,168 @@
+<!-- X9 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/image-stats.py; data: data/r20s0b/probe.npz and
+     layer_<step>.npz, site/assets/questions.json#q_imgstats (analysis_findings.py section 3), baselines data
+     data/r20s0c/sources_layer_<step>.npz (sources I1, I2). App D receives assets/x/image-stats.json#app4.* (captions inside). -->
+<section class="experiment" id="x-image-stats">
+<h2>How does the association of the leading eigenfunctions with twelve pixel statistics change over training?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0, the {{fact:n_images}}-image probe, the {{fact:n_checkpoints}}
+checkpoints from step $0$ to step {{fact:final_step}}, every site's single-snapshot block, kernel rule
+{{fact:x.image-stats.rule}}, the leading eigenfunctions $\psi_1..\psi_8$; set comparisons at
+$r = {{fact:x.image-stats.r_sets}}$.</p>
+
+<h3 id="x-image-stats-why">Why it is interesting</h3>
+<p>The method describes each site by eigenfunctions of a walk on the probe images: $\psi_1$ is the image-to-image
+direction along which the site's walk mixes most slowly, the coarsest way the site orders the images. Nothing in that
+construction knows what the network was trained for, so a leading eigenfunction can just as well follow how bright an
+image is, how blue its border is, or how busy its texture is. An untrained network already maps images with similar
+pixels to similar activations, so at step $0$ one should expect exactly that.</p>
+<p>The question is how far training moves the leading eigenfunctions away from such simple image properties, at which
+sites and when. If they stayed tied to brightness and colour at every site, the structure the method finds in a
+trained network would mostly restate the input. If the tie weakens at some sites and not others, the place and time
+it weakens suggests where training has replaced the image's coarse appearance with something else as the site's leading
+direction (a weaker fit can also come from the leading direction changing identity between nearby modes). This experiment measures that tie for one fixed, small set of image statistics; it does not say what
+replaces it.</p>
+
+<h3 id="x-image-stats-how">How I measure it</h3>
+<p><b>The statistics.</b> Twelve numbers per image computed from its pixels alone: the means of R, G and B, the mean
+luminance $Y$, the RMS contrast of $Y$, the mean saturation, the border-minus-centre differences of R, G, B and $Y$
+and their size, and the share of $Y$'s energy at high spatial frequency (definitions in
+<a href="#method-details/stat-imgstats">Appendix C</a>). They were fixed before looking at any eigenfunction, cover
+brightness, colour, contrast, background and texture, and are standardised over the probe. Luminance is linear in the channel means and the border-minus-centre difference of $Y$ in those of R, G and B, so they span {{fact:x.image-stats.rank}} dimensions.</p>
+<p><b>The quantity.</b> For each site and checkpoint, the $R^2$ of a least-squares fit of $\psi_1$ on the twelve
+statistics plus an intercept, over the {{fact:n_images}} probe images. This is a closed-form fit on an
+already-computed eigenfunction, not part of the construction. $R^2$ is the share of $\psi_1$'s variance across images
+that a linear combination of the statistics reproduces: $R^2 = 1$ if $\psi_1$ is such a combination, near zero if no linear combination of them predicts it in this sample (a nonlinear relation can remain). It does not depend on $\psi_1$'s sign or scale, so it is comparable across sites and
+checkpoints even though the eigenfunction itself changes. $\psi_1$ is used because it is the leading eigenfunction at
+every snapshot; $\psi_2..\psi_8$ and their span are under Caveats.</p>
+<p><b>What it assumes.</b> A linear relation, in sample, with these twelve statistics. A low $R^2$ therefore says that
+$\psi_1$ is not a linear function of these statistics; it does not rule out that $\psi_1$ follows other image
+properties, or these ones nonlinearly. The comparison with the method run on the pixels themselves (Further evidence)
+covers part of that gap.</p>
+
+<h3 id="x-image-stats-controls">Controls and nulls</h3>
+<ul>
+<li><b>Image permutation</b> ({{fact:x.image-stats.n_perm}} draws): the same fit with the images' statistics
+shuffled across images. It keeps the statistics' distribution and $\psi_1$, and removes any pairing between them, so
+it gives the $R^2$ an in-sample fit with {{fact:x.image-stats.rank}} free directions reaches by chance. Its $95$th
+percentile, pooled over $k = 1..8$, is at most {{fact:x.image-stats.null_max}} over all snapshots.</li>
+<li><b>Within-class fit</b> (labels used for validation only): $\psi_1$ and each statistic have their mean over the
+image's CIFAR class removed before the same fit. CIFAR classes differ in their statistics (on average, one class has
+bluer images than another), so an eigenfunction that only separates classes would get a positive $R^2$ without
+following the statistics among images of one class. The within-class $R^2$ removes that route. Its null permutes
+images within each class; $95$th percentile at most {{fact:x.image-stats.wc_null_max}}.</li>
+<li><b>Step $0$</b> is the untrained network: every value at step $0$ is the reference for what the architecture alone,
+with random weights, produces.</li>
+</ul>
+
+<h3 id="x-image-stats-answer">Answer</h3>
+<p class="x-answer">At step $0$ the twelve statistics give $R^2$ from {{fact:x.image-stats.step0.lo}} to
+{{fact:x.image-stats.step0.hi}} for $\psi_1$ at every site; at step {{fact:final_step}} $R^2$ is
+{{fact:x.image-stats.final.stem}} at stem and decreases from site to site down to {{fact:x.image-stats.final.b8}} at b8, with
+{{fact:x.image-stats.final.late_lo}} to {{fact:x.image-stats.final.late_hi}} at b9, pool and logits (null at most
+{{fact:x.image-stats.null_max}}). By step {{fact:x.image-stats.t1k}}, b9, pool and logits were at most
+{{fact:x.image-stats.t1k.late_hi}} (and stayed so), while b7 and b8 were still at least
+{{fact:x.image-stats.t1k.b7b8_lo}}; by step {{fact:x.image-stats.t2k}}, b7 and b8 were at most
+{{fact:x.image-stats.t2k.b7b8_hi}}.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/image-stats.json#lead" data-height="320">
+  <figcaption><b>Plotted:</b> $R^2$ (y) of a least-squares fit of $\psi_1$ on the twelve standardised image statistics
+  plus an intercept, against training step (x, symlog axis), one line per site (single-snapshot block; ordinal colour
+  from stem to logits), kernel rule {{fact:x.image-stats.rule}}. Grey reference line: $95$th percentile of the same fit
+  with the images permuted, pooled over $k = 1..8$, largest over the snapshots. <b>Values:</b> step $0$,
+  {{fact:x.image-stats.step0.lo}} ({{fact:x.image-stats.step0.lo_site}}) to {{fact:x.image-stats.step0.hi}}; step
+  {{fact:final_step}}, stem {{fact:x.image-stats.final.stem}}, b4 {{fact:x.image-stats.final.b4}}, b8
+  {{fact:x.image-stats.final.b8}}; at step {{fact:x.image-stats.t1k}}, b4 to b6 at least
+  {{fact:x.image-stats.t1k.mid_lo}} and b7, b8 at least {{fact:x.image-stats.t1k.b7b8_lo}}; at step
+  {{fact:x.image-stats.t2k}}, b7 and b8 at most {{fact:x.image-stats.t2k.b7b8_hi}}. Null at most
+  {{fact:x.image-stats.null_max}}.</figcaption>
+</figure>
+
+<h3 id="x-image-stats-evidence">Further evidence</h3>
+<p><b>Is what remains at the late sites only class make-up?</b> This changes the answer at the late sites. With class
+means removed, the fit gives $R^2$ from {{fact:x.image-stats.step0.wc_lo}} to {{fact:x.image-stats.step0.wc_hi}} at
+step $0$, and at step {{fact:final_step}} {{fact:x.image-stats.wc.final.stem}} at stem but at most
+{{fact:x.image-stats.wc.final.b7b8_hi}} at b7 and b8 and at most {{fact:x.image-stats.wc.final.late_hi}} at b9, pool
+and logits (null at most {{fact:x.image-stats.wc_null_max}}). At b9, pool and logits the raw fit is {{fact:x.image-stats.final.late_lo}} to {{fact:x.image-stats.final.late_hi}}
+and the fit after removing class means is at most {{fact:x.image-stats.wc.final.late_hi}}. The two fits use
+different responses, predictors and variance denominators, so the difference is a contrast, not a decomposition of
+the raw $R^2$.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/image-stats.json#within" data-height="300">
+  <figcaption><b>Plotted:</b> within-class $R^2$ (y): the same fit after subtracting from $\psi_1$ and from each
+  statistic its mean over the image's CIFAR class, against training step (x, symlog axis), one line per site (ordinal
+  colour), kernel rule {{fact:x.image-stats.rule}}. Grey reference line: $95$th percentile of the same fit with images
+  permuted within each class ({{fact:x.image-stats.n_perm}} draws), pooled over $k = 1..8$, largest over the
+  snapshots. <b>Values:</b> step {{fact:final_step}}: stem {{fact:x.image-stats.wc.final.stem}}, b9 to logits at most
+  {{fact:x.image-stats.wc.final.late_hi}}.</figcaption>
+</figure>
+
+<p><b>Does the image still decide the grouping, only not through these twelve statistics?</b> This is the strongest
+alternative to the answer, and the linear fit cannot exclude it. The method run unchanged on the network's input
+(the pixels as the view) gives its own SEBA sets; agreement of a site's sets with them measures whether the site groups images as the method groups their pixels, with no
+choice of statistics and no linear fit. At step $0$ the agreement (AMI on the
+images both assign) is {{fact:x.image-stats.pix.step0.stem}} at stem and {{fact:x.image-stats.pix.step0.b9}} at b9;
+at step {{fact:final_step}} it is {{fact:x.image-stats.pix.final.stem}} at stem and at most
+{{fact:x.image-stats.pix.final.late_hi}} at b9, pool and logits (null at most {{fact:x.image-stats.pix.null_max}};
+both sets assign a share of at least {{fact:x.image-stats.pix.cov_lo}} of the images). It is lower at step {{fact:final_step}} than at step $0$ at every site, so the drop is not specific to the twelve
+statistics. Agreement with the same site's sets at step $0$ (the untrained
+network) ends at {{fact:x.image-stats.untr.final.stem}} at stem and at most
+{{fact:x.image-stats.untr.final.late_hi}} at b9 to logits; that chart is in
+<a href="#measurements">Appendix D</a>, and the full source-agreement tables in
+<a href="#baselines">Appendix B</a>.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/image-stats.json#pixels" data-height="300">
+  <figcaption><b>Plotted:</b> agreement (y, AMI on the images both assign) between each site's SEBA sets at
+  $r = {{fact:x.image-stats.r_sets}}$ (single-snapshot block, kernel rule {{fact:x.image-stats.rule}}) and the sets
+  the same method gives on the network's input at the same $r$, against training step (x, symlog axis), one line per
+  site (ordinal colour). Grey reference line: $95$th percentile of the AMI with one labelling permuted within the jointly
+  assigned images, largest over the snapshots. <b>Values:</b> step {{fact:final_step}}: stem
+  {{fact:x.image-stats.pix.final.stem}}, b9 to logits at most {{fact:x.image-stats.pix.final.late_hi}}; null at most
+  {{fact:x.image-stats.pix.null_max}}.</figcaption>
+</figure>
+
+<h3 id="x-image-stats-caveats">Caveats</h3>
+<ul>
+<li>Linear, in-sample fits on twelve chosen statistics. A low $R^2$ does not rule out nonlinear dependence on these
+statistics or dependence on other image information; the pixel-source agreement tests one nonlinear version (the
+method's own kNN geometry on the pixels), not all of them.</li>
+<li>The two measures are not interchangeable. At stem, the agreement with the pixel source falls
+(from {{fact:x.image-stats.pix.step0.stem}} to {{fact:x.image-stats.pix.final.stem}}) while the $R^2$ of $\psi_1$
+stays near its step-$0$ value: the sets use $\psi_1..\psi_{r-1}$ and are compared with sets from a different
+geometry, not with the statistics.</li>
+<li>$\psi_1$ alone. The largest $R^2$ over $\psi_1..\psi_8$ taken one at a time is at most
+{{fact:x.image-stats.maxk.final.late_hi}} at b9 to logits at step {{fact:final_step}} (at b7, {{fact:x.image-stats.maxk.final.b7}}, from $\psi_k$ with $k$ = {{fact:x.image-stats.maxk.final.b7_k}}). Allowing any combination of
+$\psi_1..\psi_8$, the best fit falls from {{fact:x.image-stats.span.step0.lo}} to {{fact:x.image-stats.span.step0.hi}}
+at step $0$ to {{fact:x.image-stats.span.final.late_lo}} to {{fact:x.image-stats.span.final.late_hi}} at b9 to logits
+at step {{fact:final_step}} ({{fact:x.image-stats.span.final.stem}} at stem; null at most
+{{fact:x.image-stats.span_null_max}}): a direction in the leading span still follows the statistics more than
+$\psi_1$ does. Both charts are in Appendix D.</li>
+<li>The eigenfunction compared at two checkpoints is not the same function; the measure is a property of each
+snapshot's leading direction, not a tracked object.</li>
+<li>Single-snapshot blocks only, the default kernel rule, one network, one seed, one probe. Per-statistic correlations
+(which statistic carries the fit) are in Appendix D as heatmaps; they are not part of the answer.</li>
+</ul>
+
+<h3 id="x-image-stats-open">Open checks</h3>
+<ul>
+<li>A nonlinear fit (for example kernel ridge on the statistics, cross-validated) and a richer statistic set, to
+bound how much image information the late sites' eigenfunctions carry beyond the linear fit. Not run.</li>
+<li>Held-out $R^2$ (fit on one part of the probe, score on the rest) instead of in-sample $R^2$ against its null.
+Not run.</li>
+<li>The harmonicity test: an intervention asking whether boundaries between coherent sets mark sharp changes in the
+downstream computation, which would say whether the part of the late sites' structure not captured by these pixel statistics matters to
+the network's output. Not run.</li>
+<li>The same measures on a second seed and on multi-snapshot blocks. Not run.</li>
+</ul>
+
+<h3 id="x-image-stats-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=layer&amp;t=7&amp;a=0&amp;b=0&amp;m=0&amp;c=eig&amp;k=1"><img src="assets/fig/x_image-stats_explorer.png" alt="The explorer grid with every snapshot coloured by the stem's leading eigenfunction at the final checkpoint."></a>
+  <figcaption><b>Plotted:</b> the explorer grid in the linked state: one panel per snapshot (rows: checkpoints,
+  with validation accuracy; columns: sites), each a UMAP layout of the probe images (seed 0), every point coloured by
+  the value of $\psi_1$ of the stem's single-snapshot block at the final checkpoint (outlined; diverging colour, sign
+  as stored), kernel rule {{fact:x.image-stats.rule}}; the side panel shows the images at the two ends of
+  $\psi_1$.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=layer&amp;t=7&amp;a=0&amp;b=0&amp;m=0&amp;c=eig&amp;k=1">Open the
+stem's $\psi_1$ in the explorer</a>; move the block to b9 and compare the images at the two ends of its $\psi_1$, one of the sites where the fit is lowest at the final checkpoint.</p>
+</section>

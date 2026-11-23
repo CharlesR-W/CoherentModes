@@ -1,0 +1,189 @@
+<!-- X5 (EXPERIMENTS_PLAN.md section 2). Generator: site/experiments/training-signal.py; data: data/r20s0b/gradgram_<step>.npy,
+     time_<site>.npz, points_<step>.npz, data/kernels/compare_ggn.json (SPEC_DOT.md sections 2 and 4). App D receives
+     assets/x/training-signal.json#app4.* (captions inside). -->
+<section class="experiment" id="x-training-signal">
+<h2>Do the images grouped alike in activations also have similar loss gradients?</h2>
+
+<p class="x-scope">Tested: ResNet-20, seed 0, the {{fact:n_images}}-image probe, all {{fact:n_checkpoints}}
+checkpoints (steps {{fact:x.training-signal.first_step}} to {{fact:final_step}}), kernel rule
+{{fact:x.training-signal.rule}}; groupings: the coherent sets ($r = 4$) of the time block at site b9 over all
+checkpoints; $r = 2$ and the other sites under Further evidence and Caveats.</p>
+
+<h3 id="x-training-signal-why">Why it is interesting</h3>
+<p>The activations at a site say which images the network currently treats alike. The loss gradient of an image says
+something different: the direction of a hypothetical plain gradient step on that one probe image, with the network in
+evaluation mode, across every weight of the network. Two images whose gradients point the same way would push the
+weights in similar directions (up to the size of each push); two with opposite gradients would pull them apart.</p>
+<p>If the images that a site groups together also had aligned gradients beyond what their labels already give, the
+groups found in the activations would also be groups for this gradient signal. If not, this statistic detects nothing
+in the groups beyond their class make-up. This experiment measures which of the two holds for the tested grouping and
+statistic.</p>
+
+<h3 id="x-training-signal-how">How I measure it</h3>
+<p><b>The gradients.</b> For each probe image $i$ and checkpoint, $g_i$ is the gradient of the image's cross-entropy
+loss with respect to <b>all trainable parameters</b> of the network (computed per image with
+<code>vmap(grad(loss))</code> in <code>measure_v2.py</code>), and the stored quantity is the cosine
+$\cos(g_i, g_j)$ for every pair (<code>gradgram_&lt;step&gt;.npy</code>). The cosine compares directions only: the
+length of $g_i$ mostly tracks how large the image's loss is. These gradients belong to the whole network and do not
+depend on any site; a site enters only through the grouping that is scored. The gradients use the labels (through the
+loss), so this is a validation measurement: nothing here feeds back into the sets.</p>
+<p><b>The statistic.</b> For a grouping of some images, the mean gradient cosine over pairs of distinct images in the
+same group minus the mean over pairs in different groups (pair-weighted, so larger groups weigh more; images the
+grouping leaves unassigned are left out of both means). It is positive when images grouped together have more aligned
+gradients than images grouped apart. Every grouping below is scored on the <b>same assigned images</b>, those the sets
+assign ({{fact:x.training-signal.r4.n_assigned}} of {{fact:n_images}} at $r = 4$), so that differences between
+groupings are not differences of population.</p>
+<p><b>The grouping.</b> The coherent sets of the time block at b9 over all {{fact:n_checkpoints}} checkpoints: one
+labelling of the probe, fixed over training, so the same grouping is scored against the gradients of every
+checkpoint. b9 is the last convolutional site; groupings from the other sites' time blocks, scored against the same
+gradients, are in Appendix D. $r = 4$ is the site's default number of sets; $r = 2$ is reported beside it.
+Neither is chosen from the gradients or the labels.</p>
+<p><b>Why a class-built reference is needed.</b> In logit space the cross-entropy gradient of image $i$ is
+$p_i - e_{y_i}$: it always contains the image's own label. Two images of different classes therefore push their own
+class's logit in opposite directions however alike they are otherwise, so the label term can favour groupings that
+follow the classes. A grouping that merges classes is therefore compared with a label-built grouping that merges the
+same classes: the <b>class-union grouping</b>, each class given wholly to the set that holds most of its images,
+scored on the same assigned images. It splits no class. It is a reference, not a ceiling: nothing bounds the sets'
+value by it for whole-parameter gradient cosines. The parameter gradients
+$g_i = J_i^\top (p_i - e_{y_i})$, with $J_i$ the Jacobian of the logits, carry this label term through the
+network.</p>
+<p><b>A separate, label-free span comparison.</b> This is a different quantity on different objects, and it cannot
+settle the loss-gradient comparison above or its nulls. It uses label-free sample kernels built from the same
+Jacobians (<code>SPEC_DOT.md §2</code>): the
+<b>NTK</b>, $\operatorname{tr} J_i J_j^\top$, and the <b>GGN</b> kernel, which weights each image's Jacobian by the
+square root of the cross-entropy Hessian in the logits, $\operatorname{diag}(p_i) - p_i p_i^\top$ (it uses the
+predictions, not the labels). The Jacobian features are centred over the probe before cosine normalisation (the
+"cos" form; <code>kernels_modal.py</code>, double-centring of the Gram, then row normalisation), turned into an operator by the same kernel
+rule, and its leading modes are compared with each site's leading modes by span overlap: the mean squared cosine of
+the principal angles between the two spans of $r$ modes ($1$ for identical spans, $0$ for orthogonal ones). This compares
+the leading structure of the two geometries, not the sets.</p>
+
+<h3 id="x-training-signal-controls">Controls and nulls</h3>
+<ul>
+<li><b>Permutation among the assigned images</b> ({{fact:x.training-signal.n_perm}} draws). It keeps the set sizes
+and the unassigned images and removes any relation between the sets and the images. A value above its band shows
+only that the sets are not arbitrary with respect to the gradients.</li>
+<li><b>Permutation within each class</b> ({{fact:x.training-signal.n_perm}} draws). Within each class, the set labels
+of its assigned images are shuffled among them. It keeps each class's count in every set, so every set's class make-up
+is exactly preserved, and keeps the unassigned images; it removes which images of a class the sets put together. It
+tests this one scalar contrast, given the assigned images and the class-by-set counts. A value above its band would
+show that the sets' allocation of images within classes raises the contrast; inside means no departure detected by
+this statistic; below means the actual allocation gives less contrast than shuffled allocations. Neither inside nor
+below rules out within-class gradient structure that this aggregate misses.</li>
+<li><b>The class-union grouping's own permutation null</b> (same construction). The ratio of the sets' value to the
+class-union value is quoted only at checkpoints where the class-union value is above the $97.5$th percentile of this
+null; it is at all {{fact:x.training-signal.n_steps}} checkpoints for both $r$.</li>
+<li><b>For the span overlaps</b>, $r/N$ (here {{fact:x.training-signal.rn.r4}} at $r = 4$) is the expected overlap of
+two random $r$-dimensional spans. It is a <b>scale reference, not a control</b>: the site operators and the gradient
+kernels come from the same network on the same images, so they share structure for reasons that have nothing to do
+with training dynamics (see Caveats), and no null for that was run.</li>
+</ul>
+
+<h3 id="x-training-signal-answer">Answer</h3>
+<p class="x-answer">At the final checkpoint, on the {{fact:x.training-signal.r4.n_assigned}} images they assign,
+b9's sets have a within-minus-between gradient cosine of {{fact:x.training-signal.r4.final.sets}}, above the
+permutation band ($97.5$th percentile {{fact:x.training-signal.r4.final.perm_hi}}) but below the class-union grouping on
+the same images ({{fact:x.training-signal.r4.final.union}}, ratio {{fact:x.training-signal.r4.final.ratio}}) and below
+the class-count-preserving permutation band ({{fact:x.training-signal.r4.final.wcls_lo}} to
+{{fact:x.training-signal.r4.final.wcls_hi}}). At $r = 4$ the observed contrast is below that band at every measured
+checkpoint after initialization, and inside it at initialization; at $r = 2$ it is above the band at initialization
+and at the final checkpoint (Further evidence).</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/training-signal.json#lead" data-height="320">
+  <figcaption><b>Plotted:</b> within-minus-between cosine of per-image cross-entropy loss gradients over all
+  trainable parameters (y), at each checkpoint (x, steps, symlog), on the {{fact:x.training-signal.r4.n_assigned}}
+  images assigned by the $r = 4$ coherent sets of the time block b9 over all {{fact:n_checkpoints}} checkpoints
+  (kernel rule {{fact:x.training-signal.rule}}). Solid blue: those sets. Solid orange: their class-union grouping on
+  the same images (reference). Dashed blue with band: the sets with labels permuted within each class (null; mean and
+  $2.5$ to $97.5$ percentiles of {{fact:x.training-signal.n_perm}} draws). Dashed grey with band: the sets with labels
+  permuted among the assigned images (null, same percentiles). The sets are fixed; only the gradients change from
+  checkpoint to checkpoint. <b>Values:</b> step {{fact:x.training-signal.first_step}}: sets
+  {{fact:x.training-signal.r4.first.sets}}, class union {{fact:x.training-signal.r4.first.union}}, within-class band
+  {{fact:x.training-signal.r4.first.wcls_lo}} to {{fact:x.training-signal.r4.first.wcls_hi}}; step
+  {{fact:final_step}}: {{fact:x.training-signal.r4.final.sets}}, {{fact:x.training-signal.r4.final.union}},
+  {{fact:x.training-signal.r4.final.wcls_lo}} to {{fact:x.training-signal.r4.final.wcls_hi}}; ratio of sets to class
+  union {{fact:x.training-signal.r4.ratio_min}} to {{fact:x.training-signal.r4.ratio_max}} over checkpoints.</figcaption>
+</figure>
+
+<h3 id="x-training-signal-evidence">Further evidence</h3>
+<p><b>With two sets the final checkpoint differs.</b> At $r = 2$ ({{fact:x.training-signal.r2.n_assigned}} assigned
+images) the sets score {{fact:x.training-signal.r2.final.sets}} at the final checkpoint against
+{{fact:x.training-signal.r2.final.union}} for their class union (ratio {{fact:x.training-signal.r2.final.ratio}}) and a
+within-class band of {{fact:x.training-signal.r2.final.wcls_lo}} to {{fact:x.training-signal.r2.final.wcls_hi}}: above
+it, as at step {{fact:x.training-signal.first_step}}, and below it at the other
+{{fact:x.training-signal.r2.n_below_wcls}} checkpoints. So with two sets the contrast is below the class-count-preserving band at those
+{{fact:x.training-signal.r2.n_below_wcls}} checkpoints and above it at the final one; the chart is in Appendix D.</p>
+
+<p><b>A separate label-free comparison.</b> The answer is measured with gradients that contain the label, which can
+favour groupings built from classes. The label-free GGN and NTK span comparison asks a different question (do the
+leading spans of the two geometries overlap?) and cannot adjudicate the loss-gradient nulls; it is kept because it is
+the only check here with no label in the gradient side. At the final checkpoint b9's leading four modes
+overlap {{fact:x.training-signal.ggn.r4.b9}} with the GGN-cos kernel's and {{fact:x.training-signal.ntk.r4.b9}} with
+the NTK-cos kernel's, against {{fact:x.training-signal.rn.r4}} for random spans; at the stem they are
+{{fact:x.training-signal.ggn.r4.stem}} and {{fact:x.training-signal.ntk.r4.stem}}. Without the label, the late sites'
+leading modes still overlap the gradient-side kernels' far above the random-span scale; part of the NTK overlap is
+built in (see Caveats), and this compares leading spans, not the sets' gradient alignment.</p>
+
+<figure class="fig wide live" data-live="lines" data-src="assets/x/training-signal.json#ggn" data-height="300">
+  <figcaption><b>Plotted:</b> span overlap (mean squared cosine of principal angles; y) between each site's leading
+  four modes (single snapshot, x, step {{fact:final_step}}, kernel rule {{fact:x.training-signal.rule}}, the site
+  kernel in its default cosine form) and the leading four modes of a label-free sample kernel at the same checkpoint,
+  turned into an operator by the same rule. Green: GGN-cos. Yellow: NTK-cos. Dotted grey: $r/N$, the expected overlap
+  of two random spans (scale reference, not a control). <b>Values:</b> at $r = 10$, b9
+  {{fact:x.training-signal.ggn.r10.b9}} (GGN-cos) and {{fact:x.training-signal.ntk.r10.b9}} (NTK-cos), $r/N =$
+  {{fact:x.training-signal.rn.r10}}.</figcaption>
+</figure>
+
+<h3 id="x-training-signal-caveats">Caveats</h3>
+<ul>
+<li><b>One grouping.</b> The lead figure scores the time block at b9 only. Groupings from every site's time block,
+scored against the same whole-network gradients at the final checkpoint, range from
+{{fact:x.training-signal.sites.sets_min}} to {{fact:x.training-signal.sites.sets_max}}; all
+{{fact:x.training-signal.sites.n}} are above their permutation band, {{fact:x.training-signal.sites.n_below_wcls}} are
+below their within-class band and {{fact:x.training-signal.sites.n_above_wcls}} above it. That chart varies the
+grouping, not the gradients, and is not a layer-by-layer measurement.</li>
+<li><b>Scale over training.</b> All values shrink over training, and so does the alignment of per-image gradients
+in general: the mean cosine over all pairs falls from {{fact:x.training-signal.mean_cos.first}} to
+{{fact:x.training-signal.mean_cos.final}}, and the ten classes' within-minus-between value (all
+{{fact:n_images}} images) from {{fact:x.training-signal.classes.first}} to
+{{fact:x.training-signal.classes.final}}. Comparisons are made within a checkpoint, not across checkpoints.</li>
+<li><b>The NTK contains a site's geometry.</b> In the trace NTK, the final layer's weights contribute a term
+proportional to the dot product of the pool activations, so part of the overlap at pool
+and the sites just before it is built in. In the GGN kernel the same term is multiplied by
+$\operatorname{tr}(H_i^{1/2} H_j^{1/2})$, which depends on the predictions, so the link is weakened but not
+removed. Neither comparison has a null beyond the $r/N$ scale reference.</li>
+<li><b>Near-ties in the spectra.</b> The eigengap at the cutoff ($\lambda_r - \lambda_{r+1}$) is
+{{fact:x.training-signal.ggn.r4.gap}} for the GGN-cos operator and {{fact:x.training-signal.ntk.r4.gap}} for NTK-cos at
+$r = 4$, and {{fact:x.training-signal.sitegap.r4.b9}} for b9 (lazy eigenvalues). How stable the four-mode spans are
+under resampling of the probe was not tested.</li>
+<li><b>Site kernel form.</b> With the dot (Euclidean) site kernel of Appendix A instead of the cosine one, b9's
+overlaps are {{fact:x.training-signal.ggn_dotsite.r4.b9}} (GGN-cos) and {{fact:x.training-signal.ntk_dotsite.r4.b9}}
+(NTK-cos); the per-site chart is in Appendix D.</li>
+<li><b>The loss-gradient kernel through the same span comparison</b> (label-dependent) overlaps b9's leading four modes
+by {{fact:x.training-signal.lossgrad.r4.b9}}; it is kept apart from the label-free comparison and charted in
+Appendix D.</li>
+<li>One network, one seed, one label-stratified probe, {{fact:n_checkpoints}} checkpoints, kernel rule
+{{fact:x.training-signal.rule}}.</li>
+</ul>
+
+<h3 id="x-training-signal-open">Open checks</h3>
+<ul>
+<li>Score the sets against the GGN or NTK kernels directly (within-minus-between on those kernels, with the same
+nulls), so that the label-free comparison is made on the same groupings as the lead figure. Not run.</li>
+<li>A null for the span overlaps that keeps the shared network: for example, modes of a site at one checkpoint against
+the gradient kernels of another. Not run.</li>
+<li>Resample the probe to see whether the four-mode spans of the gradient-side kernels are stable. Not run.</li>
+</ul>
+
+<h3 id="x-training-signal-explorer">In the explorer</h3>
+<figure class="fig wide explorer-shot">
+  <a href="#explorer?fam=time&amp;t=9&amp;a=0&amp;b=7&amp;m=0&amp;c=seba&amp;r=4"><img src="assets/fig/x_training-signal_explorer.png" alt="The explorer grid with every snapshot coloured by the four coherent sets of the time block at b9 over all checkpoints."></a>
+  <figcaption><b>Plotted:</b> the explorer grid in the linked state: one panel per snapshot (rows: checkpoints,
+  with validation accuracy; columns: sites), each a UMAP layout of the probe images (seed 0), every point coloured by
+  its set among the $r = 4$ coherent sets of the time block at b9 over all {{fact:n_checkpoints}} checkpoints
+  (outlined), kernel rule {{fact:x.training-signal.rule}}: the grouping scored in this experiment.</figcaption>
+</figure>
+<p><a class="explore-link" href="#explorer?fam=time&amp;t=9&amp;a=0&amp;b=7&amp;m=0&amp;c=seba&amp;r=4">Open b9's
+sets over all of training in the explorer</a>; switch the colouring to the gradient cosine with the mean gradient and
+step through the checkpoints.</p>
+</section>

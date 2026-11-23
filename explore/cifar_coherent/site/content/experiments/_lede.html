@@ -1,0 +1,13 @@
+<p class="lede">Each experiment below asks one question about what the network does to its activations, says why
+the question is worth asking, defines how it is measured and against which controls, and gives one measured answer
+with the figure it comes from. Every number is computed at build time from the stored measurements; captions say only
+what is plotted.</p>
+
+<p>Unless an experiment says otherwise, the answers are bounded to what was tested: one ResNet-20 trained on CIFAR-10
+(seed 0), the probe of {{fact:n_images}} images, the {{fact:n_checkpoints}} checkpoints from step 0 to step
+{{fact:final_step}}, and the default kernel rule. Class labels, losses and gradients appear only as validation; they
+never define a kernel or a basis and never choose a parameter. Definitions of every statistic are in
+<a href="#method-details">Appendix C</a>; charts not shown here are in <a href="#measurements">Appendix D</a>.</p>
+
+<p>One planned experiment has not been run: an intervention testing whether the boundaries between coherent sets mark
+sharp changes in the computation downstream (the harmonicity test). It is listed as an open check where it applies.</p>
