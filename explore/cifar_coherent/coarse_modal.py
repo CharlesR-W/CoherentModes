@@ -1,6 +1,7 @@
 """Spectral coarse-graining stage (SPEC_COARSE.md) on Modal, reading the r20s0b operators on the volume.
 
-Commands:  deploy | pilot | launch | status | fetch
+Commands:  deploy | pilot | launch | status [launch|pilot|markov-launch|markov-pilot] | fetch
+           markov-pilot | markov-launch | fetch-markov
 Unit = (checkpoint, rule): every single cell, every layer average and every layer chain a < b at that checkpoint.
 Writes /analysis/r20s0b/coarse/coarse_<step>_<rule>.npz and a timing record under /work/r20s0b/coarse/.
 """
@@ -346,7 +347,9 @@ if __name__ == '__main__':
                 subprocess.run(['modal', 'volume', 'get', '--force', 'cm-cifar-coherent', f'/analysis/{TAG}/coarse/markov_{s}_{r}.npz', str(dest) + '/'], check=False, capture_output=True)
         print(len(list(dest.glob('markov_*.npz'))), 'markov files')
     elif cmd == 'status':
-        r = json.loads((rec / f'coarse-{sys.argv[2] if len(sys.argv) > 2 else "launch"}.json').read_text())
+        # status [launch|pilot] -> runs/coarse-<arg>.json; status markov-launch|markov-pilot -> runs/<arg>.json
+        arg = sys.argv[2] if len(sys.argv) > 2 else 'launch'
+        r = json.loads((rec / (f'{arg}.json' if arg.startswith(('coarse-', 'markov-')) else f'coarse-{arg}.json')).read_text())
         try:
             print(modal.FunctionCall.from_id(r['call_id']).get(timeout=0))
         except TimeoutError:

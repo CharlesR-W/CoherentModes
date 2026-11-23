@@ -2,3 +2,4 @@ data/
 viewer/
 runs/
 __pycache__/
+site/build_inputs/

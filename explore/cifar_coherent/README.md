@@ -199,6 +199,51 @@ geometry-free control; partitions per site (spectral, PCA), shared (b9), random,
 (40 units, about **$1.9**), `test_markov.py`, `markov_summary.py` (-> `markov_summary.json`, facts merged into
 `coarse_facts.json`); Findings section 7.
 
+## Through-depth operator (added 2026-11-20)
+
+Spec `SPEC_SPACETIME.md` (GPT-6.2 Sol plan review and GPT-6.2 Astra mathematics review, two rounds each). After
+Trower, Djurdjevac Conrad & Klus (Chaos 35, 013126, 2025): one operator on (image, site) pairs at a checkpoint,
+L_t = blockdiag((I - M_l)/c_l) + t (D_path (x) I), i.e. each site's roughness plus a charge for a function changing
+between neighbouring sites (the supra-Laplacian of Froyland, Kalia & Koltai, with the identity as the link between
+sites). Variants: relative site units (c_l = mean of the site's first 8 nontrivial 1 - lambda), native units
+(c_l = 1), and the paper's own matrix as a reference. Six couplings around t*, where the first temporal and first
+spatial eigenvalues meet. Code `spacetime.py` (operator, exact block-tridiagonal solver, rotation-invariant
+readings, post-hoc set readouts), `spacetime_stage.py` (one unit's outputs and its acceptance checks),
+`spacetime_modal.py` (app `cm-cifar-coherent-spacetime`, CPU, 16 units = 8 checkpoints x rules 0-1, about **$0.36**),
+`test_spacetime.py` (nine tests). Outputs `data/r20s0b/spacetime/st_<step>_<rule>.npz`.
+
+Pilot facts (step 64,000, kNN rule): t* = 8.36 (relative), .655 (native). Relabelling the images independently at
+every site raises the first eigenvalue from .570 to 2.76 (gap-only lower bound .42). Dropping pool, dropping
+logits or duplicating logits keeps 99% of the 16-mode space on stem..b9; scale rank 4 keeps 98.7%, rank 16 86%.
+Mode 1's depth weights follow the 12-number gap-only control closely at every coupling, so a single mode's depth
+profile is not evidence of a set appearing or vanishing. Sets (a fitted readout, rank 8): at k = 5 and t*, churn
+between neighbouring sites .05 with .74 of the information ceiling kept, against .36 / .83 for independent
+per-site partitions, .13 / .79 for block averages over four blocks of three sites and 0 / .63 for the 12-site
+average; at k = 10, .10 / .57 against .29 / .80, .14 / .77 and 0 / .56. Caveat: the probe is class-stratified
+(`DECISIONS.md` item 7).
+
+```bash
+OMP_NUM_THREADS=2 uv run --with numpy --with scipy python test_spacetime.py
+uv run --with modal python spacetime_modal.py deploy && uv run --with modal python spacetime_modal.py pilot
+uv run --with modal python spacetime_modal.py launch && uv run --with modal python spacetime_modal.py fetch
+```
+
+## Diffusion wavelets (added 2026-11-21)
+
+Coifman–Maggioni diffusion wavelets of every single snapshot's lazy walk M (kernel rule 0, cosine), in the explorer
+as Colour by "diffusion wavelets". `wavelets.py` (algorithm; `test_wavelets.py` checks orthonormal completeness,
+nesting, rank against the eigenvalue count and fine-scale localization on a planted walk), `wavelets_modal.py`
+(`pilot | launch | fetch`; 96 Modal CPU units, 0.2 container-hours, about $0.05; launch record
+`runs/wavelets-launch.json`), `build_site.py --wavelets-only` (`d/dw/`, about 36 MB). Precision ε = 1e-4.
+
+What it shows, over all 96 snapshots: levels 0–2 keep all 2,000 functions (3 in some late-site snapshots), since most
+eigenvalues of M sit near 1/2 (the lazy half) and M^4 still resolves everything; the wavelets appear at j = 3 (0–222),
+j = 4 (1,151–1,696) and j = 5 (198–584), then a few dozen more; 10–15 levels in all reach the constant. The wavelets are not sparse: at b6, final checkpoint, the finest
+have a median participation ratio of about 30–45 images but ~1,100–1,400 entries above 8-bit resolution. Hence only
+the first 64 per level in pivot order are shipped: a subset, not the most localized (pivoted QR ranks by residual norm
+in scaling coordinates; at step 2,560, stem, scale 5 the shipped 64 have median participation ratio ~240 against ~102
+for all 546). Exploratory: no second-network or held-out check.
+
 ## Spectral layout (added 2026-11-15)
 
 Third explorer layout, "spectral": per snapshot, diffusion coordinates λ_kψ_k (k = 1..32) of
@@ -338,3 +383,9 @@ uv run --with numpy --with pillow --with scipy --with scikit-learn python site/b
 # orphan commit on branch gh-pages and force-push (the branch holds only the built site)
 ```
 Live at https://charlesr-w.github.io/CoherentModes/ .
+
+The Depth embedding viewer that used to be a tab of this site is its own repo since 2026-11-21:
+https://github.com/CharlesR-W/DepthEmbedding (site https://charlesr-w.github.io/DepthEmbedding/). It took the tab's
+page and data export, the runners for the other networks and the PCA/UMAP baselines, and a copy of `spacetime*.py`.
+This repo keeps `spacetime*.py` for the Through-depth experiment and the explorer's "through depth" colouring; the
+old `#embedding` and `embedding.html` URLs redirect to the new site.

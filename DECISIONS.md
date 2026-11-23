@@ -8,6 +8,7 @@ Originally extracted from `THEORY.md` v1.3 and re-checked against v1.5 on 2026-1
 4. **Noise temperature [P8]** needs stochastic resamples at fixed parameters, i.e. a few extra forward passes or minibatch steps per checkpoint. Acceptable as a requirement for the headline number?
 5. **[A3]** for pretrained models without their corpus: substitute a held-out sample from the same distribution?
 6. **Stitching sensitivity weight (Section 8)**: output-Fisher sensitivity rather than gradient pressure. Agree?
+7. **Probe for the `explore/cifar_coherent` side study (raised 2026-11-20 by the plan reviewer of `SPEC_SPACETIME.md`).** The inherited probe is 200 CIFAR-10 test images per class, so class labels chose which images are the graph's vertices, although no label enters any kernel, operator or basis. Options: (a) keep it, stated as a caveat (all existing operators, layouts and the explorer stay valid); (b) redraw a label-blind probe and rebuild operators and layouts for every study on it (roughly the cost of the original measurement runs, and the explorer's point indices change).
 
 ## Provisional defaults (not owner-approved)
 
@@ -17,3 +18,4 @@ Originally extracted from `THEORY.md` v1.3 and re-checked against v1.5 on 2026-1
 4. Stochastic resamples at fixed parameters required for the headline temperature; report the nearest-neighbour temperature where they cannot be produced.
 5. For pretrained models without their corpus, a held-out sample from the same distribution, flagged.
 6. Output-Fisher sensitivity (block-aggregated, rotation-invariant) as the stitching weight.
+7. Keep the class-stratified probe for the side study, with the caveat stated in `SPEC_SPACETIME.md` and on the experiment page; results on it are not described as label-free in the strict sense.
