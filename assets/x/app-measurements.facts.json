@@ -1,0 +1,13 @@
+{
+ "first_step": "0",
+ "late_half_first_step": "2,560",
+ "jaccard_n_perm": "200",
+ "grad_sites_n_perm": "100",
+ "markov_n_triples": "10",
+ "seed_sets_n_perm": "1,000",
+ "decod.n_train": "10,000",
+ "decod.n_test": "10,000",
+ "decod.n_classes": "10",
+ "decod.chance": "10%",
+ "decod.knn_k": "20"
+}
